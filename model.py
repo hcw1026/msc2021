@@ -4,6 +4,12 @@ import sonnet as snt
 
 class MetaFunClassifier(snt.Module):
     def __init__(self,config,name="MetaFunClassifier"):
+        '''
+        config: dict
+            Configuation python dictionary, see ./config/sample.yaml
+        name: str
+            Name of classifier
+        '''
         super(MetaFunClassifier,self).__init__(name=name)
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
@@ -26,17 +32,17 @@ class MetaFunClassifier(snt.Module):
         self._num_iters = _config["num_iters"]
         self._embedding_layers = _config["embedding_layers"]
 
-        #Regularisation configurations
+        # Regularisation configurations
         _config = config["Model"]["reg"]
         self._l2_penalty_weight = _config["l2_penalty_weight"]
         self._dropout_rate = _config["dropout_rate"]
         self._label_smoothing = _config["label_smoothing"]
         self._orthogonality_penalty_weight = _config["orthogonality_penalty_weight"]
 
-        #Data configurations
+        # Data configurations
         self._num_classes = config["data"]["num_classes"]
 
-        #Other configurations
+        # Other configurations
         self._initial_inner_lr = config["Model"]["other"]["num_classes"]
         self._nonlinearity = tf.nn.relu
 
@@ -44,7 +50,26 @@ class MetaFunClassifier(snt.Module):
             self._dim_reprs = 1
 
     def __call__(self, data, is_training=True):
-        data = cls_data.ClassificationDescription(*data)
+        '''
+        data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
+            Classification training/validation data of a task.
+        is_training: bool
+            If True, training mode
+        '''
+
+        # Initialise
+        self.is_training = is_training
+        self.embedding_dim = data.tr_input.get_shape()[-1].value
+
+        # Set data
+        tr_input = data.tr_input
+        val_input = data.val_input
+        tr_output = data.tr_output
+        val_output = data.val_output
+
+        
+
+
 
 
 
