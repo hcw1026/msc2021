@@ -1,0 +1,33 @@
+# Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
+
+Training:
+  lr: 1e-3
+
+Model:
+  comp: # Components configurations
+    use_kernel: False
+    use_gradient: False
+    no_decoder: False
+    initial_state_type: "zero"
+    attention_type: "dot_product"
+    kernel_type: "se"
+
+  arch: # Architecture configurations
+    num_iters: 1
+    dim_reprs: 64
+    nn_size: 64
+    nn_layers: 3
+    embedding_layers: 1
+
+  reg: # Regularisation configurations
+    dropout_rate: 0.0
+    l2_penalty_weight: 1.e-8
+    orthogonality_penalty_weight: 1.e-3
+    label_smoothing: 0.0
+
+  other: # Other configuratoins
+    initial_inner_lr: 1.0
+    repr_as_inputs: False
+
+Data:
+  num_classes: 1 #TODO: automatic detect
