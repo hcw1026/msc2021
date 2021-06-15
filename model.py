@@ -157,7 +157,7 @@ class MetaFunClassifier(snt.Module):
         return updates
 
     def gradient_local_updater(self, r, y, x=None, iter=""):
-        """functional gradient update instead of parameterised update"""
+        """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
             tape.watch(r) #watch r
             classifier_weights = self.forward_decoder(r) # sample w_n from LEO
@@ -169,7 +169,43 @@ class MetaFunClassifier(snt.Module):
         return updates
 
     def neural_local_updater(self, r, y, x=None, iter=""):
-        pass
+        """functional neural update"""
+        y = tf.one_hot(y, self._num_classes) #TODO: move to data preprocessing
+        y = tf.transpose(y, perm=[0, 2, 1])
+
+        # MLP m
+        module1 = snt.nets.MLP(
+            output_sizes=[self._nn_size] * self._nn_layers,
+            w_init=self.initializer,
+            with_bias=True,
+            activation=self._nonlinearity,
+            name="neural_local_updater_m"
+        )
+        outputs = snt.BatchApply(module1, num_dims=2)(r)
+        agg_outputs = tf.math.reduce_mean(outputs, axis=-2, keepdims=True)
+        outputs = tf.concat([outputs, tf.tile(agg_outputs, [1, self._num_classes,1])], axis=-1)
+
+        #MLP u+
+        module2 = snt.nets.MLP(
+            output_sizes=[self._nn_size] * self._nn_layers,
+            w_init=self.initializer,
+            with_bias=True,
+            activation=self._nonlinearity,
+            name="neural_local_updater_uplus"
+        )
+        outputs_t = snt.BatchApply(module2, num_dims=2)(outputs)
+
+        #MLP u-
+        module3 = snt.nets.MLP(
+            [self._nn_size] * self._nn_layers + [self._dim_reprs],
+            w_init=self.initializer,
+            with_bias=True,
+            activation=self._nonlinearity,
+            name="neural_local_updater_uminus"
+        )
+        outputs_f = snt.BatchApply(module3, num_dims=2)(outputs)
+        outputs = outputs_t * y + outputs_f * (1-y)
+        return outputs
 
     def forward_decoder(self, cls_reprs):
         """decode and sample weight for final outpyt layer"""
