@@ -51,6 +51,9 @@ class MetaFunClassifier(snt.Module):
         self.is_training = tf.constant(True,dtype=tf.bool)
         self.embedding_dim = tf.constant([1])
 
+        # Metric initialisation
+        self.metric = tf.keras.metrics.BinaryAccuracy(name="inner accuracy", dtype=self._float_dtype)
+
         if self._no_decoder:
             self._dim_reprs = 1
 
@@ -72,7 +75,29 @@ class MetaFunClassifier(snt.Module):
             initial_value=tf.constant_initializer(1.0)(
                 shape=[1,self._num_classes * self._dim_reprs],
                 dtype=self._float_dtype,
-            )
+            ),
+            trainable=True,
+            name="lr"
+        )
+
+        # Kernel sigma
+        self.sigma = tf.Variable(
+            initial_value=tf.constant_initializer(1.0)(
+                shape=(),
+                dtype=self._float_dtype
+            ),
+            trainable=True,
+            name="kernel_sigma"
+        )
+
+        # Kernel lengthscale
+        self.lengthscale = tf.Variable(
+            initial_value=tf.constant_initializer(1.0)(
+                shape=(),
+                dtype=self._float_dtype
+            ),
+            trainable=True,
+            name="kernel_lengthscale"
         )
 
     def __call__(self, data, is_training=True):
@@ -101,6 +126,14 @@ class MetaFunClassifier(snt.Module):
         # Iterative functional updating
         for k in range(self._num_iters):
             updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input) #return negative u
+            tr_updates = self.alpha * self.forward_kernel_or_attention(querys=data.tr_input, keys=data.tr_input, values=updates)
+            val_updates = self.alpha * self.forward_kernel_or_attention(querys=data.val_input, keys=data.tr_input, values=updates)
+            tr_reprs += tr_updates
+            val_reprs += val_updates
+
+        # Decode functional representation
+        classifier_weights = self.forward_decoder(tr_reprs)
+        
 
     def forward_initialiser(self, x):
         """functional representation initialisation"""
@@ -161,7 +194,7 @@ class MetaFunClassifier(snt.Module):
         with tf.GradientTape() as tape:
             tape.watch(r) #watch r
             classifier_weights = self.forward_decoder(r) # sample w_n from LEO
-            tr_loss = self.calculate_loss_and_acc(x, y, classifier_weights) # softmax cross entropy
+            tr_loss, _ = self.calculate_loss_and_acc(x, y, classifier_weights) # softmax cross entropy
             batch_tr_loss = tf.reduce_mean(tr_loss)
         
         loss_grad = tape.gradient(batch_tr_loss, r)
@@ -251,7 +284,9 @@ class MetaFunClassifier(snt.Module):
         model_outputs = self.predict(inputs, classifier_weights) # return unnormalised probability of each class for each instance
         model_predictions = tf.math.argmax(
             input=model_outputs, axis=-1, output_type=self._int_dtype)
-        return self.loss_fn(model_outputs, true_outputs)
+        accuracy = self.metric(model_predictions, tf.squeeze(true_outputs, axis=-1))
+        self.metric.reset_state()
+        return self.loss_fn(model_outputs, true_outputs), accuracy
 
     def predict(self, inputs, weights):
         """unnormalised class probabilities"""
@@ -271,6 +306,64 @@ class MetaFunClassifier(snt.Module):
             reduction=tf.keras.losses.Reduction.NONE)(
                 y_true=one_hot_outputs,
                 y_pred=model_outputs)
+
+    def forward_kernel_or_attention(self, querys, keys, values):
+        """functional pooling"""
+        if self._use_kernel:
+            if self._kernel_type == tf.constant("se", dtype=tf.string):
+                rtn_values = self.squared_exponential_kernel(querys, keys, values)
+            elif self._kernel_type == tf.constant("deep_se", dtype=tf.string):
+                rtn_values = self.deep_se_kernel(querys, keys, values)
+            else:
+                raise NameError("Unknown kernel type")
+        else:
+            rtn_values = self.attention_block(querys, keys, values)
+
+        return rtn_values
+
+    def squared_exponential_kernel(self, querys, keys, values):
+        """rbf kernel"""
+        num_keys = tf.shape(keys)[0]
+        num_querys = tf.shape(querys)[0]
+
+        _keys = tf.tile(tf.expand_dims(keys, axis=1), [1, num_querys, 1])
+        _querys = tf.tile(tf.expand_dims(querys, axis=0), [num_keys, 1, 1])
+        sq_norm = tf.reduce_sum((_keys - _querys)**2, axis=-1)
+        kernel_qk = self.sigma**2 * tf.math.exp(- sq_norm / (2.*self.lengthscale**2)) # RBF
+        v = tf.linalg.matmul(kernel_qk, values, transpose_a=True) # RBF * V
+        return v
+
+
+    def deep_se_kernel(self, querys, keys, values):
+        """deep rbf kernel"""
+        module = snt.nets.MLP( # mapping a
+            output_sizes=[self.embedding_dim] * self._embedding_layers,
+            w_init=self.initializer,
+            with_bias=True,
+            activation=self._nonlinearity,
+            name="deep_se_kernel"
+        )
+        keys = snt.BatchApply(module, num_dims=1)(keys)
+        querys = snt.BatchApply(module, num_dims=1)(querys)
+
+        return self.squared_exponential_kernel(querys, keys, values)
+
+    def attention_block(self, querys, keys, values):
+        """dot-product kernel"""
+        config = {
+            "rep": "mlp",
+            "output_sizes": [self.embedding_dim] * self._embedding_layers,
+            "att_type": self._attention_type,
+            "normalise": tf.constant(True,tf.bool),
+            "scale": 1.0,
+            "l2_penalty_weight": self._l2_penalty_weight,
+            "nonlinearity": self._nonlinearity
+        }
+
+        attention = Attention(config=config)
+        v = attention(keys, querys, values)
+        return v
+
     
 # (Adapted from https://github.com/deepmind/leo, see copyright and original license in our LICENSE file.)
 def get_orthogonality_regularizer(orthogonality_penalty_weight):
@@ -291,6 +384,71 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
             name="orthogonality regularisation"
         )
     return orthogonality
+
+
+# Attention modules
+# (Adapted from https://github.com/deepmind/neural-processes, see copyright and original license in our LICENSE file.)
+
+class Attention(snt.Module):
+
+    def __init__(self, config=None, name="attention"):
+        super(Attention, self).__init__(name=name)
+        self._float_dtype = tf.float32
+        self._int_dtype = tf.int32
+        self._rep = config['rep']
+        self._output_sizes = config['output_sizes']
+        self._att_type = config['att_type']
+        self._normalise = config['normalise']
+        self._scale = config['scale']
+        self._l2_penalty_weight = config['l2_penalty_weight']
+        self._nonlinearity = config['nonlinearity']
+        self.initializer = tf.keras.initializers.GlorotUniform()
+
+    def __call__(self, x1, x2, r):
+        if self._rep == tf.constant("identity", dtype=tf.string):
+            k, q = (x1, x2)
+        elif self._rep == tf.constant("mlp", dtype=tf.string): # mapping a
+            module = snt.nets.MLP( # mapping a
+            output_sizes=self._output_sizes,
+            w_init=self.initializer,
+            with_bias=True,
+            activation=self._nonlinearity,
+            name="deep_attention"
+            )
+            k = snt.BatchApply(module, num_dims=1)(x1)
+            q = snt.BatchApply(module, num_dims=1)(x2)
+        else:
+            raise NameError("Unknown attention representation - not among ['identity', 'mlp']")
+
+        if self._att_type == tf.constant("dot_product",tf.string):
+            rep = dot_product_attention(q, k, r, self._normalise)
+        else:
+            raise NameError("Unknown attention type")
+        
+        return rep
+
+def dot_product_attention(q, k, v, normalise):
+    """Computes dot product attention.
+
+    Args:
+        q: queries. tensor of  shape [B,m,d_k].
+        k: keys. tensor of shape [B,n,d_k].
+        v: values. tensor of shape [B,n,d_v].
+        normalise: Boolean that determines whether weights sum to 1.
+    Returns:
+        tensor of shape [B,m,d_v].
+    """
+    d_k = tf.shape(q)[-1]
+    scale = tf.math.sqrt(tf.cast(d_k, tf.float32))
+    unnorm_weights = tf.linalg.matmul(q, k, transpose_b=True) / scale # [B,m,n]
+    if normalise:
+        weight_fn = tf.math.softmax
+    else:
+        weight_fn = tf.math.sigmoid
+    weights = weight_fn(unnorm_weights)
+    rep = tf.linalg.matmul(weights, v)
+    return rep
+
 
 
 
