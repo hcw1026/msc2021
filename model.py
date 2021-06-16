@@ -131,9 +131,18 @@ class MetaFunClassifier(snt.Module):
             tr_reprs += tr_updates
             val_reprs += val_updates
 
-        # Decode functional representation
+        # Decode functional representation and compute loss and metric
         classifier_weights = self.forward_decoder(tr_reprs)
-        
+        tr_loss, batch_tr_metric = self.calculate_loss_and_acc(data.tr_input, data.tr_output, classifier_weights)
+        classifier_weights = self.forward_decoder(val_reprs)
+        val_loss, batch_val_metric = self.calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
+
+        # Aggregate loss in a batch
+        batch_tr_loss = tf.math.reduce_mean(tr_loss)
+        batch_val_loss = tf.math.reduce_mean(val_loss)
+
+        #Additional regularisation penalty
+        return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
 
     def forward_initialiser(self, x):
         """functional representation initialisation"""
@@ -364,6 +373,10 @@ class MetaFunClassifier(snt.Module):
         v = attention(keys, querys, values)
         return v
 
+    @property
+    def _decoder_orthogonality_reg(self):
+        return self._orthogonality_reg
+
     
 # (Adapted from https://github.com/deepmind/leo, see copyright and original license in our LICENSE file.)
 def get_orthogonality_regularizer(orthogonality_penalty_weight):
@@ -470,7 +483,7 @@ if __name__ == "__main__":
     tf.constant(np.random.random([10,10]),dtype=tf.float32),
     tf.constant(np.random.uniform(1,10,10).reshape(-1,1),dtype=tf.int32))
 
-    module(data)
+    print(module(data))
 
         
 
