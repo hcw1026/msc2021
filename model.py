@@ -2,10 +2,12 @@ import tensorflow as tf
 import sonnet as snt
 
 class MetaFunClassifier(snt.Module):
-    def __init__(self, config, name="MetaFunClassifier"):
+    def __init__(self, config, data_source="leo_imagenet", name="MetaFunClassifier"):
         """
         config: dict
             Configuation python dictionary, see ./config/sample.yaml
+        data_source: str
+            The sub-level name within the data level of config used for the problem
         name: str
             Name of classifier
         """
@@ -39,7 +41,7 @@ class MetaFunClassifier(snt.Module):
         self._orthogonality_penalty_weight = _config["orthogonality_penalty_weight"]
 
         # Data configurations
-        self._num_classes = config["Data"]["num_classes"]
+        self._num_classes = config["Data"][data_source]["num_classes"]
 
         # Other configurations
         self._initial_inner_lr = config["Model"]["other"]["initial_inner_lr"]
