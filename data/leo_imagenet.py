@@ -87,6 +87,8 @@ class DataProvider():
         self._model_cls = _config["model_cls"]
         self._dataset_name = _config["dataset_name"]
         self._shuffle = _config["shuffle"]
+        assert self._dataset_name.lower() in ['miniimagenet', 'tieredimagenet'], "Unknown dataset name"
+        self._dataset_name = 'miniImageNet' if self._dataset_name.lower() == 'miniimagenet' else 'tieredImageNet'
 
         self._train_on_val = config["Training"]["train_on_val"]
 
