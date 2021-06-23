@@ -1,5 +1,4 @@
 import yaml
-import re
 
 def parse_config(yaml_path):
     '''parse_config: convert a yaml path into the corresponding dictionary
