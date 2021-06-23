@@ -75,8 +75,9 @@ class parametric_initialiser(snt.Module):
         
     def __call__(self, x, is_training=True):
         after_dropout = self.dropout(x, training=is_training)
-        outputs = snt.BatchApply(self.module, num_dims=1)(after_dropout)
-        return tf.tile(outputs, [1, self._num_classes])
+        print(after_dropout.shape)
+        outputs = self.module(after_dropout)
+        return tf.concat([outputs for i in range(self._num_classes)],axis=-1)
 
 
 class neural_local_updater(snt.Module):
@@ -115,13 +116,13 @@ class neural_local_updater(snt.Module):
         y = tf.one_hot(y, self._num_classes) #TODO: move to data preprocessing
         y = tf.transpose(y, perm=[0, 2, 1])
 
-        outputs = snt.BatchApply(self.module1, num_dims=2)(r)
+        outputs = self.module1(r)
         agg_outputs = tf.math.reduce_mean(outputs, axis=-2, keepdims=True)
         outputs = tf.concat([outputs, tf.tile(agg_outputs, [1, self._num_classes, 1])], axis=-1)
 
-        outputs_t = snt.BatchApply(self.module2, num_dims=2)(outputs)
+        outputs_t = self.module2(outputs)
 
-        outputs_f = snt.BatchApply(self.module3, num_dims=2)(outputs)
+        outputs_f = self.module3(outputs)
         outputs = outputs_t * y + outputs_f * (1-y)
         return outputs
 
@@ -138,7 +139,7 @@ class decoder(snt.Module):
         )
 
     def __call__(self, inputs):
-        outputs = snt.BatchApply(self.decoder_module, num_dims=2)(inputs)
+        outputs = self.decoder_module(inputs)
         return outputs, self.orthogonality_reg(self.decoder_module.w)
         
 
@@ -202,8 +203,8 @@ class Attention(snt.Module):
         if self._rep == tf.constant("identity", dtype=tf.string):
             k, q = (x1, x2)
         else: # mapping a
-            k = snt.BatchApply(self.module, num_dims=1)(x1)
-            q = snt.BatchApply(self.module, num_dims=1)(x2)
+            k = self.module(x1)
+            q = self.module(x2)
 
         return dot_product_attention(q, k, r, self._normalise)
 
@@ -241,8 +242,8 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
         )
 
     def __call__(self, querys, keys, values, sigma, lengthscale):
-        keys = snt.BatchApply(self.module, num_dims=1)(keys)
-        querys = snt.BatchApply(self.module, num_dims=1)(querys)
+        keys = self.module(keys)
+        querys = self.module(querys)
         return squared_exponential_kernel(querys, keys, values, sigma, lengthscale)
 
 
