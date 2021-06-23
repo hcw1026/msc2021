@@ -37,7 +37,7 @@ class MetaFunClassifier(snt.Module):
         # Regularisation configurations
         _config = config["Model"]["reg"]
         self._l2_penalty_weight = _config["l2_penalty_weight"]
-        self._dropout_rate = _config["dropout_rate"]
+        self._dropout_rate = tf.constant(_config["dropout_rate"], dtype=self._float_dtype)
         self._label_smoothing = _config["label_smoothing"]
         self._orthogonality_penalty_weight = _config["orthogonality_penalty_weight"]
 
@@ -51,8 +51,8 @@ class MetaFunClassifier(snt.Module):
         self.dropout = tf.keras.layers.Dropout(self._dropout_rate)
 
         # Constant Initialization
-        self._orthogonality_reg = tf.constant(0.,dtype=self._float_dtype)
-        self.is_training = tf.constant(True,dtype=tf.bool)
+        self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
+        self.is_training = tf.constant(True, dtype=tf.bool)
         self.embedding_dim = tf.constant([1])
 
         # Metric initialisation
@@ -258,7 +258,7 @@ class MetaFunClassifier(snt.Module):
             return weights
         else:
             after_dropout = self.dropout(inputs, training=self.is_training)
-            preds = tf.linalg.einsum("ik,imk->im", after_dropout, weights) # (x^Tw)_k - i=instance, m=class, k=features
+            preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
             return preds
 
     def loss_fn(self, model_outputs, original_classes):
@@ -302,17 +302,22 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     module = MetaFunClassifier(config=config)
 
-    ClassificationDescription = collections.namedtuple(
-    "ClassificationDescription",
-    ["tr_input", "tr_output", "val_input", "val_output"])
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
     
-    data = ClassificationDescription(
-    tf.constant(np.random.random([10,10]),dtype=tf.float32),
-    tf.constant(np.random.uniform(1,10,10).reshape(-1,1),dtype=tf.int32),
-    tf.constant(np.random.random([10,10]),dtype=tf.float32),
-    tf.constant(np.random.uniform(1,10,10).reshape(-1,1),dtype=tf.int32))
+    # data = ClassificationDescription(
+    # tf.constant(np.random.random([10,10]),dtype=tf.float32),
+    # tf.constant(np.random.uniform(1,10,10).reshape(-1,1),dtype=tf.int32),
+    # tf.constant(np.random.random([10,10]),dtype=tf.float32),
+    # tf.constant(np.random.uniform(1,10,10).reshape(-1,1),dtype=tf.int32))
 
-    print(module(data))
+    # print(module(data))
+    from data.leo_imagenet import DataProvider
+    dataloader = DataProvider("trial", config)
+    dat = dataloader.generate()
+    for i in dat.take(1):
+        module(i)
 
         
 
