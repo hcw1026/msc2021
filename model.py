@@ -63,7 +63,7 @@ class MetaFunClassifier(snt.Module):
 
     @snt.once
     def _initialize(self):
-        """initialiser variables"""
+        """initialiser variables and functions"""
         # Inner learning rate
         self.alpha =  tf.Variable(
             initial_value=tf.constant_initializer(self._initial_inner_lr)(
@@ -74,19 +74,9 @@ class MetaFunClassifier(snt.Module):
             name="alpha"
             )
 
-        self.forward_initialiser_debug = submodules.forward_initialiser(
-            initial_state_type=self._initial_state_type,
-            dim_reprs=self._dim_reprs,
-            num_classes=self._num_classes,
-            nn_size=self._nn_size,
-            nn_layers=self._nn_layers,
-            float_dtype=self._float_dtype,
-            dropout_rate=self._dropout_rate,
-            initialiser=self.initialiser,
-            nonlinearity=self._nonlinearity)
-
+        # Forward local updater
         if not self._use_gradient:
-            self.neural_local_updater_debug = submodules.neural_local_updater(
+            self._neural_local_updater = submodules.neural_local_updater(
                 nn_size=self._nn_size, 
                 nn_layers=self._nn_layers, 
                 dim_reprs=self._dim_reprs, 
@@ -105,9 +95,23 @@ class MetaFunClassifier(snt.Module):
                 name="lr"
             )
 
+        self.forward_local_updater = self._forward_local_updater()
+
+        # Forward initialiser
+        self.forward_initialiser = submodules.forward_initialiser(
+            initial_state_type=self._initial_state_type,
+            dim_reprs=self._dim_reprs,
+            num_classes=self._num_classes,
+            nn_size=self._nn_size,
+            nn_layers=self._nn_layers,
+            float_dtype=self._float_dtype,
+            dropout_rate=self._dropout_rate,
+            initialiser=self.initialiser,
+            nonlinearity=self._nonlinearity)
+
 
         if not self._no_decoder:
-            self.decoder_debug = submodules.decoder(
+            self.decoder = submodules.decoder(
                 embedding_dim = self.embedding_dim,
                 orthogonality_penalty_weight = self._orthogonality_penalty_weight, 
                 initialiser = self.initialiser)
@@ -136,7 +140,7 @@ class MetaFunClassifier(snt.Module):
             if self._kernel_type == tf.constant("se", dtype=tf.string):
                 pass
             elif self._kernel_type == tf.constant("deep_se", dtype=tf.string):
-                self.deep_se_kernel_debug = submodules.deep_se_kernel(
+                self.deep_se_kernel = submodules.deep_se_kernel(
                     embedding_layers=self._embedding_layers,
                     kernel_dim=self.embedding_dim,
                     initialiser=self.initialiser,
@@ -155,7 +159,7 @@ class MetaFunClassifier(snt.Module):
                 "nonlinearity": self._nonlinearity
                 }
 
-            self.attention_debug = submodules.Attention(config)
+            self.attention = submodules.Attention(config)
 
 
     def __call__(self, data, is_training=True):
@@ -171,8 +175,8 @@ class MetaFunClassifier(snt.Module):
         self._initialize()
 
         # Initialise r
-        tr_reprs = self.forward_initialiser_debug(data.tr_input, is_training=is_training)
-        val_reprs = self.forward_initialiser_debug(data.val_input, is_training=is_training)
+        tr_reprs = self.forward_initialiser(data.tr_input, is_training=is_training)
+        val_reprs = self.forward_initialiser(data.val_input, is_training=is_training)
 
         # Iterative functional updating
         for k in range(self._num_iters):
@@ -195,16 +199,32 @@ class MetaFunClassifier(snt.Module):
         #Additional regularisation penalty
         return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
 
-    def forward_local_updater(self, r, y, x=None, iter=""):
+    # def forward_local_updater(self, r, y, x=None, iter=""):
+    #     """functional representation updater"""
+    #     if self._use_gradient:
+    #         updates = self.gradient_local_updater(r=r, y=y, x=x, iter=iter)
+    #     else:
+    #         r_shape = r.shape.as_list()
+    #         r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
+    #         updates = self._neural_local_updater(r=r, y=y, x=x, iter=iter)
+    #         updates = tf.reshape(updates, shape=r_shape)
+    #     return updates
+
+
+    def _forward_local_updater(self):
         """functional representation updater"""
         if self._use_gradient:
-            updates = self.gradient_local_updater(r=r, y=y, x=x, iter=iter)
+            return self.gradient_local_updater
         else:
-            r_shape = r.shape.as_list()
-            r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
-            updates = self.neural_local_updater_debug(r=r, y=y, x=x, iter=iter)
-            updates = tf.reshape(updates, shape=r_shape)
+            return self.neural_local_updater
+
+    def neural_local_updater(self, r, y, x, iter=""):
+        r_shape = r.shape.as_list()
+        r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
+        updates = self._neural_local_updater(r=r, y=y, x=x, iter=iter)
+        updates = tf.reshape(updates, shape=r_shape)
         return updates
+
 
     def gradient_local_updater(self, r, y, x=None, iter=""):
         """functional gradient update instead of neural update"""
@@ -226,7 +246,7 @@ class MetaFunClassifier(snt.Module):
         else:
             s = cls_reprs.shape.as_list()
             cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
-            weights_dist_params, self._orthogonality_reg = self.decoder_debug(cls_reprs) # get mean and variance of wn in LEO
+            weights_dist_params, self._orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
             stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
             classifier_weights = self.sample(
                 distribution_params=weights_dist_params,
@@ -278,7 +298,7 @@ class MetaFunClassifier(snt.Module):
             if self._kernel_type == tf.constant("se", dtype=tf.string):
                 rtn_values = submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale)
             else:
-                rtn_values = self.deep_se_kernel_debug(querys, keys, values, self.sigma, self.lengthscale)
+                rtn_values = self.deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale)
 
         else:
             rtn_values = self.attention_block(querys, keys, values)
@@ -287,7 +307,7 @@ class MetaFunClassifier(snt.Module):
 
     def attention_block(self, querys, keys, values):
         """dot-product kernel"""
-        v = self.attention_debug(keys, querys, values)
+        v = self.attention(keys, querys, values)
         return v
 
     @property
@@ -319,10 +339,10 @@ if __name__ == "__main__":
     for i in dat.take(1):
         module(i)
 
-        
-
-
-
-
-
-        
+    @tf.function
+    def trial(x):
+        l,_,_ = module(x)
+        return l
+    print("DEBUGGGGGGGGGGGGGGG")
+    for i in dat.take(1):
+        trial(i)
