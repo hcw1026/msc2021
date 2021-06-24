@@ -1,44 +1,45 @@
 import tensorflow as tf
 import sonnet as snt
 
-class forward_initialiser(snt.Module):
-    def __init__(self, initial_state_type, dim_reprs, num_classes, nn_size, nn_layers, float_dtype, dropout_rate, initialiser, nonlinearity, name="forward_initialiser"):
-        super(forward_initialiser, self).__init__(name=name)
-        self._initial_state_type = initial_state_type
+# class forward_initialiser(snt.Module):
+#     def __init__(self, initial_state_type, dim_reprs, num_classes, nn_size, nn_layers, float_dtype, dropout_rate, initialiser, nonlinearity, name="forward_initialiser"):
+#         super(forward_initialiser, self).__init__(name=name)
+#         self._initial_state_type = initial_state_type
 
-        if self._initial_state_type == tf.constant("zero", dtype=tf.string):
-            self.initialiser = constant_initialiser(
-                dim_reprs=dim_reprs,
-                float_dtype=float_dtype,
-                num_classes=num_classes,
-                trainable=False)
-        elif self._initial_state_type == tf.constant("constant", dtype=tf.string):
-            self.initialiser = constant_initialiser(
-                dim_reprs=dim_reprs,
-                float_dtype=float_dtype,
-                num_classes=num_classes,
-                trainable=True)
-        elif self._initial_state_type == tf.constant("parametric", dtype=tf.string):
-            self.initialiser = parametric_initialiser(
-                nn_size=nn_size,
-                nn_layers=nn_layers,
-                dim_reprs=dim_reprs,
-                num_classes=num_classes,
-                dropout_rate=dropout_rate,
-                initialiser=initialiser,
-                nonlinearity=nonlinearity,
-            )
-        else:
-            raise NameError("Unknown initial state type")
+#         if self._initial_state_type == tf.constant("zero", dtype=tf.string):
+#             self.initialiser = constant_initialiser(
+#                 dim_reprs=dim_reprs,
+#                 float_dtype=float_dtype,
+#                 num_classes=num_classes,
+#                 trainable=False)
+#         elif self._initial_state_type == tf.constant("constant", dtype=tf.string):
+#             self.initialiser = constant_initialiser(
+#                 dim_reprs=dim_reprs,
+#                 float_dtype=float_dtype,
+#                 num_classes=num_classes,
+#                 trainable=True)
+#         elif self._initial_state_type == tf.constant("parametric", dtype=tf.string):
+#             self.initialiser = parametric_initialiser(
+#                 nn_size=nn_size,
+#                 nn_layers=nn_layers,
+#                 dim_reprs=dim_reprs,
+#                 num_classes=num_classes,
+#                 dropout_rate=dropout_rate,
+#                 initialiser=initialiser,
+#                 nonlinearity=nonlinearity,
+#             )
+#         else:
+#             raise NameError("Unknown initial state type")
 
-    def __call__(self, x, is_training=True):
-        num_points = tf.shape(x)[0]
-        if self._initial_state_type == tf.constant("parametric",dtype=tf.string):
-            reprs = self.initialiser(x, is_training=is_training)
-        else:
-            #reprs = self.initialiser(num_points)
-            reprs = self.initialiser(x, is_training=is_training)
-        return reprs
+#     def __call__(self, x, is_training=True):
+#         num_points = tf.shape(x)[-2]
+#         print(num_points)
+#         if self._initial_state_type == tf.constant("parametric",dtype=tf.string):
+#             reprs = self.initialiser(x, is_training=is_training)
+#         else:
+#             #reprs = self.initialiser(num_points)
+#             reprs = self.initialiser(x, is_training=is_training)
+#         return reprs
 
 
 

@@ -74,6 +74,21 @@ class MetaFunClassifier(snt.Module):
             name="alpha"
             )
 
+
+        # Forward initialiser
+        # self.forward_initialiser = submodules.forward_initialiser(
+        #     initial_state_type=self._initial_state_type,
+        #     dim_reprs=self._dim_reprs,
+        #     num_classes=self._num_classes,
+        #     nn_size=self._nn_size,
+        #     nn_layers=self._nn_layers,
+        #     float_dtype=self._float_dtype,
+        #     dropout_rate=self._dropout_rate,
+        #     initialiser=self.initialiser,
+        #     nonlinearity=self._nonlinearity)
+        self.forward_initialiser = self._forward_initialiser()
+
+
         # Forward local updater
         if not self._use_gradient:
             self._neural_local_updater = submodules.neural_local_updater(
@@ -97,19 +112,7 @@ class MetaFunClassifier(snt.Module):
 
         self.forward_local_updater = self._forward_local_updater()
 
-        # Forward initialiser
-        self.forward_initialiser = submodules.forward_initialiser(
-            initial_state_type=self._initial_state_type,
-            dim_reprs=self._dim_reprs,
-            num_classes=self._num_classes,
-            nn_size=self._nn_size,
-            nn_layers=self._nn_layers,
-            float_dtype=self._float_dtype,
-            dropout_rate=self._dropout_rate,
-            initialiser=self.initialiser,
-            nonlinearity=self._nonlinearity)
-
-
+        # Forward decoder
         if not self._no_decoder:
             self.decoder = submodules.decoder(
                 embedding_dim = self.embedding_dim,
@@ -118,6 +121,8 @@ class MetaFunClassifier(snt.Module):
 
         self.forward_decoder = self._forward_decoder()
 
+
+        # Kernel or attention
         if self._use_kernel:
             # Kernel sigma
             self.sigma = tf.Variable(
@@ -213,6 +218,36 @@ class MetaFunClassifier(snt.Module):
     #         updates = self._neural_local_updater(r=r, y=y, x=x, iter=iter)
     #         updates = tf.reshape(updates, shape=r_shape)
     #     return updates
+
+    def _forward_initialiser(self):
+        """initialise neural latent - r"""
+        if self._initial_state_type == tf.constant("zero", dtype=tf.string):
+            self.constant_initialiser = submodules.constant_initialiser(
+                dim_reprs=self._dim_reprs, 
+                float_dtype=self._float_dtype, 
+                num_classes=self._num_classes, 
+                trainable=False)
+            return lambda x: self.constant_initialiser(x.shape[-1])
+        elif self._initial_state_type == tf.constant("constant", dtype=tf.string):
+            self.constant_initialiser = submodules.constant_initialiser(
+                dim_reprs=self._dim_reprs, 
+                float_dtype=self._float_dtype, 
+                num_classes=self._num_classes, 
+                trainable=True)
+            return lambda x: self.constant_initialiser(x.shape[-1])
+        elif self._initial_state_type == tf.constant("parametric", dtype=tf.string):
+            self.parametric_initialiser = submodules.parametric_initialiser(
+                nn_size=self._nn_size,
+                nn_layers=self._nn_layers,
+                dim_reprs=self._dim_reprs,
+                num_classes=self._num_classes,
+                dropout_rate=self._dropout_rate,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity,
+            )
+            return self.parametric_initialiser
+        else:
+            raise NameError("Unknown initial state type")
 
 
     def _forward_local_updater(self):
@@ -339,8 +374,7 @@ class MetaFunClassifier(snt.Module):
 
     def attention_block(self, querys, keys, values):
         """dot-product kernel"""
-        v = self.attention(keys, querys, values)
-        return v
+        return self.attention(keys, querys, values)
 
     @property
     def _decoder_orthogonality_reg(self):
