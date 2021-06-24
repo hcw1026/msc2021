@@ -116,6 +116,8 @@ class MetaFunClassifier(snt.Module):
                 orthogonality_penalty_weight = self._orthogonality_penalty_weight, 
                 initialiser = self.initialiser)
 
+        self.forward_decoder = self._forward_decoder()
+
         if self._use_kernel:
             # Kernel sigma
             self.sigma = tf.Variable(
@@ -218,14 +220,6 @@ class MetaFunClassifier(snt.Module):
         else:
             return self.neural_local_updater
 
-    def neural_local_updater(self, r, y, x, iter=""):
-        r_shape = r.shape.as_list()
-        r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
-        updates = self._neural_local_updater(r=r, y=y, x=x, iter=iter)
-        updates = tf.reshape(updates, shape=r_shape)
-        return updates
-
-
     def gradient_local_updater(self, r, y, x=None, iter=""):
         """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
@@ -238,20 +232,45 @@ class MetaFunClassifier(snt.Module):
         updates = - self.lr * loss_grad
         return updates
 
-    def forward_decoder(self, cls_reprs):
+    def neural_local_updater(self, r, y, x, iter=""):
+        r_shape = r.shape.as_list()
+        r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
+        updates = self._neural_local_updater(r=r, y=y, x=x, iter=iter)
+        updates = tf.reshape(updates, shape=r_shape)
+        return updates
+
+    # def _forward_decoder(self, cls_reprs):
+    #     """decode and sample weight for final outpyt layer"""
+    #     if self._no_decoder: 
+    #         # use functional representation directly as the predictor, used in ablation study
+    #         return cls_reprs
+    #     else:
+    #         s = cls_reprs.shape.as_list()
+    #         cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
+    #         weights_dist_params, self._orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
+    #         stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
+    #         classifier_weights = self.sample(
+    #             distribution_params=weights_dist_params,
+    #             stddev_offset=stddev_offset)
+    #         return classifier_weights
+
+    def _forward_decoder(self):
         """decode and sample weight for final outpyt layer"""
         if self._no_decoder: 
             # use functional representation directly as the predictor, used in ablation study
-            return cls_reprs
+            return lambda x: x
         else:
-            s = cls_reprs.shape.as_list()
-            cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
-            weights_dist_params, self._orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
-            stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
-            classifier_weights = self.sample(
-                distribution_params=weights_dist_params,
-                stddev_offset=stddev_offset)
-            return classifier_weights
+            return self._forward_decoder_with_decoder
+
+    def _forward_decoder_with_decoder(self, cls_reprs):
+        s = cls_reprs.shape.as_list()
+        cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
+        weights_dist_params, self._orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
+        stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
+        classifier_weights = self.sample(
+            distribution_params=weights_dist_params,
+            stddev_offset=stddev_offset)
+        return classifier_weights
 
     def sample(self, distribution_params, stddev_offset=0.):
         """sample from a normal distribution"""
