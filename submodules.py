@@ -36,7 +36,8 @@ class forward_initialiser(snt.Module):
         if self._initial_state_type == tf.constant("parametric",dtype=tf.string):
             reprs = self.initialiser(x, is_training=is_training)
         else:
-            reprs = self.initialiser(num_points)
+            #reprs = self.initialiser(num_points)
+            reprs = self.initialiser(x, is_training=is_training)
         return reprs
 
 
@@ -162,7 +163,7 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
         return tf.multiply(
             tf.cast(orthogonality_penalty_weight, base_dtype),
             weight_corr,
-            name="orthogonality regularisation"
+            name="orthogonality_regularisation"
         )
     return orthogonality
 
@@ -223,10 +224,9 @@ def dot_product_attention(q, k, v, normalise):
     scale = tf.math.sqrt(tf.cast(d_k, tf.float32))
     unnorm_weights = tf.linalg.matmul(q, k, transpose_b=True) / scale # [B,m,n]
     if normalise:
-        weight_fn = tf.math.softmax
+        weights = tf.math.softmax(unnorm_weights)
     else:
-        weight_fn = tf.math.sigmoid
-    weights = weight_fn(unnorm_weights)
+        weights = tf.math.sigmoid(unnorm_weights)
     rep = tf.linalg.matmul(weights, v)
     return rep
 

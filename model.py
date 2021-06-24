@@ -163,6 +163,8 @@ class MetaFunClassifier(snt.Module):
 
             self.attention = submodules.Attention(config)
 
+        self.forward_kernel_or_attention = self._forward_kernel_or_attention()
+
 
     def __call__(self, data, is_training=True):
         """
@@ -311,18 +313,29 @@ class MetaFunClassifier(snt.Module):
                 y_true=one_hot_outputs,
                 y_pred=model_outputs)
 
-    def forward_kernel_or_attention(self, querys, keys, values):
+
+    # def forward_kernel_or_attention(self, querys, keys, values):
+    #     """functional pooling"""
+    #     if self._use_kernel:
+    #         if self._kernel_type == tf.constant("se", dtype=tf.string):
+    #             rtn_values = submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale)
+    #         else:
+    #             rtn_values = self.deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale)
+
+    #     else:
+    #         rtn_values = self.attention_block(querys, keys, values)
+
+    #     return rtn_values
+
+    def _forward_kernel_or_attention(self):
         """functional pooling"""
         if self._use_kernel:
             if self._kernel_type == tf.constant("se", dtype=tf.string):
-                rtn_values = submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale)
+                return lambda querys, keys, values: submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale)
             else:
-                rtn_values = self.deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale)
-
+                return lambda querys, keys, values: self.deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale)
         else:
-            rtn_values = self.attention_block(querys, keys, values)
-
-        return rtn_values
+            return self.attention_block
 
     def attention_block(self, querys, keys, values):
         """dot-product kernel"""
