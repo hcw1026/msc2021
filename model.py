@@ -55,6 +55,7 @@ class MetaFunClassifier(snt.Module):
         self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
         self.is_training = tf.constant(True, dtype=tf.bool)
         self.embedding_dim = tf.constant([1])
+        self.has_initialised = False
 
         # Metric initialisation
         self.metric = tf.keras.metrics.BinaryAccuracy(name="inner accuracy", dtype=self._float_dtype)
@@ -63,8 +64,10 @@ class MetaFunClassifier(snt.Module):
             self._dim_reprs = 1
 
     @snt.once
-    def _initialize(self):
+    def initialise(self, data_instance):
         """initialiser variables and functions"""
+
+        self.embedding_dim = data_instance.tr_input.get_shape()[-1]
         # Inner learning rate
         self.alpha =  tf.Variable(
             initial_value=tf.constant_initializer(self._initial_inner_lr)(
@@ -74,19 +77,6 @@ class MetaFunClassifier(snt.Module):
             trainable=True,
             name="alpha"
             )
-
-
-        # Forward initialiser
-        # self.forward_initialiser = submodules.forward_initialiser(
-        #     initial_state_type=self._initial_state_type,
-        #     dim_reprs=self._dim_reprs,
-        #     num_classes=self._num_classes,
-        #     nn_size=self._nn_size,
-        #     nn_layers=self._nn_layers,
-        #     float_dtype=self._float_dtype,
-        #     dropout_rate=self._dropout_rate,
-        #     initialiser=self.initialiser,
-        #     nonlinearity=self._nonlinearity)
         self.forward_initialiser = self._forward_initialiser()
 
 
@@ -173,6 +163,8 @@ class MetaFunClassifier(snt.Module):
 
         self.forward_kernel_or_attention = self._forward_kernel_or_attention()
 
+        self.has_initialised = True
+
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
         """
@@ -182,9 +174,8 @@ class MetaFunClassifier(snt.Module):
             If True, training mode
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
-        self.embedding_dim = data.tr_input.get_shape()[-1]
         self.is_training = is_training
-        self._initialize()
+        assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
@@ -210,17 +201,6 @@ class MetaFunClassifier(snt.Module):
 
         #Additional regularisation penalty
         return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
-
-    # def forward_local_updater(self, r, y, x=None, iter=""):
-    #     """functional representation updater"""
-    #     if self._use_gradient:
-    #         updates = self.gradient_local_updater(r=r, y=y, x=x, iter=iter)
-    #     else:
-    #         r_shape = r.shape.as_list()
-    #         r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
-    #         updates = self._neural_local_updater(r=r, y=y, x=x, iter=iter)
-    #         updates = tf.reshape(updates, shape=r_shape)
-    #     return updates
 
     def _forward_initialiser(self):
         """initialise neural latent - r"""
@@ -281,21 +261,6 @@ class MetaFunClassifier(snt.Module):
         updates = tf.reshape(updates, shape=r_shape)
         return updates
 
-    # def _forward_decoder(self, cls_reprs):
-    #     """decode and sample weight for final outpyt layer"""
-    #     if self._no_decoder: 
-    #         # use functional representation directly as the predictor, used in ablation study
-    #         return cls_reprs
-    #     else:
-    #         s = cls_reprs.shape.as_list()
-    #         cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
-    #         weights_dist_params, self._orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
-    #         stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
-    #         classifier_weights = self.sample(
-    #             distribution_params=weights_dist_params,
-    #             stddev_offset=stddev_offset)
-    #         return classifier_weights
-
     def _forward_decoder(self):
         """decode and sample weight for final outpyt layer"""
         if self._no_decoder: 
@@ -333,17 +298,6 @@ class MetaFunClassifier(snt.Module):
         self.metric.reset_state()
         return self.loss_fn(model_outputs, true_outputs), accuracy
 
-    # def predict(self, inputs, weights):
-    #     """unnormalised class probabilities"""
-    #     if self._no_decoder:
-    #         print(weights.shape)
-    #         return weights
-    #     else:
-    #         print(weights.shape)
-    #         after_dropout = self.dropout(inputs, training=self.is_training)
-    #         preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
-    #         return preds
-
     def _predict(self):
         """unnormalised class probabilities"""
         if self._no_decoder:
@@ -366,20 +320,6 @@ class MetaFunClassifier(snt.Module):
             reduction=tf.keras.losses.Reduction.NONE)(
                 y_true=one_hot_outputs,
                 y_pred=model_outputs)
-
-
-    # def forward_kernel_or_attention(self, querys, keys, values):
-    #     """functional pooling"""
-    #     if self._use_kernel:
-    #         if self._kernel_type == tf.constant("se", dtype=tf.string):
-    #             rtn_values = submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale)
-    #         else:
-    #             rtn_values = self.deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale)
-
-    #     else:
-    #         rtn_values = self.attention_block(querys, keys, values)
-
-    #     return rtn_values
 
     def _forward_kernel_or_attention(self):
         """functional pooling"""
@@ -422,7 +362,7 @@ if __name__ == "__main__":
     dataloader = DataProvider("trial", config)
     dat = dataloader.generate()
     for i in dat.take(1):
-        module(i)
+        module.initialise(i)
 
     @tf.function
     def trial(x):

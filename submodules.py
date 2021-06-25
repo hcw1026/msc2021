@@ -1,48 +1,6 @@
 import tensorflow as tf
 import sonnet as snt
 
-# class forward_initialiser(snt.Module):
-#     def __init__(self, initial_state_type, dim_reprs, num_classes, nn_size, nn_layers, float_dtype, dropout_rate, initialiser, nonlinearity, name="forward_initialiser"):
-#         super(forward_initialiser, self).__init__(name=name)
-#         self._initial_state_type = initial_state_type
-
-#         if self._initial_state_type == tf.constant("zero", dtype=tf.string):
-#             self.initialiser = constant_initialiser(
-#                 dim_reprs=dim_reprs,
-#                 float_dtype=float_dtype,
-#                 num_classes=num_classes,
-#                 trainable=False)
-#         elif self._initial_state_type == tf.constant("constant", dtype=tf.string):
-#             self.initialiser = constant_initialiser(
-#                 dim_reprs=dim_reprs,
-#                 float_dtype=float_dtype,
-#                 num_classes=num_classes,
-#                 trainable=True)
-#         elif self._initial_state_type == tf.constant("parametric", dtype=tf.string):
-#             self.initialiser = parametric_initialiser(
-#                 nn_size=nn_size,
-#                 nn_layers=nn_layers,
-#                 dim_reprs=dim_reprs,
-#                 num_classes=num_classes,
-#                 dropout_rate=dropout_rate,
-#                 initialiser=initialiser,
-#                 nonlinearity=nonlinearity,
-#             )
-#         else:
-#             raise NameError("Unknown initial state type")
-
-#     def __call__(self, x, is_training=True):
-#         num_points = tf.shape(x)[-2]
-#         print(num_points)
-#         if self._initial_state_type == tf.constant("parametric",dtype=tf.string):
-#             reprs = self.initialiser(x, is_training=is_training)
-#         else:
-#             #reprs = self.initialiser(num_points)
-#             reprs = self.initialiser(x, is_training=is_training)
-#         return reprs
-
-
-
 class constant_initialiser(snt.Module):
     def __init__(self, dim_reprs, float_dtype, num_classes, no_batch=False, trainable=False, name="constant_initialiser"):
         super(constant_initialiser, self).__init__(name=name)
@@ -69,8 +27,6 @@ class constant_initialiser(snt.Module):
         
     def __call__(self, x):
         return self.tile_fun(self.init, x)
-        #tf.tile(self.init, [num_points, self._num_classes])
-
 
 class parametric_initialiser(snt.Module):
     def __init__(self, nn_size, nn_layers, dim_reprs, num_classes, dropout_rate, initialiser, nonlinearity, name="parametric_initialiser"):
@@ -262,22 +218,6 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
         querys = self.module(querys)
         return squared_exponential_kernel(querys, keys, values, sigma, lengthscale)
 
-
-# def squared_exponential_kernel(querys, keys, values, sigma, lengthscale):
-#     """rbf kernel"""
-#     print("query",querys.shape)
-#     print("key", keys.shape)
-#     print("value",values.shape)
-#     num_keys = tf.shape(keys)[-2]
-#     num_querys = tf.shape(querys)[-2]
-
-#     _keys = tf.tile(tf.expand_dims(keys, axis=1), [1, num_querys, 1])
-#     _querys = tf.tile(tf.expand_dims(querys, axis=0), [num_keys, 1, 1])
-#     sq_norm = tf.reduce_sum((_keys - _querys)**2, axis=-1)
-#     kernel_qk = sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
-#     v = tf.linalg.matmul(kernel_qk, values, transpose_a=True) # RBF * V
-#     return v
-
 def squared_exponential_kernel(querys, keys, values, sigma, lengthscale):
     """rbf kernel"""
     sq_norm = tf.reduce_sum((tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2))**2, axis=-1)
@@ -285,14 +225,3 @@ def squared_exponential_kernel(querys, keys, values, sigma, lengthscale):
     kernel_qk = sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
     v = tf.linalg.matmul(kernel_qk, values, transpose_a=True) # RBF * V
     return v
-
-
-
-
-
-
-
-
-    
-
-
