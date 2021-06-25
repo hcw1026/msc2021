@@ -3,7 +3,7 @@ import sonnet as snt
 import submodules
 
 class MetaFunClassifier(snt.Module):
-    def __init__(self, config, data_source="leo_imagenet", name="MetaFunClassifier"):
+    def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifier"):
         """
         config: dict
             Configuation python dictionary, see ./config/sample.yaml
@@ -49,6 +49,7 @@ class MetaFunClassifier(snt.Module):
         self._nonlinearity = tf.nn.relu
         self.initialiser = tf.keras.initializers.GlorotUniform()
         self.dropout = tf.keras.layers.Dropout(self._dropout_rate)
+        self._no_batch = no_batch
 
         # Constant Initialization
         self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
@@ -115,11 +116,12 @@ class MetaFunClassifier(snt.Module):
         # Forward decoder
         if not self._no_decoder:
             self.decoder = submodules.decoder(
-                embedding_dim = self.embedding_dim,
-                orthogonality_penalty_weight = self._orthogonality_penalty_weight, 
-                initialiser = self.initialiser)
+                embedding_dim=self.embedding_dim,
+                orthogonality_penalty_weight=self._orthogonality_penalty_weight, 
+                initialiser=self.initialiser)
 
         self.forward_decoder = self._forward_decoder()
+        self.predict = self._predict()
 
 
         # Kernel or attention
@@ -171,21 +173,21 @@ class MetaFunClassifier(snt.Module):
         self.forward_kernel_or_attention = self._forward_kernel_or_attention()
 
 
-    def __call__(self, data, is_training=True):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
         is_training: bool
             If True, training mode
         """
-
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.embedding_dim = data.tr_input.get_shape()[-1]
+        self.is_training = is_training
         self._initialize()
 
         # Initialise r
-        tr_reprs = self.forward_initialiser(data.tr_input, is_training=is_training)
-        val_reprs = self.forward_initialiser(data.val_input, is_training=is_training)
+        tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
+        val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
 
         # Iterative functional updating
         for k in range(self._num_iters):
@@ -226,15 +228,17 @@ class MetaFunClassifier(snt.Module):
                 dim_reprs=self._dim_reprs, 
                 float_dtype=self._float_dtype, 
                 num_classes=self._num_classes, 
+                no_batch=self._no_batch, 
                 trainable=False)
-            return lambda x: self.constant_initialiser(x.shape[-1])
+            return lambda x, is_training: self.constant_initialiser(x)
         elif self._initial_state_type == tf.constant("constant", dtype=tf.string):
             self.constant_initialiser = submodules.constant_initialiser(
                 dim_reprs=self._dim_reprs, 
                 float_dtype=self._float_dtype, 
                 num_classes=self._num_classes, 
+                no_batch=self._no_batch, 
                 trainable=True)
-            return lambda x: self.constant_initialiser(x.shape[-1])
+            return lambda x, is_training: self.constant_initialiser(x)
         elif self._initial_state_type == tf.constant("parametric", dtype=tf.string):
             self.parametric_initialiser = submodules.parametric_initialiser(
                 nn_size=self._nn_size,
@@ -245,7 +249,7 @@ class MetaFunClassifier(snt.Module):
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity,
             )
-            return self.parametric_initialiser
+            return lambda x, is_training: self.parametric_initialiser(x, is_training)
         else:
             raise NameError("Unknown initial state type")
 
@@ -328,19 +332,35 @@ class MetaFunClassifier(snt.Module):
         self.metric.reset_state()
         return self.loss_fn(model_outputs, true_outputs), accuracy
 
-    def predict(self, inputs, weights):
+    # def predict(self, inputs, weights):
+    #     """unnormalised class probabilities"""
+    #     if self._no_decoder:
+    #         print(weights.shape)
+    #         return weights
+    #     else:
+    #         print(weights.shape)
+    #         after_dropout = self.dropout(inputs, training=self.is_training)
+    #         preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
+    #         return preds
+
+    def _predict(self):
         """unnormalised class probabilities"""
         if self._no_decoder:
-            return weights
+            return lambda inputs, weights: weights
         else:
-            after_dropout = self.dropout(inputs, training=self.is_training)
-            preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
-            return preds
+            return self.predict_with_decoder
+
+    def predict_with_decoder(self, inputs, weights):
+        after_dropout = self.dropout(inputs, training=self.is_training)
+        preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
+        return preds
 
     def loss_fn(self, model_outputs, original_classes):
         """binary cross entropy"""
         original_classes = tf.squeeze(original_classes, axis=-1)
         one_hot_outputs = tf.one_hot(original_classes, depth=self._num_classes) #TODO: move onehot to data preprocessing
+        print("one_hot", one_hot_outputs.shape)
+        print("y_pred", model_outputs.shape)
         return tf.keras.losses.BinaryCrossentropy(
             from_logits=True,
             label_smoothing=self._label_smoothing,

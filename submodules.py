@@ -44,7 +44,7 @@ import sonnet as snt
 
 
 class constant_initialiser(snt.Module):
-    def __init__(self, dim_reprs, float_dtype, num_classes, trainable=False, name="constant_initialiser"):
+    def __init__(self, dim_reprs, float_dtype, num_classes, no_batch=False, trainable=False, name="constant_initialiser"):
         super(constant_initialiser, self).__init__(name=name)
         if trainable:
             self.init = tf.Variable(
@@ -57,9 +57,19 @@ class constant_initialiser(snt.Module):
             self.init = tf.zeros([1, dim_reprs])
 
         self._num_classes = num_classes
+
+        if no_batch:
+            self.tile_fun = lambda init, x : tf.tile(init, [x.shape[-2], self._num_classes])
+        else:
+            def tile_fun_batch(init, x):
+                t = tf.tile(init, [x.shape[-2], self._num_classes])
+                return tf.stack([t for i in range(x.shape[-3])])
+
+            self.tile_fun = tile_fun_batch
         
-    def __call__(self, num_points):
-        return tf.tile(self.init, [num_points, self._num_classes])
+    def __call__(self, x):
+        return self.tile_fun(self.init, x)
+        #tf.tile(self.init, [num_points, self._num_classes])
 
 
 class parametric_initialiser(snt.Module):
