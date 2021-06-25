@@ -87,13 +87,12 @@ class parametric_initialiser(snt.Module):
         
     def __call__(self, x, is_training=True):
         after_dropout = self.dropout(x, training=is_training)
-        print(after_dropout.shape)
         outputs = self.module(after_dropout)
         return tf.concat([outputs for i in range(self._num_classes)],axis=-1)
 
 
 class neural_local_updater(snt.Module):
-    def __init__(self, nn_size, nn_layers, dim_reprs, num_classes, initialiser, nonlinearity, name="neural_local_updater"):
+    def __init__(self, nn_size, nn_layers, dim_reprs, num_classes, initialiser, nonlinearity, no_batch=False, name="neural_local_updater"):
         super(neural_local_updater, self).__init__(name=name)
         self._num_classes = num_classes
 
@@ -108,7 +107,7 @@ class neural_local_updater(snt.Module):
 
         # MLP u+
         self.module2 = snt.nets.MLP(
-            output_sizes=[nn_size] * nn_layers,
+            output_sizes=[nn_size] * nn_layers + [dim_reprs],
             w_init=initialiser,
             with_bias=True,
             activation=nonlinearity,
@@ -124,13 +123,19 @@ class neural_local_updater(snt.Module):
             name="neural_local_updater_uminus"
         )
 
+        if no_batch:
+            self.perm = [0, 2, 1]
+            self.tile_dim = [1, self._num_classes, 1]
+        else:
+            self.perm = [0, 1, 3, 2]
+            self.tile_dim = [1, 1, self._num_classes, 1]
+
     def __call__(self, r, y, x=None, iter=""):
         y = tf.one_hot(y, self._num_classes) #TODO: move to data preprocessing
-        y = tf.transpose(y, perm=[0, 2, 1])
-
+        y = tf.transpose(y, self.perm)
         outputs = self.module1(r)
         agg_outputs = tf.math.reduce_mean(outputs, axis=-2, keepdims=True)
-        outputs = tf.concat([outputs, tf.tile(agg_outputs, [1, self._num_classes, 1])], axis=-1)
+        outputs = tf.concat([outputs, tf.tile(agg_outputs, self.tile_dim)], axis=-1)
 
         outputs_t = self.module2(outputs)
 
@@ -258,14 +263,25 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
         return squared_exponential_kernel(querys, keys, values, sigma, lengthscale)
 
 
+# def squared_exponential_kernel(querys, keys, values, sigma, lengthscale):
+#     """rbf kernel"""
+#     print("query",querys.shape)
+#     print("key", keys.shape)
+#     print("value",values.shape)
+#     num_keys = tf.shape(keys)[-2]
+#     num_querys = tf.shape(querys)[-2]
+
+#     _keys = tf.tile(tf.expand_dims(keys, axis=1), [1, num_querys, 1])
+#     _querys = tf.tile(tf.expand_dims(querys, axis=0), [num_keys, 1, 1])
+#     sq_norm = tf.reduce_sum((_keys - _querys)**2, axis=-1)
+#     kernel_qk = sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
+#     v = tf.linalg.matmul(kernel_qk, values, transpose_a=True) # RBF * V
+#     return v
+
 def squared_exponential_kernel(querys, keys, values, sigma, lengthscale):
     """rbf kernel"""
-    num_keys = tf.shape(keys)[0]
-    num_querys = tf.shape(querys)[0]
-
-    _keys = tf.tile(tf.expand_dims(keys, axis=1), [1, num_querys, 1])
-    _querys = tf.tile(tf.expand_dims(querys, axis=0), [num_keys, 1, 1])
-    sq_norm = tf.reduce_sum((_keys - _querys)**2, axis=-1)
+    sq_norm = tf.reduce_sum((tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2))**2, axis=-1)
+    sq_norm = tf.linalg.matrix_transpose(sq_norm)
     kernel_qk = sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
     v = tf.linalg.matmul(kernel_qk, values, transpose_a=True) # RBF * V
     return v
