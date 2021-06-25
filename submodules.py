@@ -107,8 +107,7 @@ class decoder(snt.Module):
         self.decoder_module = snt.Linear(
             output_size=embedding_dim * 2,
             with_bias=True,
-            w_init=initialiser,
-            name="decoder"
+            w_init=initialiser
         )
 
     def __call__(self, inputs):

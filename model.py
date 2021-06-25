@@ -1,6 +1,7 @@
 import tensorflow as tf
 import sonnet as snt
 import submodules
+import utils
 
 class MetaFunClassifier(snt.Module):
     def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifier"): #TODO: remove no_batch
@@ -68,8 +69,9 @@ class MetaFunClassifier(snt.Module):
         """initialiser variables and functions"""
 
         self.embedding_dim = data_instance.tr_input.get_shape()[-1]
-        # Inner learning rate
-        self.alpha =  tf.Variable(
+        
+        # Forward initialiser
+        self.alpha =  tf.Variable( # Inner learning rate
             initial_value=tf.constant_initializer(self._initial_inner_lr)(
                 shape=[1,1],
                 dtype=self._float_dtype
@@ -163,8 +165,12 @@ class MetaFunClassifier(snt.Module):
 
         self.forward_kernel_or_attention = self._forward_kernel_or_attention()
 
+        # Change initialisation state
         self.has_initialised = True
 
+        # Regularisation variables
+        self.__call__(data_instance)
+        self.regularise_variables = utils.get_linear_layer_variables(self)
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
         """
@@ -338,6 +344,10 @@ class MetaFunClassifier(snt.Module):
     @property
     def _decoder_orthogonality_reg(self):
         return self._orthogonality_reg
+
+    @property
+    def get_regularise_variable(self):
+        return self.regularise_variables
 
 if __name__ == "__main__":
     from utils import parse_config
