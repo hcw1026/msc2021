@@ -3,7 +3,7 @@ import sonnet as snt
 import submodules
 
 class MetaFunClassifier(snt.Module):
-    def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifier"):
+    def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifier"): #TODO: remove no_batch
         """
         config: dict
             Configuation python dictionary, see ./config/sample.yaml
@@ -98,7 +98,8 @@ class MetaFunClassifier(snt.Module):
                 dim_reprs=self._dim_reprs, 
                 num_classes=self._num_classes, 
                 initialiser=self.initialiser, 
-                nonlinearity=self._nonlinearity)
+                nonlinearity=self._nonlinearity,
+                no_batch=self._no_batch)
         
         else:
             # Inner learning rate for each functional representation for each class
@@ -359,8 +360,6 @@ class MetaFunClassifier(snt.Module):
         """binary cross entropy"""
         original_classes = tf.squeeze(original_classes, axis=-1)
         one_hot_outputs = tf.one_hot(original_classes, depth=self._num_classes) #TODO: move onehot to data preprocessing
-        print("one_hot", one_hot_outputs.shape)
-        print("y_pred", model_outputs.shape)
         return tf.keras.losses.BinaryCrossentropy(
             from_logits=True,
             label_smoothing=self._label_smoothing,
