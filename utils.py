@@ -3,8 +3,6 @@ import os
 from datetime import datetime
 
 import tensorflow as tf
-from tensorflow.python.framework.errors_impl import NotFoundError
-
 
 def parse_config(yaml_path):
     """convert a yaml path into the corresponding dictionary
@@ -90,12 +88,13 @@ def ckpt_restore(cls, ckpt):
     """
 
     if cls._restore_from_ckpt is True:
-        cls.ckpt_restore_path = find_ckpt_path(cls.ckpt_restore_path)
-        try:
-            rp = ckpt.restore(cls.ckpt_restore_path)
-            if rp:
-                rp.assert_consumed()
-                print("Restored from checkpoint", cls.ckpt_restore_path)
+        cls._ckpt_restore_path = find_ckpt_path(cls._ckpt_restore_path)
+        if cls._ckpt_restore_path is not None:
+            try:
+                rp = ckpt.restore(cls._ckpt_restore_path)
+
+                rp.assert_existing_objects_matched()
+                print("Restored from checkpoint", cls._ckpt_restore_path)
                 init_from_start = False
 
                 # Check if need to reset early_stopping
@@ -110,17 +109,18 @@ def ckpt_restore(cls, ckpt):
 
                 cls.epoch_counter.assign_add(tf.constant(1))
 
-                if cls.ckpt_save_dir is None:
-                    cls.ckpt_save_dir = os.path.dirname(cls.ckpt_restore_path)
-                elif os.path.dirname(cls.ckpt_restore_path) != cls.ckpt_save_dir:
+                if cls._ckpt_save_dir is None:
+                    cls._ckpt_save_dir = os.path.dirname(cls._ckpt_restore_path)
+                elif os.path.dirname(cls._ckpt_restore_path) != cls._ckpt_save_dir:
                     print("Warning: save directory and restore directory could be different, please abort unless this is intended")
 
-            else:
-                print("Checkpoint not found, initialising from scratch")
+            except NameError:
+                print("Checkpoint not found, Initialising the model without checkpoint")
                 init_from_start = True
-        except NotFoundError:
-            print("Checkpoint not found, Initialising the model without checkpoint")
+        else:
+            print("Checkpoint not found, initialising from scratch")
             init_from_start = True
+
     else:
         print("Initialising the model without checkpoint")
         init_from_start = True
@@ -154,7 +154,7 @@ def profile(cls, with_graph=False, profile_dir=None):
     tf.summary.trace_off()
 
     #reset
-    cls.__init__()
+    cls.__init__(config=cls.config, dataprovider=cls.dataprovider, model=cls.model, load_data=cls.load_data, name=cls.name)
 
 
 

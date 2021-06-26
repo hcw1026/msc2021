@@ -17,12 +17,14 @@ class CLearner():
         self.config = config
         self.dataprovider = dataprovider
         self.model = model
+        self.load_data = load_data
+        self.name = name
 
         # Model Configurations
         self._l2_penalty_weight = config["Model"]["reg"]["l2_penalty_weight"]
 
         # Training Configurations
-        _config = config["Training"]
+        _config = config["Train"]
         self._outer_lr = _config["lr"]
         self._train_on_val = _config["train_on_val"]
         self._train_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
@@ -31,21 +33,22 @@ class CLearner():
         self._print_freq = _config["print_freq"]
 
         # Early Stopping Configurations
-        _config = config["Training"]["early_stop"]
+        _config = config["Train"]["early_stop"]
         self._early_stop = _config["early_stop"]
         self._early_stop_reset = _config["early_stop_reset"]
         self._early_stop_patience = _config["early_stop_patience"]
         self._early_stop_min_delta = abs(_config["early_stop_min_delta"])
-        self._early_stop_minitor = _config["early_stop_monitor"]
+        self._early_stop_monitor = _config["early_stop_monitor"]
 
         self.early_stop_curr_best = tf.Variable(0., dtype=self._float_dtype)
         self.stop = False
 
         # Checkpoint Configurations
-        _config = config["Training"]["save"]
+        _config = config["Train"]["save"]
         self._ckpt_save_dir = _config["ckpt_save_dir"]
         self._ckpt_save_prefix = _config["ckpt_save_prefix"]
-        self._restore_from_ckpt = _config["ckpt_restore_path"]
+        self._restore_from_ckpt = _config["restore_from_ckpt"]
+        self._ckpt_restore_path = _config["ckpt_restore_path"]
         self._save_final_model = _config["save_final_model"]
 
         self.best_epoch = tf.Variable(1)
@@ -64,9 +67,9 @@ class CLearner():
         self.val_data = None
         self.test_data = None
         if load_data is True:
-            self.train_data = self._load_data("train")
-            self.val_data = self._load_data("val")
-            self.test_data = self._load_data("test")
+            self._load_data("train")
+            self._load_data("val")
+            self._load_data("test")
 
         # Initialise
         self.train_dist_ds = None
@@ -87,7 +90,6 @@ class CLearner():
 
         else:
             self.strategy = snt.distribute.Replicator()
-
 
     def _load_data(self, dataset_split):
         """load data from dataprovider"""
@@ -148,11 +150,14 @@ class CLearner():
         self.optimiser = tf.keras.optimizers.Adam(learning_rate=self._outer_lr)
         self.regulariser = snt.regularizers.L2(self._l2_penalty_weight)
 
+        # Initialise model
+        self.model.initialise(next(iter(self.train_data.take(1))))
+
     def _train_loop(self, train_step, validation_step):
         """training iterations"""
         epoch_start = int(self.epoch_counter.numpy())
 
-        for epoch in range(epoch_start, self._epoch):
+        for epoch in range(epoch_start, self._epoch+1):
             step_num = 0
             self.current_state = "train"
             print("Train>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -161,9 +166,11 @@ class CLearner():
                 train_loss,  train_tr_metric, train_val_metric = train_step(train_batch)
                 if step_num % self._print_freq == 0:
                     print("Train -- Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
-                    self.eval_metric_type, epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result(), train_tr_metric, train_val_metric, self.metric_train_context_acc, self.metric_train_target_acc))
+                    self.eval_metric_type, epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result(), train_tr_metric, train_val_metric, self.metric_train_context_acc.result(), self.metric_train_target_acc.result()))
 
-                self._write_tensorboard_step(self.optimiser.iterations)
+                self._write_tensorboard_step(self.optimiser.iterations, train_loss)
+
+            self._write_tensorboard_epoch(epoch)
 
             if self._validation:
                 print("Validation>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -174,7 +181,7 @@ class CLearner():
                     val_loss, val_tr_metric, val_val_metric = validation_step(val_batch)
                     if step_num % self._print_freq == 0:
                         print("Validation --Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
-                        self.eval_metric_type, epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result(), val_tr_metric, val_val_metric, self.metric_val_context_acc, self.metric_val_target_acc))
+                        self.eval_metric_type, epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result(), val_tr_metric, val_val_metric, self.metric_val_context_acc.result(), self.metric_val_target_acc.result()))
 
             self._write_tensorboard_epoch(epoch)
 
@@ -196,11 +203,11 @@ class CLearner():
                 train_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)
                 reg_loss = self.regulariser(self.model.get_regularise_variables)
                 orth_loss = self.model.additional_loss
-                train_loss = utils.compute_loss(train_loss, reg_loss + orth_loss, self._train_batch_size)
+                train_loss = utils.combine_losses(train_loss, reg_loss + orth_loss, self._train_batch_size)
                 
 
             gradients = tape.gradient(train_loss, self.model.trainable_variables)
-            self.optimiser.apply_gradients(gradients(zip(gradients, self.model.trainable_variables)))
+            self.optimiser.apply_gradients(zip(gradients, self.model.trainable_variables))
 
             # Update metrics
             self.metric_train_target_loss(train_loss) # TODO: check correctness of placing it here
@@ -219,7 +226,7 @@ class CLearner():
             val_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False)
             reg_loss = self.regulariser(self.model.get_regularise_variables)
             orth_loss = self.model.additional_loss
-            val_loss = utils.compute_loss(val_loss, reg_loss + orth_loss, self._val_batch_size)
+            val_loss = utils.combine_losses(val_loss, reg_loss + orth_loss, self._val_batch_size)
 
             # Update metrics
             self.metric_val_target_loss(val_loss) # TODO: check correctness of placing it here
@@ -254,14 +261,14 @@ class CLearner():
             self.metric_val_context_acc = tf.keras.metrics.Mean(name="val_target_acc")
 
     def _reset_metrics(self):
-        self.metric_train_target_loss.reset_metrics()
-        self.metric_train_target_acc.reset_metrics()
-        self.metric_train_context_acc.reset_metrics()
+        self.metric_train_target_loss.reset_states()
+        self.metric_train_target_acc.reset_states()
+        self.metric_train_context_acc.reset_states()
 
         if self._validation:
-            self.metric_val_target_loss.reset_metrics()
-            self.metric_val_target_acc.reset_metrics()
-            self.metric_val_context_acc.reset_metrics()
+            self.metric_val_target_loss.reset_states()
+            self.metric_val_target_acc.reset_states()
+            self.metric_val_context_acc.reset_states()
 
     def _create_restore_checkpoint(self):
         # Checkpoints
@@ -276,12 +283,12 @@ class CLearner():
 
         init_from_start = utils.ckpt_restore(self, ckpt)
         if init_from_start:
-            if self.ckpt_save_dir is None:
-                self.ckpt_save_dir = os.path.join("./checkpoint", self.current_time)
+            if self._ckpt_save_dir is None:
+                self._ckpt_save_dir = os.path.join("./checkpoint", self.current_time)
             else:
-                self.ckpt_save_dir = os.path.join(self.ckpt_save_dir,self.current_time)
+                self._ckpt_save_dir = os.path.join(self._ckpt_save_dir,self.current_time)
 
-        self.ckpt_manager = tf.train.CheckpointManager(ckpt, self.ckpt_save_dir, max_to_keep=None, checkpoint_name=self._ckpt_save_prefix)
+        self.ckpt_manager = tf.train.CheckpointManager(ckpt, self._ckpt_save_dir, max_to_keep=None, checkpoint_name=self._ckpt_save_prefix)
 
     def _create_summary_writers(self):
         train_log_dir = os.path.join(self._ckpt_save_dir, "logs/summary/train_epoch")
@@ -296,24 +303,25 @@ class CLearner():
     def _write_tensorboard_epoch(self, epoch):
         if self.current_state == "train":
             with self.train_summary_writer.as_default():
-                tf.summary.scaler("Mean Train Target Loss", self.metric_train_target_loss, step=epoch)
-                tf.summary.scaler("Train Target Acc", self.metric_train_target_acc, step=epoch)
-                tf.summary.scaler("Train Context Acc", self.metric_train_context_acc, step=epoch)
+                tf.summary.scalar("Mean Train Target Loss", self.metric_train_target_loss.result(), step=epoch)
+                tf.summary.scalar("Train Target Acc", self.metric_train_target_acc.result(), step=epoch)
+                tf.summary.scalar("Train Context Acc", self.metric_train_context_acc.result(), step=epoch)
                 tf.summary.flush()
 
         elif self.current_state == "val":
             with self.val_summary_writer.as_default():
-                tf.summary.scaler("Mean Validation Target Loss", self.metric_val_target_loss, step=epoch)
-                tf.summary.scaler("Validation Target Acc", self.metric_val_target_acc, step=epoch)
-                tf.summary.scaler("Validation Context Acc", self.metric_val_context_acc, step=epoch)
+                tf.summary.scalar("Mean Validation Target Loss", self.metric_val_target_loss.result(), step=epoch)
+                tf.summary.scalar("Validation Target Acc", self.metric_val_target_acc.result(), step=epoch)
+                tf.summary.scalar("Validation Context Acc", self.metric_val_context_acc.result(), step=epoch)
                 tf.summary.flush()
 
     def _write_tensorboard_step(self, iteration, loss):
         with self.train_summary_writer.as_default():
-            tf.summary.scaler("Train Target Loss (step)", loss)
-            tf.summary.scaler("Mean Train Target Loss (step)", self.metric_train_target_loss, step=iteration)
-            tf.summary.scaler("Train Target Acc (step)", self.metric_train_target_acc, step=iteration)
-            tf.summary.scaler("Train Context Acc (step)", self.metric_train_context_acc, step=iteration)
+            print(loss)
+            tf.summary.scalar("Train Target Loss (step)", loss, step=iteration)
+            tf.summary.scalar("Mean Train Target Loss (step)", self.metric_train_target_loss.result(), step=iteration)
+            tf.summary.scalar("Train Target Acc (step)", self.metric_train_target_acc.result(), step=iteration)
+            tf.summary.scalar("Train Context Acc (step)", self.metric_train_context_acc.result(), step=iteration)
             tf.summary.flush()
 
     def _early_stopping_init(self):
@@ -356,13 +364,13 @@ class CLearner():
         print("checkpoint is saved to ",path)
 
         #save config
-        dest_dir = os.path.join(self.ckpt_save_dir, "config")
+        dest_dir = os.path.join(self._ckpt_save_dir, "config")
         if not os.path.isdir(dest_dir):
             os.mkdir(dest_dir)
         utils.save_as_yaml(self.config, os.path.join(dest_dir,"config_epoch_{}.py".format(self.epoch_counter.value())))
 
-def profile(self, with_graph=False, profile_dir=None):
-    utils.profile(self, with_graph=with_graph, profile_dir=profile_dir)
+    def profile(self, with_graph=False, profile_dir=None):
+        utils.profile(self, with_graph=with_graph, profile_dir=profile_dir)
 
 
 
@@ -373,15 +381,9 @@ if __name__ == "__main__":
     import numpy as np
     import collections
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
-    module = MetaFunClassifier(config=config)
-
     from data.leo_imagenet import DataProvider
-    dataloader = DataProvider("trial", config)
-    dat = dataloader.generate()
-    for i in dat.take(1):
-        module.initialise(i)
 
-    mylearner = CLearner(config, module, dataprovider=DataProvider)
-    mylearner.train()
+    mylearner = CLearner(config, MetaFunClassifier, dataprovider=DataProvider)
+    # mylearner.train()
 
     

@@ -52,7 +52,7 @@ import tensorflow as tf
 import os
 import pickle
 import collections
-from tools import ClassificationDescription, unpack_data, StrEnum, MetaSplit, GenerateDataset
+from data.tools import ClassificationDescription, unpack_data, StrEnum, MetaSplit, GenerateDataset
 
 NDIM = 640
 
@@ -90,7 +90,7 @@ class DataProvider():
         assert self._dataset_name.lower() in ['miniimagenet', 'tieredimagenet'], "Unknown dataset name"
         self._dataset_name = 'miniImageNet' if self._dataset_name.lower() == 'miniimagenet' else 'tieredImageNet'
 
-        self._train_on_val = config["Training"]["train_on_val"]
+        self._train_on_val = config["Train"]["train_on_val"]
 
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
