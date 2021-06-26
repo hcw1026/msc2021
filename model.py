@@ -201,12 +201,14 @@ class MetaFunClassifier(snt.Module):
         classifier_weights = self.forward_decoder(val_reprs)
         val_loss, batch_val_metric = self.calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
 
-        # Aggregate loss in a batch
-        batch_tr_loss = tf.math.reduce_mean(tr_loss)
-        batch_val_loss = tf.math.reduce_mean(val_loss)
+        # # Aggregate loss in a batch
+        # batch_tr_loss = tf.math.reduce_mean(tr_loss)
+        # batch_val_loss = tf.math.reduce_mean(val_loss)
 
         #Additional regularisation penalty
-        return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
+        #return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
+
+        return val_loss, batch_tr_metric, batch_val_metric
 
     def _forward_initialiser(self):
         """initialise neural latent - r"""
@@ -346,8 +348,12 @@ class MetaFunClassifier(snt.Module):
         return self._orthogonality_reg
 
     @property
-    def get_regularise_variable(self):
+    def get_regularise_variables(self):
         return self.regularise_variables
+
+    @property
+    def additional_loss(self):
+        return self._decoder_orthogonality_reg
 
 if __name__ == "__main__":
     from utils import parse_config
