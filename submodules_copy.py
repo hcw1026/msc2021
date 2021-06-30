@@ -91,7 +91,7 @@ class neural_local_updater(snt.Module):
             self.call_fn = self.classification
 
         else:
-            self.concat_fn = lambda r, y, x: tf.concat([r, y, x], axis=-1) if xNone is False else lambda r, y, x: tf.concat([r, y], axis=-1)
+            self.concat_fn = (lambda r, y, x: tf.concat([r, y, x], axis=-1)) if xNone is False else (lambda r, y, x: tf.concat([r, y], axis=-1))
 
             self.module = snt.nets.MLP(
                 output_sizes=[nn_size] * nn_layers + [dim_reprs],
@@ -176,10 +176,6 @@ class decoder(snt.Module):
         else:
             return self.decoder_module(reprs)
 
-        
-
-
-
 
 # (Adapted from https://github.com/deepmind/leo, see copyright and original license in our LICENSE file.)
 def get_orthogonality_regularizer(orthogonality_penalty_weight):
@@ -205,57 +201,9 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
 # Attention modules
 # (Adapted from https://github.com/deepmind/neural-processes, see copyright and original license in our LICENSE file.)
 
-# class Attention(snt.Module):
-
-#     def __init__(self, config, key_instance, query_instance, name="attention"):
-#         super(Attention, self).__init__(name=name)
-#         self._float_dtype = tf.float32
-#         self._int_dtype = tf.int32
-#         self._rep = config['rep']
-#         self._output_sizes = config['output_sizes']
-#         self._att_type = config['att_type']
-#         self._normalise = config['normalise']
-#         self._scale = config['scale']
-#         self._l2_penalty_weight = config['l2_penalty_weight']
-#         self._nonlinearity = config['nonlinearity']
-#         self.initialiser = tf.keras.initializers.GlorotUniform()
-
-#         self.module = snt.nets.MLP( # mapping a
-#             output_sizes=self._output_sizes,
-#             w_init=self.initialiser,
-#             with_bias=True,
-#             activation=self._nonlinearity,
-#             name="deep_attention"
-#             )
-
-#         if self._att_type != tf.constant("dot_product",tf.string):
-#             raise NameError("Unknown attention type")
-
-#         if self._rep not in [tf.constant("identity", dtype=tf.string), tf.constant("mlp", dtype=tf.string)]:
-#             raise NameError("Unknown attention representation - not among ['identity', 'mlp']")
-
-#         shape = key_instance.shape.as_list()
-#         shape[-1] = shape[-2]
-#         shape[-2] = key_instance.shape[-2] + query_instance.shape[-2]
-
-#         self.weights = tf.constant(0.,shape=shape, dtype=self._float_dtype)
-
-#     def __call__(self, x1, x2, r, reset=tf.constant(True, dtype=tf.bool)):
-#         if reset:
-#             if self._rep == tf.constant("identity", dtype=tf.string):
-#                 k, q = (x1, x2)
-#             else: # mapping a
-#                 k = self.module(x1)
-#                 q = self.module(x2)
-
-#             self.weights = dot_product_attention_frontend(q=q, k=k, normalise=self._normalise)
-#             return dot_product_attention_backend(weights=self.weights, v=r)
-#         else:
-#             return dot_product_attention_backend(weights=self.weights, v=r)
-
 class Attention(snt.Module):
 
-    def __init__(self, config=None, key_instance=None, query_instance=None, name="attention"):
+    def __init__(self, config, key_instance, query_instance, name="attention"):
         super(Attention, self).__init__(name=name)
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
@@ -282,14 +230,24 @@ class Attention(snt.Module):
         if self._rep not in [tf.constant("identity", dtype=tf.string), tf.constant("mlp", dtype=tf.string)]:
             raise NameError("Unknown attention representation - not among ['identity', 'mlp']")
 
-    def __call__(self, x1, x2, r, reset=False):
-        if self._rep == tf.constant("identity", dtype=tf.string):
-            k, q = (x1, x2)
-        else: # mapping a
-            k = self.module(x1)
-            q = self.module(x2)
+        shape = key_instance.shape.as_list()
+        shape[-1] = shape[-2]
+        shape[-2] = key_instance.shape[-2] + query_instance.shape[-2]
 
-        return dot_product_attention(q, k, r, self._normalise)
+        self.weights = tf.constant(0.,shape=shape, dtype=self._float_dtype)
+
+    def __call__(self, x1, x2, r, reset=tf.constant(True, dtype=tf.bool)):
+        if reset:
+            if self._rep == tf.constant("identity", dtype=tf.string):
+                k, q = (x1, x2)
+            else: # mapping a
+                k = self.module(x1)
+                q = self.module(x2)
+
+            self.weights = dot_product_attention_frontend(q=q, k=k, normalise=self._normalise)
+            return dot_product_attention_backend(weights=self.weights, v=r)
+        else:
+            return dot_product_attention_backend(weights=self.weights, v=r)
 
 def dot_product_attention(q, k, v, normalise):
     """Computes dot product attention.
@@ -371,3 +329,78 @@ def probabilistic_sample(distribution_params, stddev_offset, is_training=True):
         return means
     else:
         return tf.random.normal(shape=means.shape, mean=means, stddev=stddev)
+
+
+
+class predict_repr_as_inputs(snt.Module):
+    def __init__(self, output_sizes, initialiser, nonlinearity, name="predict"):
+        super(predict_repr_as_inputs, self).__init__(name=name)
+        self._output_sizes = output_sizes
+        self._output_sizes_len = len(output_sizes)
+        self._nonlinearity = nonlinearity
+        
+        self.modules_list = [
+            snt.Linear(
+                output_size=size,
+                with_bias=True,
+                w_init=initialiser
+            )
+            for size in output_sizes
+        ]
+                    
+    def __call__(self, inputs, weights):
+        outputs = inputs
+        for idx in tf.range(self._output_sizes_len-1):
+            outputs = tf.concat([outputs, weights], axis=-1)
+            outputs = self.modules_list[idx](outputs)
+            outputs = self._nonlinearity(outputs)
+        outputs = tf.concat([outputs, weights],axis=-1)
+        return self.modules_list[idx+1](outputs)
+
+class custom_MLP(snt.Module):
+    def __init__(self, output_sizes, embedding_dim, nonlinearity, name="custom_MLP"):
+        super(custom_MLP, self).__init__(name=name)
+        output_sizes = [embedding_dim] + output_sizes
+        self._output_sizes = output_sizes
+        self._num_layers = len(output_sizes)
+        self.w_begin = []
+        self.w_end = []
+        self.b_begin = self.w_end
+        self.b_end= []
+        self.in_size = self._output_sizes[:-1]
+        self.out_size = self._output_sizes[1:]
+        self._nonlinearity = nonlinearity
+
+        begin = 0
+        for idx in range(self._num_layers-1):
+            in_size = output_sizes[idx]
+            out_size = output_sizes[idx+1]
+            end = begin + in_size * out_size
+            self.w_begin.append(begin)
+            self.w_end.append(end)
+            self.b_end.append(end+out_size)
+            begin = end + out_size
+
+    def __call__(self, inputs, weights):
+        preds = inputs
+        for idx in tf.range(self._num_layers-2):
+            w = tf.reshape(
+                weights[..., self.w_begin[idx]:self.w_end[idx]], 
+                weights.shape[:-1].as_list() + [self.in_size[idx], self.out_size[idx]])
+            b = tf.reshape(
+                weights[...,self.b_begin[idx]:self.b_end[idx]],
+                weights.shape[:-1].as_list() + [self.out_size[idx]]
+            )
+            preds = tf.linalg.matvec(w, preds, transpose_a=True) + b
+            preds = self._nonlinearity(preds)
+
+        w = tf.reshape(
+            weights[..., self.w_begin[idx+1]:self.w_end[idx+1]], 
+            weights.shape[:-1].as_list() + [self.in_size[idx+1], self.out_size[idx+1]])
+        b = tf.reshape(
+            weights[...,self.b_begin[idx+1]:self.b_end[idx+1]],
+            weights.shape[:-1].as_list() + [self.out_size[idx+1]]
+        )
+        preds = tf.linalg.matvec(w, preds, transpose_a=True) + b
+        return preds
+

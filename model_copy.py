@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow_probability as tfp
 import sonnet as snt
 import submodules_copy as submodules
 import utils
@@ -167,7 +168,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
 
         # Iterative functional updating
-        for k in range(self._num_iters):
+        for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input) #return negative u
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
@@ -183,9 +184,9 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
         # Decode functional representation and compute loss and metric
         classifier_weights = self.forward_decoder(tr_reprs)
-        tr_loss, batch_tr_metric = self.calculate_loss_and_acc(data.tr_input, data.tr_output, classifier_weights)
+        tr_loss, batch_tr_metric = self.predict_and_calculate_loss_and_acc(data.tr_input, data.tr_output, classifier_weights)
         classifier_weights = self.forward_decoder(val_reprs)
-        val_loss, batch_val_metric = self.calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
+        val_loss, batch_val_metric = self.predict_and_calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
 
         # # Aggregate loss in a batch
         # batch_tr_loss = tf.math.reduce_mean(tr_loss)
@@ -265,7 +266,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         with tf.GradientTape() as tape:
             tape.watch(r) #watch r
             classifier_weights = self.forward_decoder(r) # sample w_n from LEO
-            tr_loss, _ = self.calculate_loss_and_acc(x, y, classifier_weights) # softmax cross entropy
+            tr_loss, _ = self.predict_and_calculate_loss_and_acc(x, y, classifier_weights) # softmax cross entropy
             batch_tr_loss = tf.reduce_mean(tr_loss)
 
         loss_grad = tape.gradient(batch_tr_loss, r)
@@ -374,7 +375,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             stddev_offset=stddev_offset,
             is_training=self.is_training)
 
-    def calculate_loss_and_acc(self, inputs, true_outputs, classifier_weights):
+    def predict_and_calculate_loss_and_acc(self, inputs, true_outputs, classifier_weights):
         """compute cross validation loss"""
         model_outputs = self.predict(inputs, classifier_weights) # return unnormalised probability of each class for each instance
         model_predictions = tf.math.argmax(
@@ -441,8 +442,12 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         self.forward_initialiser = self.forward_initialiser_base()
         self.forward_local_updater = self.forward_local_updater_base()
-        self.decoder = self.forward_decoder_base()
+        self.forward_decoder = self.forward_decoder_base()
         self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
+        
+        # Extra internal functions
+        self.predict_init()
+        self.calculate_loss_and_metrics_init()
 
         # Change initialisation state
         self.has_initialised = True
@@ -470,8 +475,22 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         all_tr_reprs = tf.zeros([self._num_iters] + tr_reprs.shape.as_list())
         all_val_reprs = tf.zeros([self._num_iters] + tr_reprs.shape.as_list())
 
-        for k in range(self._num_iters):
-            pass
+        for k in tf.range(self._num_iters):
+            updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input)
+            tr_updates, val_updates = tf.split(
+                self.alpha * self.forward_kernel_or_attention(
+                    querys=tf.concat([data.tr_input, data.val_input], axis=-2),
+                    keys=data.tr_input,
+                    values=updates,
+                    reset=self.reset),
+                num_or_size_splits=[data.tr_input.shape[-2], data.val_input.shape[-2]],
+                axis=-2
+                )
+            tr_reprs += tr_updates
+            val_reprs += val_updates
+            all_tr_reprs[k,...] = tr_reprs
+            all_val_reprs[k,...] = val_reprs
+            self.reset = tf.constant(False, dtype=tf.bool)
         return 1,2,3
 
     @snt.once
@@ -649,17 +668,86 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             distribution_params=distribution_params, 
             stddev_offsets=stddev_offset)
 
+    @snt.once
+    def calculate_loss_and_metrics_init(self):
+
+        def mse_loss(target_y, mus, sigmas, coeffs=None):
+            mu, sigma = mus, sigmas
+            mse = self.loss_fn(mu, target_y)
+            return mse, mse
+
+        def log_prob_loss(target_y, mus, sigmas, coeffs=None):
+            mu, sigma = mus, sigmas
+            dist = tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
+            loss = -dist.log_prob(target_y)
+            mse = self.loss_fn(mu, target_y)
+            return loss, mse
+
+        if self._loss_type == "mse":
+            self._calculate_loss_and_metrics =  mse_loss
+        elif self._loss_type == "log_prob":
+            self._log_prob_loss =  log_prob_loss
+        else:
+            raise NameError("unknown loss type")
+
     def calculate_loss_and_metrics(self, target_y, mus, sigmas, coeffs=None):
+        return self._calculate_loss_and_metrics(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
 
-        pass
 
-    def predict(self):
-        pass
+    @snt.once
+    def predict_init(self):
+        """ backend of decoder to produce mean and variance of predictions"""
+        def predict_no_decoder1(inputs, weights):
+            return weights, tf.ones_like(weights) * 0.5
+
+        def predict_no_decoder2(inputs, weights):
+            return tf.split(weights, 2, axis=-1)
+
+        def predict_repr_as_inputs(inputs, weights):
+            preds = self._predict_repr_as_inputs(inputs=inputs, weights=weights)
+            return _split(preds)
+
+        def predict_not_repr_as_inputs(inputs, weights):
+            preds = self.custom_MLP(inputs=inputs, weights=weights)
+            return _split(preds)
+        
+        def _split(preds):
+            mu, log_sigma = tf.split(preds, 2, axis=-1)
+            sigma = 0.1 + 0.9 * tf.nn.softplus(log_sigma)
+            return mu, sigma
+
+        if self._no_decoder:
+            if self._dim_reprs == 1:
+                self._predict = predict_no_decoder1
+            elif self._dim_reprs == 2:
+                self._predict = predict_no_decoder2
+            else:
+                raise Exception("num_reprs must <=2 if no_decoder")
+        if self._repr_as_inputs:
+            self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
+                output_sizes=self._decoder_output_sizes,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity
+            )
+            self._predict =  predict_repr_as_inputs
+        else:
+            self.custom_MLP = submodules.custom_MLP(
+                output_sizes=self._decoder_output_sizes,
+                embedding_dim=self.embedding_dim,
+                nonlinearity=self._nonlinearity)
+            self._predict =  predict_not_repr_as_inputs
+
+    def predict(self, inputs, weights):
+        return self._predict(inputs=inputs, weights=weights)
 
     def loss_fn(self, model_outputs, labels):
         return tf.keras.losses.MeanSquaredError(
             reduction=tf.keras.losses.Reduction.NONE)(
                 y_true=labels, y_pred=model_outputs)
+
+    @property
+    def additional_loss(self):
+        return tf.constant(0., dtype=self._float_dtype)
 
 
 
