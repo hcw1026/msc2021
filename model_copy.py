@@ -313,9 +313,14 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
     @snt.once
     def se_kernel_init(self):
         self.se_kernel_all_init()
+        self._se_kernel = submodules.squared_exponential_kernel(
+            train_instance=self.sample_tr_data, 
+            val_instance=self.sample_val_data, 
+            float_dtype=self._float_dtype)
 
-    def se_kernel(self, querys, keys, values, reset=tf.constant(True)):
-        return submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
+    def se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
+        return self._se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
+        # return submodules.squared_exponential_kernel_fun(querys, keys, values, self.sigma, self.lengthscale)
 
     @snt.once
     def deep_se_kernel_init(self):
@@ -325,8 +330,8 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             kernel_dim=self.embedding_dim,
             initialiser=self.initialiser,
             nonlinearity=self._nonlinearity,
-            key_instance=self.sample_tr_data,
-            query_instance=self.sample_val_data,
+            train_instance=self.sample_tr_data,
+            val_instance=self.sample_val_data,
             float_dtype=self._float_dtype
         )
 
@@ -345,11 +350,11 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config, key_instance=self.sample_tr_data, query_instance=self.sample_val_data)
+        self.attention = submodules.Attention(config, train_instance=self.sample_tr_data, val_instance=self.sample_val_data)
 
     def attention_block(self, querys, keys, values, iter="", reset=tf.constant(True, dtype=tf.bool)):
         """dot-product kernel"""
-        return self.attention(keys, querys, values)
+        return self.attention(keys, querys, values, reset=reset)
 
     def forward_decoder_with_decoder_init(self):
         self.decoder = submodules.decoder(
@@ -472,8 +477,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
         
-        all_tr_reprs = tf.zeros([self._num_iters] + tr_reprs.shape.as_list())
-        all_val_reprs = tf.zeros([self._num_iters] + tr_reprs.shape.as_list())
+        all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters)
+        all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters)
 
         for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input)
@@ -488,10 +493,11 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
                 )
             tr_reprs += tr_updates
             val_reprs += val_updates
-            all_tr_reprs[k,...] = tr_reprs
-            all_val_reprs[k,...] = val_reprs
+            all_tr_reprs = all_tr_reprs.write(k, tr_reprs)
+            all_val_reprs = all_val_reprs.write(k, val_reprs)
+
             self.reset = tf.constant(False, dtype=tf.bool)
-        return 1,2,3
+        return tf.constant(2.), all_tr_reprs.stack(), all_val_reprs.stack()
 
     @snt.once
     def initialiser_all_init(self):
@@ -605,9 +611,13 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
     @snt.once
     def se_kernel_init(self):
         self.se_kernel_all_init()
+        self._se_kernel = submodules.squared_exponential_kernel(
+            train_instance=self.sample_tr_data, 
+            val_instance=self.sample_val_data, 
+            float_dtype=self._float_dtype)
     
-    def se_kernel(self, querys, keys, values):
-        return submodules.squared_exponential_kernel(querys, keys, values, self.sigma, self.lengthscale)
+    def se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
+        return self._se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
 
     @snt.once
     def deep_se_kernel_init(self):
@@ -617,8 +627,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             kernel_dim=self._nn_size,
             initialiser=self.initialiser,
             nonlinearity=self._nonlinearity,
-            key_instance=self.sample_tr_data,
-            query_instance=self.sample_val_data,
+            train_instance=self.sample_tr_data,
+            val_instance=self.sample_val_data,
             float_dtype=self._float_dtype
         )
 
@@ -638,11 +648,11 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config, key_instance=self.sample_tr_data, query_instance=self.sample_val_data)
+        self.attention = submodules.Attention(config, train_instance=self.sample_tr_data, val_instance=self.sample_val_data)
 
-    def attention_block(self, querys, keys, values, iter=""):
+    def attention_block(self, querys, keys, values, iter="", reset=tf.constant(True, dtype=tf.bool)):
         """dot-product kernel"""
-        return self.attention(keys, querys, values)
+        return self.attention(keys, querys, values, reset=reset)
 
     def forward_decoder_with_decoder_init(self):
         self.decoder = submodules.decoder(
@@ -808,9 +818,9 @@ if __name__ == "__main__":
     module2.initialise(data_reg)
     @tf.function
     def trial(x):
-        l,_,_ = module(x)
+        l,_,_ = module2(x)
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")
-    print(module2(data_reg))
+    print(trial(data_reg))
 

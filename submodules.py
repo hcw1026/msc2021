@@ -21,7 +21,7 @@ class constant_initialiser(snt.Module):
         else:
             def tile_fun_batch(init, x):
                 t = tf.tile(init, [x.shape[-2], self._num_classes])
-                return tf.stack([t for i in range(x.shape[-3])])
+                return tf.stack([t for i in tf.range(x.shape[-3])])
 
             self.tile_fun = tile_fun_batch
         
@@ -44,7 +44,7 @@ class parametric_initialiser(snt.Module):
     def __call__(self, x, is_training=True):
         after_dropout = self.dropout(x, training=is_training)
         outputs = self.module(after_dropout)
-        return tf.concat([outputs for i in range(self._num_classes)],axis=-1)
+        return tf.concat([outputs for i in tf.range(self._num_classes)],axis=-1)
 
 
 class neural_local_updater(snt.Module):
