@@ -166,7 +166,6 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
-
         # Iterative functional updating
         for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input) #return negative u
@@ -187,6 +186,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         tr_loss, batch_tr_metric = self.predict_and_calculate_loss_and_acc(data.tr_input, data.tr_output, classifier_weights)
         classifier_weights = self.forward_decoder(val_reprs)
         val_loss, batch_val_metric = self.predict_and_calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
+
 
         # # Aggregate loss in a batch
         # batch_tr_loss = tf.math.reduce_mean(tr_loss)
@@ -320,7 +320,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
     def se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
         return self._se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
-        # return submodules.squared_exponential_kernel_fun(querys, keys, values, self.sigma, self.lengthscale)
+        #return submodules.squared_exponential_kernel_fun(querys, keys, values, self.sigma, self.lengthscale)
 
     @snt.once
     def deep_se_kernel_init(self):
@@ -356,6 +356,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         """dot-product kernel"""
         return self.attention(keys, querys, values, reset=reset)
 
+    @snt.once
     def forward_decoder_with_decoder_init(self):
         self.decoder = submodules.decoder(
             embedding_dim=self.embedding_dim,
@@ -796,31 +797,32 @@ if __name__ == "__main__":
         module.initialise(i)
 
     @tf.function
-    def trial(x):
-        l,_,_ = module(x)
+    def trial(x, is_training=tf.constant(True,tf.bool)):
+        l,_,_ = module(x, is_training=is_training)
         return l
     print("DEBUGGGGGGGGGGGGGGG")
     for i in dat.take(1):
-        print(trial(i))
+        print(trial(i, is_training=False))
+        print(module(i, is_training=False)[0])
 
-    print("Regression")
-    module2 = MetaFunRegressor(config=config)
-    ClassificationDescription = collections.namedtuple(
-    "ClassificationDescription",
-    ["tr_input", "tr_output", "val_input", "val_output"])
+    # print("Regression")
+    # module2 = MetaFunRegressor(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
     
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
 
-    module2.initialise(data_reg)
-    @tf.function
-    def trial(x):
-        l,_,_ = module2(x)
-        return l
+    # module2.initialise(data_reg)
+    # @tf.function
+    # def trial(x):
+    #     l,_,_ = module2(x)
+    #     return l
 
-    print("DEBUGGGGGGGGGGGGGGG")
-    print(trial(data_reg))
+    # print("DEBUGGGGGGGGGGGGGGG")
+    # print(trial(data_reg))
 
