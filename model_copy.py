@@ -44,8 +44,9 @@ class MetaFunBase(snt.Module):
         self._no_batch = no_batch
 
         # Constant Initialization
-        self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
-        self.is_training = tf.constant(True, dtype=tf.bool)
+        self._orthogonality_reg = tf.Variable(0., dtype=self._float_dtype, trainable=False)
+        self.is_training = tf.Variable(True, dtype=tf.bool, trainable=False)
+        self.reset = tf.Variable(True, dtype=tf.bool, trainable=False)
         self.embedding_dim = tf.constant([1])
         self.has_initialised = False
 
@@ -159,8 +160,8 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             If True, training mode
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
-        self.is_training = is_training
-        self.reset = tf.constant(True, dtype=tf.bool) # cache precomputed transformation
+        self.is_training.assign(is_training)
+        self.reset.assign(True) # cache precomputed transformation
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
         # Initialise r
@@ -179,7 +180,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
                 axis=-2)
             tr_reprs += tr_updates
             val_reprs += val_updates
-            self.reset = tf.constant(False, dtype=tf.bool)
+            self.reset.assign(False)
 
         # Decode functional representation and compute loss and metric
         classifier_weights = self.forward_decoder(tr_reprs)
@@ -367,7 +368,8 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
     def forward_decoder_with_decoder(self, cls_reprs):
         s = cls_reprs.shape.as_list()
         cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
-        weights_dist_params, self._orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
+        weights_dist_params, orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
+        self._orthogonality_reg.assign(orthogonality_reg)
         stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
         classifier_weights = self.sample(
             distribution_params=weights_dist_params,
@@ -419,7 +421,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
     @property
     def additional_loss(self):
-        return self._decoder_orthogonality_reg
+        return tf.constant(self._decoder_orthogonality_reg)
 
 
 
@@ -470,8 +472,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             If True, training mode
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
-        self.is_training = is_training
-        self.reset = tf.constant(True, dtype=tf.bool)
+        self.is_training.assign(is_training)
+        self.reset.assign(True)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
         # Initialise r
@@ -497,7 +499,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             all_tr_reprs = all_tr_reprs.write(k, tr_reprs)
             all_val_reprs = all_val_reprs.write(k, val_reprs)
 
-            self.reset = tf.constant(False, dtype=tf.bool)
+            self.reset.assign(False, dtype=tf.bool)
         return tf.constant(2.), all_tr_reprs.stack(), all_val_reprs.stack()
 
     @snt.once
