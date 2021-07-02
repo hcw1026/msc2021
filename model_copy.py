@@ -44,7 +44,7 @@ class MetaFunBase(snt.Module):
         self._no_batch = no_batch
 
         # Constant Initialization
-        self._orthogonality_reg = tf.Variable(0., dtype=self._float_dtype, trainable=False)
+        self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
         self.is_training = tf.Variable(True, dtype=tf.bool, trainable=False)
         self.reset = tf.Variable(True, dtype=tf.bool, trainable=False)
         self.embedding_dim = tf.constant([1])
@@ -52,7 +52,7 @@ class MetaFunBase(snt.Module):
 
         # Classification or Regression
         self._num_classes = num_classes
-        self._repr_as_inputs = config["Model"]["comp"]["reprs_as_inputs"]
+        self._repr_as_inputs = config["Model"]["comp"]["repr_as_inputs"]
         self._neural_updater_concat_x = config["Model"]["comp"]["neural_updater_concat_x"]
 
         if self._no_decoder:
@@ -101,7 +101,7 @@ class MetaFunBase(snt.Module):
         """decode and sample weight for final outpyt layer"""
         if self._no_decoder: 
             # use functional representation directly as the predictor, used in ablation study
-            return lambda x: x
+            return self.forward_decoder_without_decoder
         else:
             self.forward_decoder_with_decoder_init()
             return self.forward_decoder_with_decoder
@@ -369,12 +369,15 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         s = cls_reprs.shape.as_list()
         cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
         weights_dist_params, orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
-        self._orthogonality_reg.assign(orthogonality_reg)
+        self._orthogonality_reg = orthogonality_reg
         stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
         classifier_weights = self.sample(
             distribution_params=weights_dist_params,
             stddev_offset=stddev_offset)
         return classifier_weights
+
+    def forward_decoder_without_decoder(self, cls_reprs):
+        return cls_reprs
 
     def sample(self, distribution_params, stddev_offset=0.):
         """sample from a normal distribution"""
@@ -421,7 +424,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
     @property
     def additional_loss(self):
-        return tf.constant(self._decoder_orthogonality_reg)
+        return self._decoder_orthogonality_reg
 
 
 
@@ -438,7 +441,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         super(MetaFunRegressor, self).__init__(config, no_batch, num_classes=1, name=name)
 
         # Decoder neural network size of last layers
-        self._decoder_output_sizes = [40,40,2]
+        self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) + [2]
         self._loss_type = "mse"
 
     @snt.once
@@ -459,9 +462,9 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         # Change initialisation state
         self.has_initialised = True
+        self.__call__(data_instance)
 
         # Regularisation variables
-        self.__call__(data_instance)
         self.regularise_variables = utils.get_linear_layer_variables(self)
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
@@ -476,13 +479,17 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         self.reset.assign(True)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
+        all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
         
-        all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters)
-        all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters)
+        all_tr_reprs = all_tr_reprs.write(0, tr_reprs)
+        all_val_reprs = all_val_reprs.write(0, val_reprs)
 
+        # Iterative functional updating
         for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input)
             tr_updates, val_updates = tf.split(
@@ -496,11 +503,37 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
                 )
             tr_reprs += tr_updates
             val_reprs += val_updates
-            all_tr_reprs = all_tr_reprs.write(k, tr_reprs)
-            all_val_reprs = all_val_reprs.write(k, val_reprs)
+            all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
+            all_val_reprs = all_val_reprs.write(1+k, val_reprs)
 
-            self.reset.assign(False, dtype=tf.bool)
-        return tf.constant(2.), all_tr_reprs.stack(), all_val_reprs.stack()
+            self.reset.assign(False)
+
+        # Decode functional representation and compute loss and metric
+        all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+
+        for k in tf.range(self._num_iters+1): # store intermediate predictions
+            weights = self.forward_decoder(all_tr_reprs.read(k))
+            tr_mu, tr_sigma = self.predict(inputs=data.tr_input, weights=weights)
+            weights = self.forward_decoder(all_val_reprs.read(k))
+            val_mu, val_sigma = self.predict(inputs=data.val_input, weights=weights)
+            all_val_mu = all_val_mu.write(k, val_mu)
+            all_val_sigma = all_val_sigma.write(k, val_sigma)
+
+        tr_loss, tr_metric = self.calculate_loss_and_metrics(
+            target_y=data.tr_output,
+            mus=tr_mu,
+            sigmas=tr_sigma)
+        val_loss, val_metric = self.calculate_loss_and_metrics(
+            target_y=data.val_output,
+            mus=val_mu,
+            sigmas=val_sigma
+        )
+
+        all_val_mu = all_val_mu.stack()
+        all_val_sigma = all_val_sigma.stack()
+
+        return val_loss, tr_metric, val_metric, all_val_mu, all_val_sigma
 
     @snt.once
     def initialiser_all_init(self):
@@ -675,6 +708,9 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         weights = self.sample(weights_dist_params, stddev_offset)
         return weights
 
+    def forward_decoder_without_decoder(self, reprs):
+        return reprs
+
     def sample(self, distribution_params, stddev_offset=0.):
         """a deterministic sample"""
         return submodules.deterministic_sample(
@@ -736,7 +772,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
                 self._predict = predict_no_decoder2
             else:
                 raise Exception("num_reprs must <=2 if no_decoder")
-        if self._repr_as_inputs:
+        elif self._repr_as_inputs:
             self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
                 output_sizes=self._decoder_output_sizes,
                 initialiser=self.initialiser,
@@ -776,7 +812,6 @@ if __name__ == "__main__":
     import numpy as np
     import collections
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
-    module = MetaFunClassifier(config=config)
     tf.random.set_seed(1234)
     np.random.seed(1234)
 
@@ -793,6 +828,7 @@ if __name__ == "__main__":
     # print(module(data))
     print("Classification")
     from data.leo_imagenet import DataProvider
+    module = MetaFunClassifier(config=config)
     dataloader = DataProvider("trial", config)
     dat = dataloader.generate()
     for i in dat.take(1):
@@ -802,29 +838,41 @@ if __name__ == "__main__":
     def trial(x, is_training=tf.constant(True,tf.bool)):
         l,_,_ = module(x, is_training=is_training)
         return l
+
     print("DEBUGGGGGGGGGGGGGGG")
     for i in dat.take(1):
         print(trial(i, is_training=False))
         print(module(i, is_training=False)[0])
 
-    # print("Regression")
-    # module2 = MetaFunRegressor(config=config)
-    # ClassificationDescription = collections.namedtuple(
-    # "ClassificationDescription",
-    # ["tr_input", "tr_output", "val_input", "val_output"])
+    trial(i, is_training=True)
+    module(i, is_training=True)[0]
+
+
+    print("Regression")
+    module2 = MetaFunRegressor(config=config)
+    ClassificationDescription = collections.namedtuple(
+    "ClassificationDescription",
+    ["tr_input", "tr_output", "val_input", "val_output"])
     
-    # data_reg = ClassificationDescription(
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    data_reg = ClassificationDescription(
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
 
-    # module2.initialise(data_reg)
-    # @tf.function
-    # def trial(x):
-    #     l,_,_ = module2(x)
-    #     return l
+    module2.initialise(data_reg)
+    data_reg = ClassificationDescription(
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    @tf.function
+    def trial(x, is_training=True):
+        l,_,_,_,_ = module2(x, is_training=is_training)
+        return l
 
-    # print("DEBUGGGGGGGGGGGGGGG")
-    # print(trial(data_reg))
+    print("DEBUGGGGGGGGGGGGGGG")
+    print(trial(data_reg, is_training=False))
+    print(module2(data_reg, is_training=False)[0])
+
 
