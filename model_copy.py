@@ -142,13 +142,14 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self.forward_decoder = self.forward_decoder_base()
         self.forward_kernel_or_attention_precompute, self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
 
-        self.predict = self._predict()
+        # Extra internal functions
+        self.predict_init()
 
         # Change initialisation state
         self.has_initialised = True
+        self.__call__(data_instance)
 
         # Regularisation variables
-        self.__call__(data_instance)
         self.regularise_variables = utils.get_linear_layer_variables(self)
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
@@ -175,7 +176,6 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         # Iterative functional updating
         for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input) #return negative u
-
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
                     querys=None, 
@@ -271,7 +271,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
             tape.watch(r) #watch r
-            classifier_weights = self.forward_decoder(r) # sample w_n from LEO
+            classifier_weights, _ = self.forward_decoder(r) # sample w_n from LEO
             tr_loss, _ = self.predict_and_calculate_loss_and_acc(x, y, classifier_weights) # softmax cross entropy
             batch_tr_loss = tf.reduce_mean(tr_loss)
 
@@ -402,17 +402,21 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self.metric.reset_state()
         return self.loss_fn(model_outputs, true_outputs), accuracy
 
-    def _predict(self):
+    def predict_init(self):
         """unnormalised class probabilities"""
-        if self._no_decoder:
-            return lambda inputs, weights: weights
-        else:
-            return self.predict_with_decoder
 
-    def predict_with_decoder(self, inputs, weights):
-        after_dropout = self.dropout(inputs, training=self.is_training)
-        preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
-        return preds
+        def predict_with_decoder(inputs, weights):
+            after_dropout = self.dropout(inputs, training=self.is_training)
+            preds = tf.linalg.matvec(weights, after_dropout) # (x^Tw)_k - i=instance, m=class, k=features
+            return preds
+
+        if self._no_decoder:
+            self._predict = lambda inputs, weights: weights
+        else:
+            self._predict = predict_with_decoder
+
+    def predict(self, inputs, weights):
+        return self._predict(inputs=inputs, weights=weights)
 
     def loss_fn(self, model_outputs, original_classes):
         """binary cross entropy"""
@@ -454,8 +458,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         self.forward_initialiser = self.forward_initialiser_base()
         self.forward_local_updater = self.forward_local_updater_base()
         self.forward_decoder = self.forward_decoder_base()
-        self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
-        
+        self.forward_kernel_or_attention_precompute, self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
+
         # Extra internal functions
         self.predict_init()
         self.calculate_loss_and_metrics_init()
@@ -476,7 +480,6 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
-        self.reset.assign(True)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
         all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
@@ -489,15 +492,21 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         all_tr_reprs = all_tr_reprs.write(0, tr_reprs)
         all_val_reprs = all_val_reprs.write(0, val_reprs)
 
+        # Precompute target context interaction for kernel/attention
+        precomputed = self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
+            keys=data.tr_input, 
+            values=None)
+
         # Iterative functional updating
         for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input)
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
-                    querys=tf.concat([data.tr_input, data.val_input], axis=-2),
-                    keys=data.tr_input,
-                    values=updates,
-                    reset=self.reset),
+                    querys=None,
+                    keys=None,
+                    precomputed=precomputed,
+                    values=updates),
                 num_or_size_splits=[data.tr_input.shape[-2], data.val_input.shape[-2]],
                 axis=-2
                 )
@@ -505,8 +514,6 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             val_reprs += val_updates
             all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
             all_val_reprs = all_val_reprs.write(1+k, val_reprs)
-
-            self.reset.assign(False)
 
         # Decode functional representation and compute loss and metric
         all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
@@ -647,13 +654,13 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
     @snt.once
     def se_kernel_init(self):
         self.se_kernel_all_init()
-        self._se_kernel = submodules.squared_exponential_kernel(
-            train_instance=self.sample_tr_data, 
-            val_instance=self.sample_val_data, 
-            float_dtype=self._float_dtype)
+        self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
     
-    def se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
-        return self._se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
+    def se_kernel_precompute(self, querys, keys, values=None):
+        return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+
+    def se_kernel_backend(self, querys, keys, precomputed, values):
+        return self._se_kernel.backend(query_key=precomputed, values=values)
 
     @snt.once
     def deep_se_kernel_init(self):
@@ -663,14 +670,14 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             kernel_dim=self._nn_size,
             initialiser=self.initialiser,
             nonlinearity=self._nonlinearity,
-            train_instance=self.sample_tr_data,
-            val_instance=self.sample_val_data,
-            float_dtype=self._float_dtype
+            complete_return=False
         )
 
-    def deep_se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
-        return self._deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
+    def deep_se_kernel_precompute(self, querys, keys, values=None):
+        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
 
+    def deep_se_kernel_backend(self, querys, keys, precomputed, values):
+        return self._deep_se_kernel.backend(query_key=precomputed, values=values)
 
     @snt.once
     def attention_block_init(self):
@@ -684,11 +691,14 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config, train_instance=self.sample_tr_data, val_instance=self.sample_val_data)
+        self.attention = submodules.Attention(config, complete_return=False)
 
-    def attention_block(self, querys, keys, values, iter="", reset=tf.constant(True, dtype=tf.bool)):
+    def attention_block_precompute(self, querys, keys, values=None, iter=""):
         """dot-product kernel"""
-        return self.attention(keys, querys, values, reset=reset)
+        return self.attention(keys=keys, querys=querys, values=values)
+
+    def attention_block_backend(self, querys, keys, precomputed, values, iter=""):
+        return self.attention.backend(weights=precomputed, values=values)
 
     def forward_decoder_with_decoder_init(self):
         self.decoder = submodules.decoder(
@@ -841,38 +851,38 @@ if __name__ == "__main__":
 
     print("DEBUGGGGGGGGGGGGGGG")
     for i in dat.take(1):
-        #print(trial(i, is_training=False))
+        print(trial(i, is_training=False))
         print(module(i, is_training=False)[0])
 
     trial(i, is_training=True)
     module(i, is_training=True)[0]
 
 
-    # print("Regression")
-    # module2 = MetaFunRegressor(config=config)
-    # ClassificationDescription = collections.namedtuple(
-    # "ClassificationDescription",
-    # ["tr_input", "tr_output", "val_input", "val_output"])
+    print("Regression")
+    module2 = MetaFunRegressor(config=config)
+    ClassificationDescription = collections.namedtuple(
+    "ClassificationDescription",
+    ["tr_input", "tr_output", "val_input", "val_output"])
     
-    # data_reg = ClassificationDescription(
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    data_reg = ClassificationDescription(
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
 
-    # module2.initialise(data_reg)
-    # data_reg = ClassificationDescription(
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
-    # @tf.function
-    # def trial(x, is_training=True):
-    #     l,_,_,_,_ = module2(x, is_training=is_training)
-    #     return l
+    module2.initialise(data_reg)
+    data_reg = ClassificationDescription(
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    @tf.function
+    def trial(x, is_training=True):
+        l,_,_,_,_ = module2(x, is_training=is_training)
+        return l
 
-    # print("DEBUGGGGGGGGGGGGGGG")
-    # print(trial(data_reg, is_training=False))
-    # print(module2(data_reg, is_training=False)[0])
+    print("DEBUGGGGGGGGGGGGGGG")
+    print(trial(data_reg, is_training=False))
+    print(module2(data_reg, is_training=False)[0])
 
 
