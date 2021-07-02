@@ -46,7 +46,6 @@ class MetaFunBase(snt.Module):
         # Constant Initialization
         self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
         self.is_training = tf.Variable(True, dtype=tf.bool, trainable=False)
-        self.reset = tf.Variable(True, dtype=tf.bool, trainable=False)
         self.embedding_dim = tf.constant([1])
         self.has_initialised = False
 
@@ -87,15 +86,15 @@ class MetaFunBase(snt.Module):
         if self._use_kernel:
             if self._kernel_type == tf.constant("se", dtype=tf.string):
                 self.se_kernel_init()
-                return self.se_kernel
+                return (self.se_kernel_precompute, self.se_kernel_backend)
             elif self._kernel_type == tf.constant("deep_se", dtype=tf.string):
                 self.deep_se_kernel_init()
-                return self.deep_se_kernel
+                return (self.deep_se_kernel_precompute, self.deep_se_kernel_backend)
             else:
                 raise NameError("Unknown kernel type")
         else:
             self.attention_block_init()
-            return self.attention_block
+            return (self.attention_block_precompute, self.attention_block_backend)
 
     def forward_decoder_base(self):
         """decode and sample weight for final outpyt layer"""
@@ -141,7 +140,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self.forward_initialiser = self.forward_initialiser_base()
         self.forward_local_updater = self.forward_local_updater_base()
         self.forward_decoder = self.forward_decoder_base()
-        self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
+        self.forward_kernel_or_attention_precompute, self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
 
         self.predict = self._predict()
 
@@ -161,31 +160,37 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
-        self.reset.assign(True) # cache precomputed transformation
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
+
+        # Precompute target context interaction for kernel/attention
+        precomputed = self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
+            keys=data.tr_input, 
+            values=None)
+
         # Iterative functional updating
         for k in tf.range(self._num_iters):
             updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input) #return negative u
+
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
-                    querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-                    keys=data.tr_input, 
-                    values=updates, 
-                    reset=self.reset), 
+                    querys=None, 
+                    keys=None, 
+                    precomputed=precomputed,
+                    values=updates), 
                 num_or_size_splits=[data.tr_input.shape[-2], data.val_input.shape[-2]], 
                 axis=-2)
             tr_reprs += tr_updates
             val_reprs += val_updates
-            self.reset.assign(False)
 
         # Decode functional representation and compute loss and metric
-        classifier_weights = self.forward_decoder(tr_reprs)
+        classifier_weights, tr_orth = self.forward_decoder(tr_reprs)
         tr_loss, batch_tr_metric = self.predict_and_calculate_loss_and_acc(data.tr_input, data.tr_output, classifier_weights)
-        classifier_weights = self.forward_decoder(val_reprs)
+        classifier_weights, val_orth = self.forward_decoder(val_reprs)
         val_loss, batch_val_metric = self.predict_and_calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
 
 
@@ -196,7 +201,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         #Additional regularisation penalty
         #return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
 
-        return val_loss, batch_tr_metric, batch_val_metric
+        return val_loss, tr_orth, batch_tr_metric, batch_val_metric
 
     @snt.once
     def initialiser_all_init(self):
@@ -314,14 +319,13 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
     @snt.once
     def se_kernel_init(self):
         self.se_kernel_all_init()
-        self._se_kernel = submodules.squared_exponential_kernel(
-            train_instance=self.sample_tr_data, 
-            val_instance=self.sample_val_data, 
-            float_dtype=self._float_dtype)
+        self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
 
-    def se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
-        return self._se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
-        #return submodules.squared_exponential_kernel_fun(querys, keys, values, self.sigma, self.lengthscale)
+    def se_kernel_precompute(self, querys, keys, values=None):
+        return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+
+    def se_kernel_backend(self, querys, keys, precomputed, values): # use this input format for generality
+        return self._se_kernel.backend(query_key=precomputed, values=values)
 
     @snt.once
     def deep_se_kernel_init(self):
@@ -331,13 +335,14 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             kernel_dim=self.embedding_dim,
             initialiser=self.initialiser,
             nonlinearity=self._nonlinearity,
-            train_instance=self.sample_tr_data,
-            val_instance=self.sample_val_data,
-            float_dtype=self._float_dtype
+            complete_return=False
         )
 
-    def deep_se_kernel(self, querys, keys, values, reset=tf.constant(True, dtype=tf.bool)):
-        return self._deep_se_kernel(querys, keys, values, self.sigma, self.lengthscale, reset=reset)
+    def deep_se_kernel_precompute(self, querys, keys, values=None):
+        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+
+    def deep_se_kernel_backend(self, querys, keys, precomputed, values):
+        return self._deep_se_kernel.backend(query_key=precomputed, values=values)
 
     @snt.once
     def attention_block_init(self):
@@ -351,11 +356,14 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config, train_instance=self.sample_tr_data, val_instance=self.sample_val_data)
+        self.attention = submodules.Attention(config=config, complete_return=False)
 
-    def attention_block(self, querys, keys, values, iter="", reset=tf.constant(True, dtype=tf.bool)):
+    def attention_block_precompute(self, querys, keys, values=None, iter=""):
         """dot-product kernel"""
-        return self.attention(keys, querys, values, reset=reset)
+        return self.attention(keys=keys, querys=querys, values=values)
+
+    def attention_block_backend(self, querys, keys, precomputed, values, iter=""):
+        return self.attention.backend(weights=precomputed, values=values)
 
     @snt.once
     def forward_decoder_with_decoder_init(self):
@@ -369,15 +377,14 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         s = cls_reprs.shape.as_list()
         cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
         weights_dist_params, orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
-        self._orthogonality_reg = orthogonality_reg
         stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
         classifier_weights = self.sample(
             distribution_params=weights_dist_params,
             stddev_offset=stddev_offset)
-        return classifier_weights
+        return classifier_weights, orthogonality_reg
 
     def forward_decoder_without_decoder(self, cls_reprs):
-        return cls_reprs
+        return cls_reprs, tf.constant(0.)
 
     def sample(self, distribution_params, stddev_offset=0.):
         """sample from a normal distribution"""
@@ -418,13 +425,6 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
                 y_true=one_hot_outputs,
                 y_pred=model_outputs)
 
-    @property
-    def _decoder_orthogonality_reg(self):
-        return self._orthogonality_reg
-
-    @property
-    def additional_loss(self):
-        return self._decoder_orthogonality_reg
 
 
 
@@ -836,43 +836,43 @@ if __name__ == "__main__":
 
     @tf.function
     def trial(x, is_training=tf.constant(True,tf.bool)):
-        l,_,_ = module(x, is_training=is_training)
+        l,_,_,_ = module(x, is_training=is_training)
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")
     for i in dat.take(1):
-        print(trial(i, is_training=False))
+        #print(trial(i, is_training=False))
         print(module(i, is_training=False)[0])
 
     trial(i, is_training=True)
     module(i, is_training=True)[0]
 
 
-    print("Regression")
-    module2 = MetaFunRegressor(config=config)
-    ClassificationDescription = collections.namedtuple(
-    "ClassificationDescription",
-    ["tr_input", "tr_output", "val_input", "val_output"])
+    # print("Regression")
+    # module2 = MetaFunRegressor(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
     
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
 
-    module2.initialise(data_reg)
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
-    @tf.function
-    def trial(x, is_training=True):
-        l,_,_,_,_ = module2(x, is_training=is_training)
-        return l
+    # module2.initialise(data_reg)
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # @tf.function
+    # def trial(x, is_training=True):
+    #     l,_,_,_,_ = module2(x, is_training=is_training)
+    #     return l
 
-    print("DEBUGGGGGGGGGGGGGGG")
-    print(trial(data_reg, is_training=False))
-    print(module2(data_reg, is_training=False)[0])
+    # print("DEBUGGGGGGGGGGGGGGG")
+    # print(trial(data_reg, is_training=False))
+    # print(module2(data_reg, is_training=False)[0])
 
 
