@@ -1,7 +1,12 @@
 import tensorflow as tf
 import sonnet as snt
 
+
+#################################################################################
+# Initialisers
+#################################################################################
 class constant_initialiser(snt.Module):
+    """constant initialiser"""
     def __init__(self, dim_reprs, float_dtype, classification=True, num_classes=1, no_batch=False, trainable=False, name="constant_initialiser"):
         super(constant_initialiser, self).__init__(name=name)
         if trainable:
@@ -29,6 +34,7 @@ class constant_initialiser(snt.Module):
         return self.tile_fun(self.init, x)
 
 class parametric_initialiser(snt.Module):
+    """parametric initialiser"""
     def __init__(self, nn_size, nn_layers, dim_reprs, dropout_rate, initialiser, nonlinearity, classification=True, num_classes=1, name="parametric_initialiser"):
         super(parametric_initialiser, self).__init__(name=name)
         self._num_classes = num_classes if classification else 1
@@ -47,7 +53,11 @@ class parametric_initialiser(snt.Module):
         return tf.concat([outputs for i in range(self._num_classes)],axis=-1)
 
 
+#################################################################################
+# Forward local updater
+#################################################################################
 class neural_local_updater(snt.Module):
+    """neural local updater"""
     def __init__(self, nn_size, nn_layers, dim_reprs, initialiser, nonlinearity, classification=True, num_classes=1, no_batch=False, xNone=False, name="neural_local_updater"):
         super(neural_local_updater, self).__init__(name=name)
         if classification:
@@ -132,9 +142,11 @@ class neural_local_updater(snt.Module):
         return self.call_fn(r=r, y=y, x=x, iter=iter)
 
 
-
-
+#################################################################################
+# Decoder
+#################################################################################
 class decoder(snt.Module):
+    """decoder"""
     def __init__(self, embedding_dim, initialiser, classification=True, nn_size=1, nn_layers=1, nonlinearity=tf.nn.relu, orthogonality_penalty_weight=0, repr_as_inputs=False, regression_output_sizes=[40,40,2], name="decoder"):
         super(decoder, self).__init__(name=name)
 
@@ -199,12 +211,51 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
     return orthogonality
 
 
-# # Attention modules
-# # (Adapted from https://github.com/deepmind/neural-processes, see copyright and original license in our LICENSE file.)
+
+#################################################################################
+# Attention and kernel
+#################################################################################
+
+# #### Attention
+# def dot_product_attention_frontend_fn(q, k, normalise):
+#     """ dot product attention frontend for precomputation"""
+#     d_k = tf.shape(q)[-1]
+#     scale = tf.math.sqrt(tf.cast(d_k, tf.float32))
+#     unnorm_weights = tf.linalg.matmul(q, k, transpose_b=True) / scale # [B,m,n]
+#     if normalise:
+#         weights = tf.math.softmax(unnorm_weights)
+#     else:
+#         weights = tf.math.sigmoid(unnorm_weights)
+#     return weights
+
+# def dot_product_attention_backend_fn(weights, v):
+#     """dot product attention backend which takes output from frontend"""
+#     return tf.linalg.matmul(weights, v)
+
+# def dot_product_attention_fn(q, k, v, normalise):
+#     """Computes dot product attention.
+
+#     Args:
+#         q: queries. tensor of  shape [B,m,d_k].
+#         k: keys. tensor of shape [B,n,d_k].
+#         v: values. tensor of shape [B,n,d_v].
+#         normalise: Boolean that determines whether weights sum to 1.
+#     Returns:
+#         tensor of shape [B,m,d_v].
+#     """
+#     weights = dot_product_attention_frontend_fn(q=q, k=k, normalise=normalise)
+#     return dot_product_attention_backend_fn(weights, v)
 
 # class Attention(snt.Module):
-
-#     def __init__(self, config, train_instance, val_instance, name="attention"):
+#     """attention - return frontend or backend results"""
+  
+#     def __init__(self, config, complete_return=True, name="attention"):
+#         """
+#         config: dict
+#             - configuration
+#         complete_return: bool
+#             - If True, return backend result, else only frontend result
+#         """
 #         super(Attention, self).__init__(name=name)
 #         self._float_dtype = tf.float32
 #         self._int_dtype = tf.int32
@@ -231,55 +282,69 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
 #         if self._rep not in [tf.constant("identity", dtype=tf.string), tf.constant("mlp", dtype=tf.string)]:
 #             raise NameError("Unknown attention representation - not among ['identity', 'mlp']")
 
-#         shape = train_instance.shape.as_list()
-#         shape[-1] = train_instance.shape[-2]
-#         shape[-2] = train_instance.shape[-2] + val_instance.shape[-2]
-#         #self.weights = tf.Variable(tf.constant(0., shape=shape), dtype=self._float_dtype, trainable=False)
-#         self.weights = tf.constant(0., shape=shape, dtype=self._float_dtype)
-
-#     def __call__(self, x1, x2, r, reset=tf.constant(True, dtype=tf.bool)):
-#         if reset:
-#             if self._rep == tf.constant("identity", dtype=tf.string):
-#                 k, q = (x1, x2)
-#             else: # mapping a
-#                 k = self.module(x1)
-#                 q = self.module(x2)
-
-#             #self.weights.assign(dot_product_attention_frontend(q=q, k=k, normalise=self._normalise))
-#             self.weights = dot_product_attention_frontend(q=q, k=k, normalise=self._normalise)
-#             return dot_product_attention_backend(weights=self.weights, v=r)
+#         if self._rep == tf.constant("identity", dtype=tf.string):
+#             self.call_fn_frontend = lambda x1, x2: dot_product_attention_frontend_fn(x1, x2, self._normalise)
 #         else:
-#             return dot_product_attention_backend(weights=self.weights, v=r)
+#             self.call_fn_frontend = lambda x1, x2: dot_product_attention_frontend_fn(self.module(x1), self.module(x2), self._normalise)
+        
+#         if complete_return:
+#             self.call_fn_backend = lambda weights, v: dot_product_attention_backend_fn(weights=weights, v=v)
+#         else:
+#             self.call_fn_backend = lambda weights, v: weights
 
-# def dot_product_attention(q, k, v, normalise):
-#     """Computes dot product attention.
+#     def __call__(self, x1, x2, r):
+#         weights = self.call_fn_frontend(x1=x1, x2=x2)
+#         return self.call_fn_backend(weights=weights, v=r)
 
-#     Args:
-#         q: queries. tensor of  shape [B,m,d_k].
-#         k: keys. tensor of shape [B,n,d_k].
-#         v: values. tensor of shape [B,n,d_v].
-#         normalise: Boolean that determines whether weights sum to 1.
-#     Returns:
-#         tensor of shape [B,m,d_v].
-#     """
-#     weights = dot_product_attention_frontend(q=q, k=k, normalise=normalise)
-#     return dot_product_attention_backend(weights, v)
+# class Attention_backend(snt.Module):
+#     """attention class that takes frontend results and return backend results """
+#     def __init__(self, name="attention_backend"):
+#         super(Attention_backend, self).__init__(name=name)
 
-# def dot_product_attention_frontend(q, k, normalise):
-#     d_k = tf.shape(q)[-1]
-#     scale = tf.math.sqrt(tf.cast(d_k, tf.float32))
-#     unnorm_weights = tf.linalg.matmul(q, k, transpose_b=True) / scale # [B,m,n]
-#     if normalise:
-#         weights = tf.math.softmax(unnorm_weights)
-#     else:
-#         weights = tf.math.sigmoid(unnorm_weights)
-#     return weights
+#     def __call__(self, x1, x2, precomputed, r):
+#         return dot_product_attention_backend_fn(weights=precomputed, v=r)
 
-# def dot_product_attention_backend(weights, v):
-#     return tf.linalg.matmul(weights, v)
+# #### Squared-exponential kernel
+# def squared_exponential_kernel_frontend_fn(querys, keys, sigma, lengthscale):
+#     """frontend for se kernel"""
+#     sq_norm = tf.reduce_sum((tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2))**2, axis=-1)
+#     sq_norm = tf.linalg.matrix_transpose(sq_norm)
+#     return sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
 
+# def squared_exponential_kernel_backend_fn(query_key, values):
+#     """backend for se kernel"""
+#     return tf.linalg.matmul(query_key, values, transpose_a=True) # RBF * V
+
+# def squared_exponential_kernel_fun(querys, keys, values, sigma, lengthscale):
+#     """se (rbf) kernel"""
+#     kernel_qk = squared_exponential_kernel_frontend_fn(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+#     return squared_exponential_kernel_backend_fn(query_key=kernel_qk, values=values) 
+
+# class squared_exponential_kernel(snt.Module):
+#     def __init__(self, complete_return=True, float_dtype=tf.float32, name="se_kernel"):
+#         super(squared_exponential_kernel, self).__init__(name=name)
+
+#         self.call_fn_frontend = lambda querys, keys, sigma, lengthscale: squared_exponential_kernel_frontend_fn(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+
+#         if complete_return:
+#             self.call_fn_backend = lambda query_key, values: squared_exponential_kernel_backend_fn(query_key=query_key, values=values)
+#         else:
+#             self.call_fn_backend = lambda query_key, values: query_key
+
+#     def __call__(self, querys, keys, values, sigma, lengthscale):
+#         query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+#         return self.call_fn_backend(query_key=query_key, values=values)
+    
+# class squared_exponential_kernel_backend(snt.Module):
+#     def __init__(self, name="se_kernel_backend"):
+#         super(squared_exponential_kernel_backend, self).__init__(name=name)
+
+#     def __call__(self, query_key, values):
+#         return squared_exponential_kernel_backend_fn(query_key=query_key, values=values)
+
+# #### Deep squared-exponential kernel
 # class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding dim should be used for nerual layer width
-#     def __init__(self, embedding_layers, kernel_dim, initialiser, nonlinearity, train_instance, val_instance, float_dtype=tf.float32, name="deep_se_kernel"):
+#     def __init__(self, embedding_layers, kernel_dim, initialiser, nonlinearity, complete_return=True, name="deep_se_kernel"):
 #         super(deep_se_kernel, self).__init__(name=name)
 #         self.module = snt.nets.MLP( # mapping a
 #             output_sizes=[kernel_dim] * embedding_layers,
@@ -288,47 +353,143 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
 #             activation=nonlinearity,
 #             name="deep_se_kernel"
 #         )
-#         shape = train_instance.shape.as_list()
-#         shape[-2] = train_instance.shape[-2]
-#         shape[-1] = train_instance.shape[-2] + val_instance.shape[-2]
-#         #self.keys_querys = tf.Variable(tf.constant(0., shape=shape), dtype=float_dtype, trainable=False)
-#         self.keys_querys = tf.constant(0., shape=shape, dtype=float_dtype)
 
-#     def __call__(self, querys, keys, values, sigma, lengthscale, reset=tf.constant(True, dtype=tf.bool)):
-#         #tf.print("here",self.keys_querys)
-#         if reset:
-#             keys_tr = self.module(keys)
-#             querys_tr = self.module(querys)
-#             #self.keys_querys.assign(squared_exponential_kernel_frontend(querys=querys_tr, keys=keys_tr, sigma=sigma, lengthscale=lengthscale))
-#             self.keys_querys = squared_exponential_kernel_frontend(querys=querys_tr, keys=keys_tr, sigma=sigma, lengthscale=lengthscale)
-#             return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+#         self.call_fn_frontend = lambda querys, keys, sigma, lengthscale: squared_exponential_kernel_frontend_fn(
+#             querys=self.module(querys), keys=self.module(keys), sigma=sigma, lengthscale=lengthscale)
+
+#         if complete_return:
+#             self.call_fn_backend = lambda query_key, values: squared_exponential_kernel_backend_fn(query_key=query_key, values=values)
 #         else:
-#             return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+#             self.call_fn_backend = lambda query_key, values: query_key
+
+#     def __call__(self, querys, keys, values, sigma, lengthscale):
+#         query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+#         return self.call_fn_backend(query_key=query_key, values=values)
+
+# class deep_se_kernel_backend(snt.Module):
+#     def __init__(self, name="deep_se_kernel_backend"):
+#         super(deep_se_kernel_backend, self).__init__(name=name)
+
+#     def __call__(self, query_key, values):
+#         return squared_exponential_kernel_backend_fn(query_key=query_key, values=values)
 
 
-# def squared_exponential_kernel_frontend(querys, keys, sigma, lengthscale):
-#     sq_norm = tf.reduce_sum((tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2))**2, axis=-1)
-#     sq_norm = tf.linalg.matrix_transpose(sq_norm)
-#     return sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
+# Attention modules
+# (Adapted from https://github.com/deepmind/neural-processes, see copyright and original license in our LICENSE file.)
 
-# def squared_exponential_kernel_backend(query_key, values):
-#     return tf.linalg.matmul(query_key, values, transpose_a=True) # RBF * V
+class Attention(snt.Module):
 
-# # class squared_exponential_kernel(snt.Module):
-# #     def __init__(self, train_instance, val_instance, float_dtype=tf.float32, name="se_kernel"):
-# #         super(squared_exponential_kernel, self).__init__(name=name)
-# #         shape = train_instance.shape.as_list()
-# #         shape[-2] = train_instance.shape[-2]
-# #         shape[-1] = train_instance.shape[-2] + val_instance.shape[-2]
-# #         self.keys_querys = tf.Variable(tf.constant(0., shape=shape), dtype=float_dtype, trainable=False)
+    def __init__(self, config, train_instance, val_instance, name="attention"):
+        super(Attention, self).__init__(name=name)
+        self._float_dtype = tf.float32
+        self._int_dtype = tf.int32
+        self._rep = config['rep']
+        self._output_sizes = config['output_sizes']
+        self._att_type = config['att_type']
+        self._normalise = config['normalise']
+        self._scale = config['scale']
+        self._l2_penalty_weight = config['l2_penalty_weight']
+        self._nonlinearity = config['nonlinearity']
+        self.initialiser = tf.keras.initializers.GlorotUniform()
 
-# #     def __call__(self, querys, keys, values, sigma, lengthscale, reset=tf.constant(True, dtype=tf.bool)):
-# #         if reset:
-# #             self.keys_querys.assign(squared_exponential_kernel_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale))
-# #             return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
-# #         else:
-# #             return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+        self.module = snt.nets.MLP( # mapping a
+            output_sizes=self._output_sizes,
+            w_init=self.initialiser,
+            with_bias=True,
+            activation=self._nonlinearity,
+            name="deep_attention"
+            )
 
+        if self._att_type != tf.constant("dot_product",tf.string):
+            raise NameError("Unknown attention type")
+
+        if self._rep not in [tf.constant("identity", dtype=tf.string), tf.constant("mlp", dtype=tf.string)]:
+            raise NameError("Unknown attention representation - not among ['identity', 'mlp']")
+
+        shape = train_instance.shape.as_list()
+        shape[-1] = train_instance.shape[-2]
+        shape[-2] = train_instance.shape[-2] + val_instance.shape[-2]
+        #self.weights = tf.Variable(tf.constant(0., shape=shape), dtype=self._float_dtype, trainable=False)
+        self.weights = tf.constant(0., shape=shape, dtype=self._float_dtype)
+
+    def __call__(self, x1, x2, r, reset=tf.constant(True, dtype=tf.bool)):
+        if reset:
+            if self._rep == tf.constant("identity", dtype=tf.string):
+                k, q = (x1, x2)
+            else: # mapping a
+                k = self.module(x1)
+                q = self.module(x2)
+
+            #self.weights.assign(dot_product_attention_frontend(q=q, k=k, normalise=self._normalise))
+            self.weights = dot_product_attention_frontend(q=q, k=k, normalise=self._normalise)
+            return dot_product_attention_backend(weights=self.weights, v=r)
+        else:
+            return dot_product_attention_backend(weights=self.weights, v=r)
+
+def dot_product_attention(q, k, v, normalise):
+    """Computes dot product attention.
+
+    Args:
+        q: queries. tensor of  shape [B,m,d_k].
+        k: keys. tensor of shape [B,n,d_k].
+        v: values. tensor of shape [B,n,d_v].
+        normalise: Boolean that determines whether weights sum to 1.
+    Returns:
+        tensor of shape [B,m,d_v].
+    """
+    weights = dot_product_attention_frontend(q=q, k=k, normalise=normalise)
+    return dot_product_attention_backend(weights, v)
+
+def dot_product_attention_frontend(q, k, normalise):
+    d_k = tf.shape(q)[-1]
+    scale = tf.math.sqrt(tf.cast(d_k, tf.float32))
+    unnorm_weights = tf.linalg.matmul(q, k, transpose_b=True) / scale # [B,m,n]
+    if normalise:
+        weights = tf.math.softmax(unnorm_weights)
+    else:
+        weights = tf.math.sigmoid(unnorm_weights)
+    return weights
+
+def dot_product_attention_backend(weights, v):
+    return tf.linalg.matmul(weights, v)
+
+class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding dim should be used for nerual layer width
+    def __init__(self, embedding_layers, kernel_dim, initialiser, nonlinearity, train_instance, val_instance, float_dtype=tf.float32, name="deep_se_kernel"):
+        super(deep_se_kernel, self).__init__(name=name)
+        self.module = snt.nets.MLP( # mapping a
+            output_sizes=[kernel_dim] * embedding_layers,
+            w_init=initialiser,
+            with_bias=True,
+            activation=nonlinearity,
+            name="deep_se_kernel"
+        )
+        shape = train_instance.shape.as_list()
+        shape[-2] = train_instance.shape[-2]
+        shape[-1] = train_instance.shape[-2] + val_instance.shape[-2]
+        #self.keys_querys = tf.Variable(tf.constant(0., shape=shape), dtype=float_dtype, trainable=False)
+        self.keys_querys = tf.constant(0., shape=shape, dtype=float_dtype)
+        #self.a = tf.constant(1.)
+
+    def __call__(self, querys, keys, values, sigma, lengthscale, reset=tf.constant(True, dtype=tf.bool)):
+        #tf.print("here",self.a)
+        if reset:
+            #self.a = tf.random.normal([])
+            keys_tr = self.module(keys)
+            querys_tr = self.module(querys)
+            #self.keys_querys.assign(squared_exponential_kernel_frontend(querys=querys_tr, keys=keys_tr, sigma=sigma, lengthscale=lengthscale))
+            self.keys_querys = squared_exponential_kernel_frontend(querys=querys_tr, keys=keys_tr, sigma=sigma, lengthscale=lengthscale)
+            return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+        else:
+            return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+
+
+def squared_exponential_kernel_frontend(querys, keys, sigma, lengthscale):
+    sq_norm = tf.reduce_sum((tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2))**2, axis=-1)
+    sq_norm = tf.linalg.matrix_transpose(sq_norm)
+    return sigma**2 * tf.math.exp(- sq_norm / (2.*lengthscale**2)) # RBF
+
+def squared_exponential_kernel_backend(query_key, values):
+    return tf.linalg.matmul(query_key, values, transpose_a=True) # RBF * V
 
 # class squared_exponential_kernel(snt.Module):
 #     def __init__(self, train_instance, val_instance, float_dtype=tf.float32, name="se_kernel"):
@@ -336,20 +497,41 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
 #         shape = train_instance.shape.as_list()
 #         shape[-2] = train_instance.shape[-2]
 #         shape[-1] = train_instance.shape[-2] + val_instance.shape[-2]
-#         self.keys_querys = tf.constant(0., shape=shape, dtype=float_dtype)
+#         self.keys_querys = tf.Variable(tf.constant(0., shape=shape), dtype=float_dtype, trainable=False)
 
 #     def __call__(self, querys, keys, values, sigma, lengthscale, reset=tf.constant(True, dtype=tf.bool)):
 #         if reset:
-#             self.keys_querys = squared_exponential_kernel_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+#             self.keys_querys.assign(squared_exponential_kernel_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale))
 #             return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
 #         else:
 #             return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+
+
+class squared_exponential_kernel(snt.Module):
+    def __init__(self, train_instance, val_instance, float_dtype=tf.float32, name="se_kernel"):
+        super(squared_exponential_kernel, self).__init__(name=name)
+        shape = train_instance.shape.as_list()
+        shape[-2] = train_instance.shape[-2]
+        shape[-1] = train_instance.shape[-2] + val_instance.shape[-2]
+        self.keys_querys = tf.constant(0., shape=shape, dtype=float_dtype)
+
+    def __call__(self, querys, keys, values, sigma, lengthscale, reset=tf.constant(True, dtype=tf.bool)):
+        if reset:
+            self.keys_querys = squared_exponential_kernel_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+            return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
+        else:
+            return squared_exponential_kernel_backend(query_key=self.keys_querys, values=values)
     
 
-# def squared_exponential_kernel_fun(querys, keys, values, sigma, lengthscale):
-#     """rbf kernel"""
-#     kernel_qk = squared_exponential_kernel_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
-#     return squared_exponential_kernel_backend(query_key=kernel_qk, values=values) 
+def squared_exponential_kernel_fun(querys, keys, values, sigma, lengthscale):
+    """rbf kernel"""
+    kernel_qk = squared_exponential_kernel_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+    return squared_exponential_kernel_backend(query_key=kernel_qk, values=values) 
+
+
+#################################################################################
+# Sampling
+#################################################################################
 
 def deterministic_sample(distribution_params, stddev_offsets):
     """deterministic sampling by splitting parameteres into mean and stddev directly"""
@@ -367,6 +549,9 @@ def probabilistic_sample(distribution_params, stddev_offset, is_training=True):
         return tf.random.normal(shape=means.shape, mean=means, stddev=stddev)
 
 
+#################################################################################
+# Regression predict
+#################################################################################
 
 class predict_repr_as_inputs(snt.Module):
     def __init__(self, output_sizes, initialiser, nonlinearity, name="predict"):
@@ -416,14 +601,10 @@ class custom_MLP(snt.Module):
             self.w_end.append(end)
             self.b_end.append(end+out_size)
             begin = end + out_size
-        #print("outputsize", output_sizes)
 
     def __call__(self, inputs, weights):
         preds = inputs
         for idx in range(self._num_layers-2):
-            #tf.print("here")
-            #tf.print(weights.shape)
-            #tf.print(weights.shape[:-1].as_list() + [self.in_size[idx], self.out_size[idx]])
             w = tf.reshape(
                 weights[..., self.w_begin[idx]:self.w_end[idx]], 
                 weights.shape[:-1].as_list() + [self.in_size[idx], self.out_size[idx]])
