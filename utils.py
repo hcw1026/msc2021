@@ -114,7 +114,7 @@ def ckpt_restore(cls, ckpt):
                 elif os.path.dirname(cls._ckpt_restore_path) != cls._ckpt_save_dir:
                     print("Warning: save directory and restore directory could be different, please abort unless this is intended")
 
-            except NameError:
+            except AssertionError:
                 print("Checkpoint not found, Initialising the model without checkpoint")
                 init_from_start = True
         else:
@@ -155,6 +155,3 @@ def profile(cls, with_graph=False, profile_dir=None):
 
     #reset
     cls.__init__(config=cls.config, dataprovider=cls.dataprovider, model=cls.model, load_data=cls.load_data, name=cls.name)
-
-
-

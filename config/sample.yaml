@@ -1,12 +1,32 @@
 # Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
 
 Training:
-  lr: 1e-3
+  outer_lr: 1e-3
+  train_on_val: False
+  batch_size: 16
+  epoch: 2
+  steps_per_epoch: 2
+  early_stop: 
+    early_stop: False
+    early_stop_reset: False # reset and reinitialise early stopping
+    early_stop_patience: 100
+    early_stop_min_delta: 0
+    early_stop_monitor: "acc"
+  save:
+    ckpt_save_dir: null
+    ckpt_save_prefix: null
+    restore_from_ckpt: False
+    ckpt_restore_path: "./checkpoint"
+    save_final_model: False
+
+GPU: null
 
 Model:
   comp: # Components configurations
     use_kernel: False
     use_gradient: False
+    neural_updater_concat_x: True # for regression
+    reprs_as_inputs: False # for regression
     no_decoder: False
     initial_state_type: "zero"
     attention_type: "dot_product"
@@ -30,4 +50,21 @@ Model:
     repr_as_inputs: False
 
 Data:
-  num_classes: 1 #TODO: automatic detect
+  leo_imagenet:
+    num_classes: 1 # N in N-way classification
+    data_path: "C://Users/hcw10/OneDrive/Documents/Oxford/Courses/Dissertation/Other/embeddings"
+    embedding_crop: "center"
+    num_tr_examples_per_class: 1 # K in K-shot; number of training examples per class
+    num_val_examples_per_class: 15 # number of validation examples per class
+    model_cls: "metafun_classifier"
+    dataset_name: "tieredImageNet" # miniImageNet or tieredImageNet
+    shuffle: False
+
+  regression:
+    repr_as_inputs: False
+
+Eval:
+  batch_size: 16
+  validation: False
+  num_batches: 1
+

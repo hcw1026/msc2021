@@ -200,9 +200,8 @@ class CLearner():
         @tf.function
         def _train_step(train_batch):
             with tf.GradientTape() as tape:
-                train_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)
+                train_loss, orth_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)
                 reg_loss = self.regulariser(self.model.get_regularise_variables)
-                orth_loss = self.model.additional_loss
                 train_loss = utils.combine_losses(train_loss, reg_loss + orth_loss, self._train_batch_size)
                 
 
@@ -223,9 +222,8 @@ class CLearner():
 
         @tf.function
         def _val_step(val_batch):
-            val_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False)
+            val_loss, orth_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False)
             reg_loss = self.regulariser(self.model.get_regularise_variables)
-            orth_loss = self.model.additional_loss
             val_loss = utils.combine_losses(val_loss, reg_loss + orth_loss, self._val_batch_size)
 
             # Update metrics
@@ -384,6 +382,6 @@ if __name__ == "__main__":
     from data.leo_imagenet import DataProvider
 
     mylearner = CLearner(config, MetaFunClassifier, dataprovider=DataProvider)
-    # mylearner.train()
+    mylearner.train()
 
     
