@@ -60,8 +60,8 @@ Data:
     dataset_name: "tieredImageNet" # miniImageNet or tieredImageNet
     shuffle: False
 
-  regression:
-    repr_as_inputs: False
+  gp_regression:
+    n_points: 128
 
 Eval:
   batch_size: 16

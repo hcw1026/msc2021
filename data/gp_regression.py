@@ -21,23 +21,104 @@
 # SOFTWARE.
 
 import copy
-import os
 import numpy as np
+import os
+import random
+from scipy.stats import betabinom
 import sklearn
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel, ExpSineSquared, Matern
 
-from data.tools import rescale_range, load_chunk, save_chunk, NotLoadedError, DatasetMerger
+from data.tools import rescale_range, load_chunk, save_chunk, NotLoadedError, DatasetMerger, MetaSplit, ratio_to_int, indep_shuffle_
 
 import tensorflow as tf
 
+###########################################################################################
+# DataProvider
+###########################################################################################
 class DataProvider():
-    def __init__(self):
-        pass
-    
-    def generate(self):
-        pass
+    def __init__(self, dataset_split, config, train_datasets=None):
+        self._dataset_split = MetaSplit(dataset_split)
+        if self._dataset_split == MetaSplit.TRAIN:
+            self._batch_size = config["Train"]["batch_size"]
+        else:
+            self._batch_size = config["Eval"]["batch_size"]
 
+        self._train_datasets = train_datasets
+        self.datasets = self._load()
+
+        # Dataset Configurations
+        _config = config["Data"]["gp_regression"]
+        self._n_points = _config["n_points"]
+        self._float_dtype = tf.float32
+
+
+    @property
+    def get_datasets(self):
+        """return GPDataset object"""
+        return self.datasets
+
+    def _load(self):
+        return get_all_gp_datasets(dataset_split=self._dataset_split, train_datasets=self._train_datasets)
+
+    def _generator(self, dataset):
+        """return self.datasets as generator"""
+        def generator():
+            yield dataset[0]
+
+        return generator
+
+    def _generate_from_generator(self, datasets):
+        datasets_out = dict()
+
+        output_signature = (
+        tf.TensorSpec(shape=(self._n_points,1), dtype=self._float_dtype), 
+        tf.TensorSpec(shape=(self._n_points,1), dtype=self._float_dtype))
+        
+
+        for k, dataset in datasets.items():
+            datasets_out[k] = tf.data.Dataset.from_generator(
+                generator=self._generator(dataset),
+                output_signature=output_signature 
+                )
+
+        return datasets_out
+
+    def _generate_from_dataset(self, datasets):
+        datasets_out = dict()
+
+        for k, dataset in datasets.items():
+            if isinstance(dataset, DatasetMerger):
+                X = [d[:][0] for d in dataset.datasets]
+                y = [d[:][1] for d in dataset.datasets]
+                datasets_out[k] = tf.data.Dataset.from_tensor_slices((tf.concat(X, axis=0), tf.concat(y, axis=0)))
+
+            else:
+                datasets_out[k] = tf.data.Dataset.from_tensor_slices(dataset[:])
+        
+        return datasets_out
+
+    def generate(self):
+        if self._dataset_split == MetaSplit.TRAIN or self._train_datasets is None or self._dataset_split == MetaSplit.TRIAL:
+            return self._generate_from_generator(self.datasets)
+        else:
+            return self._generate_from_dataset(self.datasets)
+
+    def generate_test(self, dataset_split="test"):
+        """generate test set directly from the train DataProvider class
+        dataset_split: str
+            - "val" or "test". Generate a fixed size dataset with the same parameters as the training dataset of this class instance
+        """
+        if self._train_datasets is not None:
+            raise Exception("generate_test is not available when train_datasets is provided in class initialisation")
+
+        test_datasets = get_all_gp_datasets(dataset_split=dataset_split, train_datasets=self.datasets)
+        return self._generate_from_dataset(test_datasets)
+
+
+###########################################################################################
+# Dataset class
+###########################################################################################
 
 class GPDataset():
     """
@@ -77,6 +158,9 @@ class GPDataset():
         Whether to reuse the same samples across epochs.  This makes the
         sampling quicker and storing less memory heavy if `save_file` is given.
 
+    generated_from : str or None, optional
+        A string to record which function is used to generate this dataset instance
+
     kwargs:
         Additional arguments to `GaussianProcessRegressor`.
     """
@@ -94,6 +178,7 @@ class GPDataset():
         save_file=None,
         n_same_samples=20,
         is_reuse_across_epochs=True,
+        generated_from=None,
         **kwargs,
     ):
 
@@ -104,6 +189,8 @@ class GPDataset():
         self.save_file = save_file
         self.n_same_samples = n_same_samples
         self.is_reuse_across_epochs = is_reuse_across_epochs
+
+        self.generated_from = generated_from
 
         self._float_dtype = tf.float32
 
@@ -262,24 +349,39 @@ class GPDataset():
             )
 
 
-def get_all_gp_datasets(**kwargs):
+# 
+
+###########################################################################################
+# Tools to get datasets
+###########################################################################################
+def get_all_gp_datasets(dataset_split="train", train_datasets=None, **kwargs):
     """Return train / tets / valid sets for all GP experiments."""
-    datasets, test_datasets, valid_datasets = dict(), dict(), dict()
+    datasets = dict()
 
-    for f in [
-        get_datasets_single_gp,
-        get_datasets_variable_hyp_gp,
-        get_datasets_variable_kernel_gp,
-    ]:
-        _datasets, _test_datasets, _valid_datasets = f(**kwargs)
-        datasets.update(_datasets)
-        test_datasets.update(_test_datasets)
-        valid_datasets.update(_valid_datasets)
+    if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL:
+        for f in [
+            get_datasets_single_gp,
+            get_datasets_variable_hyp_gp,
+            get_datasets_variable_kernel_gp,
+        ]:
+            _datasets = f(dataset_split=dataset_split, train_datasets=train_datasets, **kwargs)
+            datasets.update(_datasets)
 
-    return datasets, test_datasets, valid_datasets
+    else:
+        for k, dataset in train_datasets.items():
+            if dataset.generated_from == "single_gp":
+                datasets.update(get_datasets_single_gp(dataset_split=dataset_split, train_datasets={k:dataset}))
+            elif dataset.generated_from == "variable_hyp_gp":
+                datasets.update(get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets={k:dataset}))
+            elif dataset.generated_from == "variable_kernel_gp":
+                datasets.update(get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets={k:dataset}))
+            else:
+                raise Exception("{} in train_datasets are not generated from one of get_datasets_single_gp(), get_datasets_variable_hyp_gp, get_datasets_variable_kernel_gp()".format(dataset))
+
+    return datasets
 
 
-def get_datasets_single_gp(**kwargs):
+def get_datasets_single_gp(dataset_split="train", train_datasets=None, **kwargs):
     """Return train / tets / valid sets for 'Samples from a single GP'."""
     kernels = dict()
 
@@ -295,15 +397,18 @@ def get_datasets_single_gp(**kwargs):
 
     return get_gp_datasets(
         kernels,
+        dataset_split=dataset_split, 
+        train_datasets=train_datasets,
         is_vary_kernel_hyp=False,  # use a single hyperparameter per kernel
         n_samples=50000,  # number of different context-target sets
         n_points=128,  # size of target U context set for each sample
         is_reuse_across_epochs=False,  # never see the same example twice
+        generated_from = "single_gp",
         **kwargs,
     )
 
 
-def get_datasets_variable_hyp_gp(**kwargs):
+def get_datasets_variable_hyp_gp(dataset_split="train", train_datasets=None, **kwargs):
     """Return train / tets / valid sets for 'Samples from GPs with varying Kernel hyperparameters'."""
     kernels = dict()
 
@@ -311,24 +416,32 @@ def get_datasets_variable_hyp_gp(**kwargs):
 
     return get_gp_datasets(
         kernels,
+        dataset_split=dataset_split, 
+        train_datasets=train_datasets,
         is_vary_kernel_hyp=True,  # use a different hyp for each samples
         n_samples=50000,  # number of different context-target sets
         n_points=128,  # size of target U context set for each sample
         is_reuse_across_epochs=False,  # never see the same example twice
+        generated_from = "variable_hyp_gp",
         **kwargs,
     )
 
 
-def get_datasets_variable_kernel_gp(**kwargs):
+def get_datasets_variable_kernel_gp(dataset_split="train", train_datasets=None,**kwargs):
     """Return train / tets / valid sets for 'Samples from GPs with varying Kernels'."""
 
-    datasets, test_datasets, valid_datasets = get_datasets_single_gp(**kwargs)
-    return (
-        dict(All_Kernels=DatasetMerger(datasets.values())), # combine all kernels
-        dict(All_Kernels=DatasetMerger(test_datasets.values())),
-        dict(All_Kernels=DatasetMerger(valid_datasets.values())),
-    )
+    if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL:
+        datasets = get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, **kwargs)
+        all_kernels_datasets = DatasetMerger(datasets)
+    else:
+        datasets = dict()
+        train_datasets = list(train_datasets.values())[0]
+        for k, dataset in list(zip(train_datasets.datasets_names, train_datasets.datasets)): # get the datasets contained in train_datasets
+            datasets.update(get_datasets_single_gp(dataset_split=dataset_split, train_datasets={k:dataset}, **kwargs))
+        all_kernels_datasets = DatasetMerger(datasets)
 
+    all_kernels_datasets.generated_from = "variable_kernel_gp"
+    return dict(All_Kernels=all_kernels_datasets) # combine all kernels
 
 def sample_gp_dataset_like(dataset, **kwargs):
     """Wrap the output of `get_samples` in a gp dataset."""
@@ -339,39 +452,67 @@ def sample_gp_dataset_like(dataset, **kwargs):
 
 DIR_DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Other/gp/"))
 def get_gp_datasets(
-    kernels, save_file=f"{os.path.join(DIR_DATA, 'gp_dataset.hdf5')}", **kwargs
+    kernels=None, save_file=f"{os.path.join(DIR_DATA, 'gp_dataset.hdf5')}", dataset_split="train", 
+    train_datasets=None, **kwargs
 ):
     """
-    Return a train, test and validation set for all the given kernels (dict).
+    Return a train, test or validation set for all the given kernels (dict).
+
+    kernels: dict of sklearn.gaussian_process.kernel kernels
+        - kernels for the datasets
+    save_file: str
+        - path of hdf5 file used to save previously generated datasets
+    dataset_split: str
+        - one of "train", "val", "test"
+    train_datasets: None or GPDataset instance
+        - If None, a new validation/test dataset without fixed samples are generated. If GPDataset is input, a new validation/test dataset with the same structure of the supplied dataset is genereated with fixed samples
     """
-    datasets = dict() # store train datasets
+
+    if train_datasets is None and kernels is None:
+        raise Exception("kernels must be specified when train_datasets is None")
 
     def get_save_file(name, save_file=save_file):
         if save_file is not None:
             save_file = (save_file, name)
         return save_file
 
-    for name, kernel in kernels.items():
-        datasets[name] = GPDataset(
-            kernel=kernel, save_file=get_save_file(name), **kwargs
-        )
+    if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL:
+        datasets = dict() # store train datasets
+        for name, kernel in kernels.items():
+            datasets[name] = GPDataset(
+                kernel=kernel, save_file=get_save_file(name), **kwargs
+            )
 
-    # get validation and test datasets
-    datasets_test = { # store test datasets
-        k: sample_gp_dataset_like(
-            dataset, save_file=get_save_file(k), idx_chunk=-1, n_samples=10000
-        )
-        for k, dataset in datasets.items()
-    }
+    elif dataset_split == "test" or dataset_split == MetaSplit.TEST:
+        # get validation and test datasets
+        datasets = { # store test datasets
+            k: sample_gp_dataset_like(
+                dataset, save_file=get_save_file(k), idx_chunk=-1, n_samples=10000
+            )
+            for k, dataset in train_datasets.items()
+        }
 
-    datasets_valid = { # store val datasets
-        k: sample_gp_dataset_like(
-            dataset,
-            save_file=get_save_file(k),
-            idx_chunk=-2,
-            n_samples=dataset.n_samples // 10,
-        )
-        for k, dataset in datasets.items()
-    }
+    elif dataset_split == "valid" or dataset_split == MetaSplit.VALID:
+        datasets = { # store val datasets
+            k: sample_gp_dataset_like(
+                dataset,
+                save_file=get_save_file(k),
+                idx_chunk=-2,
+                n_samples=dataset.n_samples // 10,
+            )
+            for k, dataset in train_datasets.items()
+        }
+    
+    else:
+        raise NameError("Unknown dataset_split")
 
-    return datasets, datasets_test, datasets_valid
+    return datasets
+
+
+
+if __name__ == "__main__":
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    from utils import parse_config
+    config = parse_config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config/debug.yaml"))
+    dataloader = DataProvider("train", config)
