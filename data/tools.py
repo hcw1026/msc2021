@@ -57,14 +57,11 @@ def shuffle_map(tr_input, tr_output, val_input, val_output):
     
     tr_indices = tf.random.shuffle(tf.range(0, tr_size, dtype=tf.int32))
     val_indices = tf.random.shuffle(tf.range(0, val_size, dtype=tf.int32))
-    tf.print("1a",tf.shape(tr_input))
-    tf.print("1b", tf.shape(tr_output))
 
     tr_input = tf.gather(tr_input, tr_indices)
     tr_output = tf.gather(tr_output, tr_indices)
     val_input = tf.gather(val_input, val_indices)
     val_output = tf.gather(val_output, val_indices)
-    tf.print("2",tr_output)
     return tr_input, tr_output, val_input, val_output
 
 def GenerateDataset(generator, output_signature, batch_size, description, shuffle):
@@ -85,6 +82,10 @@ def GenerateDataset(generator, output_signature, batch_size, description, shuffl
 ###########################################################################################
 # Regression
 ###########################################################################################
+RegressionDescription = collections.namedtuple(
+    "RegressionDescription",
+    ["tr_input", "tr_output", "val_input", "val_output"])
+
 #### Datasets utilities
 class DatasetMerger():
     """
@@ -97,6 +98,8 @@ class DatasetMerger():
         self.cumul_len = np.cumsum([len(d) for d in self.datasets])
 
     def __getitem__(self, index):
+        if not self.__getattr__("is_reuse_across_epochs"):
+            index = index // self.cumul_len[-1] # allow generator dataset
         idx_dataset = self.cumul_len.searchsorted(index + 1)  # + 1 because of 0 index
         idx_in_dataset = index
         if idx_dataset > 0:

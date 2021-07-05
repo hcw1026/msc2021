@@ -52,6 +52,15 @@ class DataProvider():
         self._n_points = _config["n_points"]
         self._float_dtype = tf.float32
 
+        # Training Configurations
+        if self._dataset_split == MetaSplit.TRAIN:
+            self._batch_size = config["Train"]["batch_size"]
+        else:
+            self._batch_size = config["Eval"]["batch_size"]
+        self._drop_remainder = config["Train"]["drop_remainder"]
+
+        #self.splitter = CntxtTrgtGetter()
+
 
     @property
     def get_datasets(self):
@@ -64,45 +73,74 @@ class DataProvider():
     def _generator(self, dataset):
         """return self.datasets as generator"""
         def generator():
-            yield dataset[0]
+            # Batching
+            X, y = list(zip(*[dataset[0] for i in range(self._batch_size)]))
+            X = tf.stack(X)
+            y = tf.stack(y)
+            self.splitter(X=X,y=y)
+            yield X, y
 
         return generator
 
-    def _generate_from_generator(self, datasets):
-        datasets_out = dict()
+    def _generate_from_generator(self, dataset):
 
         output_signature = (
-        tf.TensorSpec(shape=(self._n_points,1), dtype=self._float_dtype), 
-        tf.TensorSpec(shape=(self._n_points,1), dtype=self._float_dtype))
+        tf.TensorSpec(shape=(self._batch_size, None, 1), dtype=self._float_dtype), 
+        tf.TensorSpec(shape=(self._batch_size, None, 1), dtype=self._float_dtype))
         
+        dataset_out = tf.data.Dataset.from_generator(
+            generator=self._generator(dataset),
+            output_signature=output_signature 
+            )
 
-        for k, dataset in datasets.items():
-            datasets_out[k] = tf.data.Dataset.from_generator(
-                generator=self._generator(dataset),
-                output_signature=output_signature 
-                )
+        return dataset_out
 
-        return datasets_out
+    def _generate_from_dataset(self, dataset):
 
-    def _generate_from_dataset(self, datasets):
+        if isinstance(dataset, DatasetMerger):
+            X = tf.concat([d[:][0] for d in dataset.datasets], axis=0)
+            y = tf.concat([d[:][1] for d in dataset.datasets], axis=0)
+        else:
+            X, y = dataset[:]
+
+        # Batching
+        num_points = len(dataset)
+        num_split, remainder = divmod(num_points,self._batch_size)
+        X_remain = X[num_points-remainder:]
+        X = tf.split(X[:num_points-remainder], num_or_size_splits=num_split, axis=0)
+        y_remain = y[num_points-remainder:]
+        y = tf.split(y[:num_points-remainder], num_or_size_splits=num_split, axis=0)
+        if not self._drop_remainder and X_remain.shape[0] > 0:
+            X.append(X_remain)
+            y.append(y_remain)
+
+        dataset_out = (X, y)
+        dataset_out = tf.data.Dataset.range(len(X))
+        dataset_out = dataset_out.map(lambda idx: tf.py_function(func=lambda i: (X[i], y[i]), inp=[idx], Tout=(tf.float32, tf.float32)))
+        #(X[idx], y[idx]))
+        #dataset_out = tf.data.Dataset.from_tensor_slices(dataset_out)
+        
+        return dataset_out
+
+    def generate(self, datasets=None):
+
+        if datasets is None: # default generate from self.datasets
+            datasets = self.datasets
+
         datasets_out = dict()
 
         for k, dataset in datasets.items():
-            if isinstance(dataset, DatasetMerger):
-                X = [d[:][0] for d in dataset.datasets]
-                y = [d[:][1] for d in dataset.datasets]
-                datasets_out[k] = tf.data.Dataset.from_tensor_slices((tf.concat(X, axis=0), tf.concat(y, axis=0)))
-
+            if dataset.is_reuse_across_epochs:
+                datasets_out.update({k:self._generate_from_dataset(dataset)})
             else:
-                datasets_out[k] = tf.data.Dataset.from_tensor_slices(dataset[:])
+                datasets_out.update({k:self._generate_from_generator(dataset)})
         
         return datasets_out
 
-    def generate(self):
-        if self._dataset_split == MetaSplit.TRAIN or self._train_datasets is None or self._dataset_split == MetaSplit.TRIAL:
-            return self._generate_from_generator(self.datasets)
-        else:
-            return self._generate_from_dataset(self.datasets)
+            # if self._dataset_split == MetaSplit.TRAIN or self._train_datasets is None or self._dataset_split == MetaSplit.TRIAL:
+            #     return self._generate_from_generator(self.datasets)
+            # else:
+            #     return self._generate_from_dataset(self.datasets)
 
     def generate_test(self, dataset_split="test"):
         """generate test set directly from the train DataProvider class
@@ -113,13 +151,12 @@ class DataProvider():
             raise Exception("generate_test is not available when train_datasets is provided in class initialisation")
 
         test_datasets = get_all_gp_datasets(dataset_split=dataset_split, train_datasets=self.datasets)
-        return self._generate_from_dataset(test_datasets)
+        return self.generate(test_datasets)
 
 
 ###########################################################################################
 # Dataset class
 ###########################################################################################
-
 class GPDataset():
     """
     Dataset of functions generated by a gaussian process.
@@ -349,7 +386,219 @@ class GPDataset():
             )
 
 
-# 
+###########################################################################################
+# Dataset splitter
+###########################################################################################
+def get_all_indcs(batch_size, n_possible_points):
+    """
+    Return all possible indices.
+    """
+    #torch.arange(n_possible_points).expand(batch_size, n_possible_points)
+    return tf.tile(tf.expand_dims(tf.range(n_possible_points),0),(batch_size,1))
+
+class GetRandomIndcs:
+    """
+    Return random subset of indices.
+
+    Parameters
+    ----------
+    a : float or int, optional
+        Minimum number of indices. If smaller than 1, represents a percentage of
+        points.
+
+    b : float or int, optional
+        Maximum number of indices. If smaller than 1, represents a percentage of
+        points.
+
+    is_batch_share : bool, optional
+        Whether to use use the same indices for all elements in the batch.
+
+    range_indcs : tuple, optional
+        Range tuple (max, min) for the indices.
+        
+    is_beta_binomial : bool, optional
+        Whether to use beta binomial distribution instead of uniform. In this case a and b become
+        respectively alpha and beta in beta binomial distributions. For example to have a an 
+        exponentially decaying pdf with a median around 5% use alpha 1 and beta 14.
+
+    proba_uniform : float, optional
+        Probability [0,1] of randomly sampling any number of indices regardless of a and b. Useful to 
+        ensure that the support is all possible indices.
+    """
+
+    def __init__(
+        self,
+        a=0.1,
+        b=0.5,
+        is_batch_share=False,
+        range_indcs=None,
+        is_ensure_one=False,
+        is_beta_binomial=False,
+        proba_uniform=0,
+    ):
+        self.a = a
+        self.b = b
+        self.is_batch_share = is_batch_share
+        self.range_indcs = range_indcs
+        self.is_ensure_one = is_ensure_one
+        self.is_beta_binomial = is_beta_binomial
+        self.proba_uniform = proba_uniform
+
+    def __call__(self, batch_size, n_possible_points):
+        if self.range_indcs is not None:
+            n_possible_points = self.range_indcs[1] - self.range_indcs[0]
+
+        if np.random.uniform(size=1) < self.proba_uniform:
+            # whether to sample from a uniform distribution instead of using a and b
+            n_indcs = random.randint(0, n_possible_points)
+
+        else:
+            if self.is_beta_binomial:
+                rv = betabinom(n_possible_points, self.a, self.b)
+                n_indcs = rv.rvs()
+
+            else:
+                a = ratio_to_int(self.a, n_possible_points)
+                b = ratio_to_int(self.b, n_possible_points)
+                n_indcs = random.randint(a, b)
+
+        if self.is_ensure_one and n_indcs < 1:
+            n_indcs = 1
+
+        if self.is_batch_share:
+            # indcs = torch.randperm(n_possible_points)[:n_indcs]
+            # indcs = indcs.unsqueeze(0).expand(batch_size, n_indcs)
+            indcs = tf.random.shuffle(tf.range(n_possible_points))[:n_indcs]
+            indcs = tf.tile(tf.expand_dims(indcs, 0),(batch_size,1))
+        else:
+            indcs = (
+                np.arange(n_possible_points)
+                .reshape(1, n_possible_points)
+                .repeat(batch_size, axis=0)
+            )
+            indep_shuffle_(indcs, -1)
+            #indcs = torch.from_numpy(indcs[:, :n_indcs])
+            indcs = tf.constant(indcs[:,:n_indcs])
+
+        if self.range_indcs is not None:
+            # adding is teh same as shifting
+            indcs += self.range_indcs[0]
+
+        return indcs
+
+class CntxtTrgtGetter:
+    """
+    Split a dataset into context and target points based on indices.
+
+    Parameters
+    ----------
+    contexts_getter : callable, optional
+        Get the context indices if not given directly (useful for training).
+
+    targets_getter : callable, optional
+        Get the context indices if not given directly (useful for training).
+
+    is_add_cntxts_to_trgts : bool, optional
+        Whether to add the context points to the targets.
+    """
+
+    def __init__(
+        self,
+        contexts_getter=GetRandomIndcs(),
+        targets_getter=get_all_indcs,
+        is_add_cntxts_to_trgts=False,
+    ):
+        self.contexts_getter = contexts_getter
+        self.targets_getter = targets_getter
+        self.is_add_cntxts_to_trgts = is_add_cntxts_to_trgts
+
+    def __call__(
+        self, X, y=None, context_indcs=None, target_indcs=None, is_return_indcs=False
+    ):
+        """
+        Parameters
+        ----------
+        X: tf.constant, size = [batch_size, num_points, x_dim]
+            Position features. Values should always be in [-1, 1].
+
+        Y: tf.constant, size = [batch_size, num_points, y_dim]
+            Targets.
+
+        context_indcs : np.array, size=[batch_size, n_indcs]
+            Indices of the context points. If `None` generates it using
+            `contexts_getter(batch_size, num_points)`.
+
+        target_indcs : np.array, size=[batch_size, n_indcs]
+            Indices of the target points. If `None` generates it using
+            `contexts_getter(batch_size, num_points)`.
+
+        is_return_indcs : bool, optional
+            Whether to return X and the selected context and taregt indices, rather
+            than the selected `X_cntxt, Y_cntxt, X_trgt, Y_trgt`.
+        """
+        batch_size, num_points = self.getter_inputs(X)
+
+        if context_indcs is None:
+            context_indcs = self.contexts_getter(batch_size, num_points)
+        if target_indcs is None:
+            target_indcs = self.targets_getter(batch_size, num_points)
+
+        if self.is_add_cntxts_to_trgts:
+            target_indcs = self.add_cntxts_to_trgts(
+                num_points, target_indcs, context_indcs
+            )
+
+        # only used if X for context and target should be different (besides selecting indices!)
+        X_pre_cntxt = self.preprocess_context(X)
+
+        if is_return_indcs:
+            # instead of features return indices / masks, and `Y_cntxt` is replaced
+            # with all values Y
+            return (
+                context_indcs,
+                X_pre_cntxt,
+                target_indcs,
+                X,
+            )
+        X_cntxt, Y_cntxt = self.select(X_pre_cntxt, y, context_indcs)
+        X_trgt, Y_trgt = self.select(X, y, target_indcs)
+        return X_cntxt, Y_cntxt, X_trgt, Y_trgt
+
+    def preprocess_context(self, X):
+        """Preprocess the data for the context set."""
+        return X
+
+    def add_cntxts_to_trgts(self, num_points, target_indcs, context_indcs):
+        """
+        Add context points to targets. This might results in duplicate indices in
+        the targets.
+        """
+        #target_indcs = torch.cat([target_indcs, context_indcs], dim=-1)
+        target_indcs = tf.concat([target_indcs, context_indcs], dim=-1)
+        # to reduce the probability of duplicating indices remove context indices
+        # that made target indices larger than n_possible_points
+        return target_indcs[:, :num_points]
+
+    def getter_inputs(self, X):
+        """Make the input for the getters."""
+        batch_size, num_points, x_dim = X.shape
+        return batch_size, num_points
+
+    def select(self, X, y, indcs):
+        """Select the correct values from X."""
+        batch_size, num_points, x_dim = X.shape
+        indcs_shape = indcs.shape
+        y_dim = y.shape[-1]
+        indcs_x = tf.tile(tf.expand_dims(indcs,-1),(batch_size//indcs_shape[0], 1, x_dim))
+        indcs_y = tf.tile(tf.expand_dims(indcs, -1), (batch_size//indcs_shape[0], 1, y_dim))
+
+        return (tf.gather(X, indices=indcs_x, axis=1), tf.gather(y, indices=indcs_y, axis=1))
+        # indcs_x = indcs.to(X.device).unsqueeze(-1).expand(batch_size, -1, x_dim)
+        # indcs_y = indcs.to(X.device).unsqueeze(-1).expand(batch_size, -1, y_dim)
+        # return (
+        #     torch.gather(X, 1, indcs_x).contiguous(),
+        #     torch.gather(y, 1, indcs_y).contiguous(),
+        # )
 
 ###########################################################################################
 # Tools to get datasets
@@ -427,7 +676,7 @@ def get_datasets_variable_hyp_gp(dataset_split="train", train_datasets=None, **k
     )
 
 
-def get_datasets_variable_kernel_gp(dataset_split="train", train_datasets=None,**kwargs):
+def get_datasets_variable_kernel_gp(dataset_split="train", train_datasets=None,**kwargs): #default not reuse across epoch
     """Return train / tets / valid sets for 'Samples from GPs with varying Kernels'."""
 
     if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL:
@@ -516,3 +765,31 @@ if __name__ == "__main__":
     from utils import parse_config
     config = parse_config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config/debug.yaml"))
     dataloader = DataProvider("train", config)
+
+    getter = CntxtTrgtGetter()
+    dat = dataloader.generate()
+    dat = dat["All_Kernels"]
+    dat = dat.repeat()
+    dat_test = dataloader.generate_test()
+    dat_test = dat_test["All_Kernels"]
+
+    for i in dat.take(1):
+        pass
+
+    for i in dat_test.take(1):
+        pass
+
+    # dat = dat.batch(5, )
+    #dat = dat.map(lambda X, y: tf.py_function(getter(X=X, y=y), [X,y], [tf.float32,tf.float32,tf.float32,tf.float32]))
+
+    # map_fun = lambda X, y: getter(X=X, y=y, context_indcs=tf.constant(np.ones([5,10]), dtype=tf.int32), target_indcs=tf.constant(np.ones([5,10]), dtype=tf.int32))
+    # dat = dat.map(lambda X, y: tf.py_function(
+    #     # func=getter(
+    #     #     X=X, y=y, 
+    #     #     context_indcs=tf.constant(np.ones([5,10]), dtype=tf.int32), 
+    #     #     target_indcs=tf.constant(np.ones([5,10]), dtype=tf.int32)), 
+    #     func=map_fun, 
+    #     inp=[X,y], 
+    #     Tout=[tf.float32,tf.float32,tf.float32,tf.float32]))
+    # for i in dat.take(1):
+    #     print("hi", i)
