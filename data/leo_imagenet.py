@@ -46,13 +46,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-
+from functools import partial
 import numpy as np
 import tensorflow as tf
 import os
 import pickle
 import collections
-from data.tools import ClassificationDescription, unpack_data, StrEnum, MetaSplit, GenerateDataset
+from data.tools import ClassificationDescription, unpack_data, StrEnum, MetaSplit, GenerateDataset, normalise, description_map, shuffle_map
 
 NDIM = 640
 
@@ -237,12 +237,17 @@ class DataProvider():
         tf.TensorSpec(shape=(self._val_size*self._num_classes, NDIM), dtype=self._float_dtype),
         tf.TensorSpec(shape=(self._val_size*self._num_classes, 1), dtype=self._int_dtype)
         )
-        return GenerateDataset(
-            generator=self._generator(), 
-            output_signature=output_signature, 
-            batch_size=self._batch_size, 
-            description=ClassificationDescription,
-            shuffle=self._shuffle)
+
+        dataset = tf.data.Dataset.from_generator(self._generator(), output_signature=output_signature)
+        dataset = dataset.repeat()
+        if self._shuffle is True:
+            dataset = dataset.map(shuffle_map, num_parallel_calls=tf.data.AUTOTUNE)
+        dataset = dataset.batch(self._batch_size, drop_remainder=False) # batch
+        dataset = dataset.map(normalise, num_parallel_calls=tf.data.AUTOTUNE) #normalise
+        dataset = dataset.map(partial(description_map, description=ClassificationDescription), 
+            num_parallel_calls=tf.data.AUTOTUNE)
+        dataset = dataset.prefetch(tf.data.AUTOTUNE)
+        return dataset
 
 
 if __name__ == "__main__":
