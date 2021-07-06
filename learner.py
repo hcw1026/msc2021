@@ -1,5 +1,8 @@
+#from msc2021.data.tools import RegressionDescription
+from model import MetaFunClassifier, MetaFunRegressor
 import tensorflow as tf
 import sonnet as snt
+from data.tools import RegressionDescription
 import utils
 import os
 
@@ -7,8 +10,7 @@ from datetime import datetime
 
 class CLearner():
 
-    def __init__(self, config, model, dataprovider=None, load_data=True, name=""):
-        self.name = name
+    def __init__(self, config, model, dataprovider=None, load_data=True, name="CLearner"):
         self.eval_metric_type = "acc"
 
         self._float_dtype = tf.float32
@@ -22,6 +24,7 @@ class CLearner():
 
         # Model Configurations
         self._l2_penalty_weight = config["Model"]["reg"]["l2_penalty_weight"]
+        self._use_gradient = config["Model"]["comp"]["use_gradient"]
 
         # Training Configurations
         _config = config["Train"]
@@ -67,9 +70,7 @@ class CLearner():
         self.val_data = None
         self.test_data = None
         if load_data is True:
-            self._load_data("train")
-            self._load_data("val")
-            self._load_data("test")
+            self._load_data()
 
         # Initialise
         self.train_dist_ds = None
@@ -80,6 +81,8 @@ class CLearner():
 
         self.current_time = datetime.now().strftime("%y%m%d-%H%M%S")
 
+        #tf.function input signature
+        self.signature = None
 
         # Setup (multi-)GPU training
         if self._gpu is not None:
@@ -91,14 +94,11 @@ class CLearner():
         else:
             self.strategy = snt.distribute.Replicator()
 
-    def _load_data(self, dataset_split):
+    def _load_data(self):
         """load data from dataprovider"""
-        if dataset_split == "train":
-            self.train_data = self.dataprovider(dataset_split, self.config).generate()
-        if dataset_split == "val":
-            self.val_data = self.dataprovider(dataset_split, self.config).generate()
-        if dataset_split == "test":
-            self.test_data = self.dataprovider(dataset_split, self.config).generate()
+        self.train_data = self.dataprovider("train", self.config).generate()
+        self.val_data = self.dataprovider("val", self.config).generate()
+        self.test_data = self.dataprovider("test", self.config).generate()
 
 
     def load_custom_data(self, training=None, val=None, test=None):
@@ -111,10 +111,8 @@ class CLearner():
         """train model"""
 
         print("Number of devices: {}".format(self.strategy.num_replicas_in_sync))
-
         with self.strategy.scope():
             self._initialise_model(data_source=data_source, name=name) # initialise model and optimisers
-
         self._check_validation()
         train_step = self._tf_func_train_step()
         distributed_train_step = self._distributed_step(train_step) # distributed train_step
@@ -127,8 +125,8 @@ class CLearner():
         else:
             distributed_val_step = None
 
+        self._define_metrics()
         with self.strategy.scope():
-            self._define_metrics()
             self._create_restore_checkpoint()
         
         if self.stop is True:
@@ -164,9 +162,25 @@ class CLearner():
             for train_batch in self.train_data.take(self._steps_per_epoch):
                 step_num += 1
                 train_loss,  train_tr_metric, train_val_metric = train_step(train_batch)
+                self.metric_train_target_loss(train_loss) # TODO: check correctness of placing it here
+
+                train_tr_metric = tf.reduce_mean(train_tr_metric)
+                train_val_metric = tf.reduce_mean(train_val_metric)
+
+                # print("{}".format(self.eval_metric_type))
+                # print("{}".format(epoch))
+                # print("{}".format(self._epoch))
+                # print("{}".format(step_num))
+                # print("{0:.3f}".format(train_loss))
+                # print("{0:.3f}".format(self.metric_train_target_loss.result()))
+                # print("{0:.3f}".format(train_tr_metric))
+                # print("{0:.3f}".format(train_val_metric))
+                # print("{0:.3f}".format(self.metric_train_context_metric.result()))
+                # print("{0:.3f}".format(self.metric_train_target_metric.result()))
+
                 if step_num % self._print_freq == 0:
                     print("Train -- Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
-                    self.eval_metric_type, epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result(), train_tr_metric, train_val_metric, self.metric_train_context_acc.result(), self.metric_train_target_acc.result()))
+                    self.eval_metric_type, epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result(), train_tr_metric, train_val_metric, self.metric_train_context_metric.result(), self.metric_train_target_metric.result()))
 
                 self._write_tensorboard_step(self.optimiser.iterations, train_loss)
 
@@ -179,9 +193,14 @@ class CLearner():
                 for val_batch in self.val_data.take(self._val_num_batches):
                     step_num += 1
                     val_loss, val_tr_metric, val_val_metric = validation_step(val_batch)
+                    self.metric_val_target_loss(val_loss) # TODO: check correctness of placing it here
+
+                    val_tr_metric = tf.reduce_mean(val_tr_metric)
+                    val_val_metric = tf.reduce_mean(val_val_metric)
+
                     if step_num % self._print_freq == 0:
                         print("Validation --Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
-                        self.eval_metric_type, epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result(), val_tr_metric, val_val_metric, self.metric_val_context_acc.result(), self.metric_val_target_acc.result()))
+                        self.eval_metric_type, epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result(), val_tr_metric, val_val_metric, self.metric_val_context_metric.result(), self.metric_val_target_metric.result()))
 
             self._write_tensorboard_epoch(epoch)
 
@@ -197,21 +216,22 @@ class CLearner():
 
     def _tf_func_train_step(self):
         """one meta-training loop"""
-        @tf.function
+
+        #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function
         def _train_step(train_batch):
+            print("hi")
             with tf.GradientTape() as tape:
-                train_loss, orth_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)
+                train_loss, additional_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)[:4] #additional_loss is orthogonality loss for imagenet datasets
                 reg_loss = self.regulariser(self.model.get_regularise_variables)
-                train_loss = utils.combine_losses(train_loss, reg_loss + orth_loss, self._train_batch_size)
+                train_loss = utils.combine_losses(train_loss, reg_loss + additional_loss, self._train_batch_size)
                 
 
             gradients = tape.gradient(train_loss, self.model.trainable_variables)
             self.optimiser.apply_gradients(zip(gradients, self.model.trainable_variables))
 
             # Update metrics
-            self.metric_train_target_loss(train_loss) # TODO: check correctness of placing it here
-            self.metric_train_target_acc(train_val_metric)
-            self.metric_train_context_acc(train_tr_metric)
+            self.metric_train_target_metric(train_val_metric)
+            self.metric_train_context_metric(train_tr_metric)
 
             return train_loss, train_tr_metric, train_val_metric
 
@@ -220,23 +240,23 @@ class CLearner():
     def _tf_func_val_step(self):
         """one meta-validation loop"""
 
-        @tf.function
+        #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function #TODO: solve the nested tf.function problem when using nested gradient
         def _val_step(val_batch):
-            val_loss, orth_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False)
+            val_loss, additional_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False)[:4]
             reg_loss = self.regulariser(self.model.get_regularise_variables)
-            val_loss = utils.combine_losses(val_loss, reg_loss + orth_loss, self._val_batch_size)
+            val_loss = utils.combine_losses(val_loss, reg_loss + additional_loss, self._val_batch_size)
 
             # Update metrics
-            self.metric_val_target_loss(val_loss) # TODO: check correctness of placing it here
-            self.metric_val_target_acc(val_val_metric)
-            self.metric_val_context_acc(val_tr_metric)
+            self.metric_val_target_metric(val_val_metric)
+            self.metric_val_context_metric(val_tr_metric)
 
             return val_loss, val_tr_metric, val_val_metric
 
         return _val_step
 
     def _distributed_step(self, compute_step_fn):
-        @tf.function
+
+        @utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function
         def distributed_train_step(batch):
             per_replica_losses = self.strategy.run(compute_step_fn, args=(batch, ))
             return self.strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
@@ -250,23 +270,25 @@ class CLearner():
 
     def _define_metrics(self):
         self.metric_train_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
-        self.metric_train_target_acc = tf.keras.metrics.Mean(name="train_target_acc")
-        self.metric_train_context_acc = tf.keras.metrics.Mean(name="train_context_acc")
+        with self.strategy.scope():
+            self.metric_train_target_metric = tf.keras.metrics.Mean(name="train_target_{}".format(self.eval_metric_type))
+            self.metric_train_context_metric = tf.keras.metrics.Mean(name="train_context_{}".format(self.eval_metric_type))
 
         if self._validation:
             self.metric_val_target_loss = tf.keras.metrics.Mean(name="val_target_loss")
-            self.metric_val_target_acc = tf.keras.metrics.Mean(name="val_target_acc")
-            self.metric_val_context_acc = tf.keras.metrics.Mean(name="val_target_acc")
+            with self.strategy.scope():
+                self.metric_val_target_metric = tf.keras.metrics.Mean(name="val_target_{}".format(self.eval_metric_type))
+                self.metric_val_context_metric = tf.keras.metrics.Mean(name="val_target_{}".format(self.eval_metric_type))
 
     def _reset_metrics(self):
         self.metric_train_target_loss.reset_states()
-        self.metric_train_target_acc.reset_states()
-        self.metric_train_context_acc.reset_states()
+        self.metric_train_target_metric.reset_states()
+        self.metric_train_context_metric.reset_states()
 
         if self._validation:
             self.metric_val_target_loss.reset_states()
-            self.metric_val_target_acc.reset_states()
-            self.metric_val_context_acc.reset_states()
+            self.metric_val_target_metric.reset_states()
+            self.metric_val_context_metric.reset_states()
 
     def _create_restore_checkpoint(self):
         # Checkpoints
@@ -301,25 +323,24 @@ class CLearner():
     def _write_tensorboard_epoch(self, epoch):
         if self.current_state == "train":
             with self.train_summary_writer.as_default():
-                tf.summary.scalar("Mean Train Target Loss", self.metric_train_target_loss.result(), step=epoch)
-                tf.summary.scalar("Train Target Acc", self.metric_train_target_acc.result(), step=epoch)
-                tf.summary.scalar("Train Context Acc", self.metric_train_context_acc.result(), step=epoch)
+                tf.summary.scalar("Mean Train Target loss", self.metric_train_target_loss.result(), step=epoch)
+                tf.summary.scalar("Train Target {}".format(self.eval_metric_type), self.metric_train_target_metric.result(), step=epoch)
+                tf.summary.scalar("Train Context {}".format(self.eval_metric_type), self.metric_train_context_metric.result(), step=epoch)
                 tf.summary.flush()
 
         elif self.current_state == "val":
             with self.val_summary_writer.as_default():
-                tf.summary.scalar("Mean Validation Target Loss", self.metric_val_target_loss.result(), step=epoch)
-                tf.summary.scalar("Validation Target Acc", self.metric_val_target_acc.result(), step=epoch)
-                tf.summary.scalar("Validation Context Acc", self.metric_val_context_acc.result(), step=epoch)
+                tf.summary.scalar("Mean Validation Target loss", self.metric_val_target_loss.result(), step=epoch)
+                tf.summary.scalar("Validation Target {}".format(self.eval_metric_type), self.metric_val_target_metric.result(), step=epoch)
+                tf.summary.scalar("Validation Context {}".format(self.eval_metric_type), self.metric_val_context_metric.result(), step=epoch)
                 tf.summary.flush()
 
     def _write_tensorboard_step(self, iteration, loss):
         with self.train_summary_writer.as_default():
-            print(loss)
-            tf.summary.scalar("Train Target Loss (step)", loss, step=iteration)
-            tf.summary.scalar("Mean Train Target Loss (step)", self.metric_train_target_loss.result(), step=iteration)
-            tf.summary.scalar("Train Target Acc (step)", self.metric_train_target_acc.result(), step=iteration)
-            tf.summary.scalar("Train Context Acc (step)", self.metric_train_context_acc.result(), step=iteration)
+            tf.summary.scalar("Train Target loss (step)", loss, step=iteration)
+            tf.summary.scalar("Mean Train Target loss (step)", self.metric_train_target_loss.result(), step=iteration)
+            tf.summary.scalar("Train Target {} (step)".format(self.eval_metric_type), self.metric_train_target_metric.result(), step=iteration)
+            tf.summary.scalar("Train Context {} (step)".format(self.eval_metric_type), self.metric_train_context_metric.result(), step=iteration)
             tf.summary.flush()
 
     def _early_stopping_init(self):
@@ -336,7 +357,7 @@ class CLearner():
         # Early stopping utils
         self.early_stop_counter = tf.constant(0)
         self.stop = False
-        self.early_stop_map = {"loss":self.metric_val_target_loss, "acc":self.metric_val_target_acc}
+        self.early_stop_map = {"loss":self.metric_val_target_loss, "metric":self.metric_val_target_metric}
 
     def _early_stopping(self):
         curr_metric = self.early_stop_map[self._early_stop_monitor].result()
@@ -372,6 +393,30 @@ class CLearner():
 
 
 
+class GPLearner(CLearner):
+    def __init__(self, config, model, dataprovider=None, load_data=True, name="GPLearner"):
+        super(GPLearner, self).__init__(config=config, model=model, dataprovider=dataprovider, load_data=False, name=name)
+        self.signature = (RegressionDescription(
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype), 
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype)),)
+
+        self.eval_metric_type = "mse"
+
+        if load_data is True:
+            self._load_data()
+
+    def _load_data(self):
+        """load data from dataprovider"""
+        # provider = self.dataprovider("train", self.config)
+        # self.train_data = provider.generate()
+        # self.val_data = self.train_data
+        # self.test_data = provider.generate_test()
+        pass
+
+
+
 if __name__ == "__main__":
     from utils import parse_config
     from model import MetaFunClassifier
@@ -379,9 +424,18 @@ if __name__ == "__main__":
     import numpy as np
     import collections
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
-    from data.leo_imagenet import DataProvider
+    from data.leo_imagenet import DataProvider as imagenet_provider
 
-    mylearner = CLearner(config, MetaFunClassifier, dataprovider=DataProvider)
+    mylearner = CLearner(config, MetaFunClassifier, dataprovider=imagenet_provider)
     mylearner.train()
+
+
+    # from data.gp_regression import DataProvider as gp_provider
+    # mylearn2 = GPLearner(config, MetaFunRegressor, dataprovider=None, load_data=False)
+    # gp_dataloader = gp_provider(dataset_split="train", config=config)
+    # gp_train_data = gp_dataloader.generate()["RBF_Kernel"]
+    # mylearn2.load_custom_data(training=gp_train_data, val=gp_train_data)
+    # mylearn2.train()
+
 
     

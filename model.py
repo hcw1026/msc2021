@@ -109,6 +109,10 @@ class MetaFunBase(snt.Module):
     def get_regularise_variables(self):
         return self.regularise_variables
 
+    @property
+    def additional_loss(self):
+        return tf.constant(0., dtype=self._float_dtype)
+
 
 class MetaFunClassifier(MetaFunBase, snt.Module):
     def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifier"): #TODO: remove no_batch
@@ -128,7 +132,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         super(MetaFunClassifier, self).__init__(config, no_batch, num_classes=self._num_classes, name=name)
 
         # Metric initialisation
-        self.metric = tf.keras.metrics.BinaryAccuracy(name="inner accuracy", dtype=self._float_dtype)
+        #self.metric = tf.keras.metrics.BinaryAccuracy(name="inner accuracy", dtype=self._float_dtype)
 
     @snt.once
     def initialise(self, data_instance):
@@ -182,7 +186,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
                     keys=None, 
                     precomputed=precomputed,
                     values=updates), 
-                num_or_size_splits=[data.tr_input.shape[-2], data.val_input.shape[-2]], 
+                num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]], 
                 axis=-2)
             tr_reprs += tr_updates
             val_reprs += val_updates
@@ -374,8 +378,8 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             initialiser=self.initialiser)
 
     def forward_decoder_with_decoder(self, cls_reprs):
-        s = cls_reprs.shape.as_list()
-        cls_reprs = tf.reshape(cls_reprs, s[:-1] + [self._num_classes, self._dim_reprs]) # split each representation into classes
+        s = tf.shape(cls_reprs)
+        cls_reprs = tf.reshape(cls_reprs, tf.concat([s[:-1], tf.constant([self._num_classes, self._dim_reprs], dtype=tf.int32)], axis=0))
         weights_dist_params, orthogonality_reg = self.decoder(cls_reprs) # get mean and variance of wn in LEO
         stddev_offset = tf.math.sqrt(2. / (self.embedding_dim + self._num_classes)) #from LEO
         classifier_weights = self.sample(
@@ -398,8 +402,9 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         model_outputs = self.predict(inputs, classifier_weights) # return unnormalised probability of each class for each instance
         model_predictions = tf.math.argmax(
             input=model_outputs, axis=-1, output_type=self._int_dtype)
-        accuracy = self.metric(model_predictions, tf.squeeze(true_outputs, axis=-1))
-        self.metric.reset_state()
+        # accuracy = self.metric(model_predictions, tf.squeeze(true_outputs, axis=-1))
+        # self.metric.reset_state()
+        accuracy = tf.cast(tf.equal(model_predictions, tf.squeeze(true_outputs, axis=-1)), dtype=self._float_dtype)
         return self.loss_fn(model_outputs, true_outputs), accuracy
 
     def predict_init(self):
@@ -507,7 +512,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
                     keys=None,
                     precomputed=precomputed,
                     values=updates),
-                num_or_size_splits=[data.tr_input.shape[-2], data.val_input.shape[-2]],
+                num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]],
                 axis=-2
                 )
             tr_reprs += tr_updates
@@ -519,7 +524,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
         all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
 
-        for k in tf.range(self._num_iters+1): # store intermediate predictions
+        for k in range(self._num_iters+1): # store intermediate predictions
             weights = self.forward_decoder(all_tr_reprs.read(k))
             tr_mu, tr_sigma = self.predict(inputs=data.tr_input, weights=weights)
             weights = self.forward_decoder(all_val_reprs.read(k))
@@ -540,7 +545,9 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         all_val_mu = all_val_mu.stack()
         all_val_sigma = all_val_sigma.stack()
 
-        return val_loss, tr_metric, val_metric, all_val_mu, all_val_sigma
+        additional_loss = tf.constant(0., dtype=self._float_dtype)
+
+        return val_loss, additional_loss, tr_metric, val_metric, all_val_mu, all_val_sigma
 
     @snt.once
     def initialiser_all_init(self):
@@ -804,10 +811,6 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             reduction=tf.keras.losses.Reduction.NONE)(
                 y_true=labels, y_pred=model_outputs)
 
-    @property
-    def additional_loss(self):
-        return tf.constant(0., dtype=self._float_dtype)
-
 
 
 
@@ -878,7 +881,7 @@ if __name__ == "__main__":
     tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
     @tf.function
     def trial(x, is_training=True):
-        l,_,_,_,_ = module2(x, is_training=is_training)
+        l,_,_,_,_,_ = module2(x, is_training=is_training)
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")

@@ -22,11 +22,10 @@ class constant_initialiser(snt.Module):
         self._num_classes = num_classes if classification else 1
 
         if no_batch:
-            self.tile_fun = lambda init, x : tf.tile(init, [x.shape[-2], self._num_classes])
+            self.tile_fun = lambda init, x : tf.tile(init, [tf.shape(x)[-2], self._num_classes])
         else:
             def tile_fun_batch(init, x):
-                t = tf.tile(init, [x.shape[-2], self._num_classes])
-                return tf.stack([t for i in range(x.shape[-3])])
+                return tf.tile(tf.expand_dims(init,0),[tf.shape(x)[-3], tf.shape(x)[-2], self._num_classes])
 
             self.tile_fun = tile_fun_batch
 
@@ -118,8 +117,8 @@ class neural_local_updater(snt.Module):
         
 
     def classification(self, r, y, x=None, iter=""):
-        r_shape = r.shape.as_list()
-        r = tf.reshape(r, r_shape[:-1] + [self._num_classes, self._dim_reprs])
+        r_shape = tf.shape(r)
+        r = tf.reshape(r, tf.concat([r_shape[:-1], tf.constant([self._num_classes, self._dim_reprs], dtype=tf.int32)], axis=0))
 
         y = tf.one_hot(y, self._num_classes) #TODO: move to data preprocessing
         y = tf.transpose(y, self.perm)
@@ -198,7 +197,7 @@ def get_orthogonality_regularizer(orthogonality_penalty_weight):
         w2 = tf.linalg.matmul(weight, weight, transpose_b=True)
         wn = tf.linalg.norm(weight, ord=2, axis=1, keepdims=True) + 1e-32
         correlation_matrix = w2 / tf.matmul(wn, wn, transpose_b=True)
-        matrix_size = correlation_matrix.get_shape().as_list()[0]
+        matrix_size = tf.shape(correlation_matrix)[0]
         base_dtype = weight.dtype.base_dtype
         identity = tf.linalg.eye(matrix_size,dtype=base_dtype)
         weight_corr = tf.reduce_mean(
@@ -436,23 +435,21 @@ class custom_MLP(snt.Module):
     def __call__(self, inputs, weights):
         preds = inputs
         for idx in range(self._num_layers-2):
+            w_shape = tf.concat([tf.shape(weights)[:-1], tf.constant([self.in_size[idx], self.out_size[idx]],dtype=tf.int32)],axis=0)
+            b_shape = tf.concat([tf.shape(weights)[:-1], tf.constant([self.out_size[idx]],dtype=tf.int32)],axis=0)
             w = tf.reshape(
-                weights[..., self.w_begin[idx]:self.w_end[idx]], 
-                weights.shape[:-1].as_list() + [self.in_size[idx], self.out_size[idx]])
+                weights[..., self.w_begin[idx]:self.w_end[idx]], w_shape)
             b = tf.reshape(
-                weights[...,self.b_begin[idx]:self.b_end[idx]],
-                weights.shape[:-1].as_list() + [self.out_size[idx]]
-            )
+                weights[...,self.b_begin[idx]:self.b_end[idx]], b_shape)
             preds = tf.linalg.matvec(w, preds, transpose_a=True) + b
             preds = self._nonlinearity(preds)
 
+        w_shape = tf.concat([tf.shape(weights)[:-1], tf.constant([self.in_size[idx+1], self.out_size[idx+1]],dtype=tf.int32)],axis=0)
+        b_shape = tf.concat([tf.shape(weights)[:-1], tf.constant([self.out_size[idx+1]],dtype=tf.int32)],axis=0)
         w = tf.reshape(
-            weights[..., self.w_begin[idx+1]:self.w_end[idx+1]], 
-            weights.shape[:-1].as_list() + [self.in_size[idx+1], self.out_size[idx+1]])
+            weights[..., self.w_begin[idx+1]:self.w_end[idx+1]], w_shape)
         b = tf.reshape(
-            weights[...,self.b_begin[idx+1]:self.b_end[idx+1]],
-            weights.shape[:-1].as_list() + [self.out_size[idx+1]]
-        )
+            weights[...,self.b_begin[idx+1]:self.b_end[idx+1]], b_shape)
         preds = tf.linalg.matvec(w, preds, transpose_a=True) + b
         return preds
 

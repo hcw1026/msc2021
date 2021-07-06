@@ -155,3 +155,6 @@ def profile(cls, with_graph=False, profile_dir=None):
 
     #reset
     cls.__init__(config=cls.config, dataprovider=cls.dataprovider, model=cls.model, load_data=cls.load_data, name=cls.name)
+
+def conditional_tf_function(condition, input_signature=None):
+    return tf.function(input_signature=input_signature) if condition else lambda x: x

@@ -198,3 +198,9 @@ def indep_shuffle_(a, axis=-1):
     shp = b.shape[:-1]
     for ndx in np.ndindex(shp):
         np.random.shuffle(b[ndx])
+
+def convert_indices(indices):
+    """convert context getter indices into tf.gather_nd compatible indices"""
+    batch_size, num_points = indices.shape
+    dim_indices =  tf.tile(tf.expand_dims(tf.range(batch_size),-1),(1,num_points))
+    return tf.stack([dim_indices, indices],axis=-1)
