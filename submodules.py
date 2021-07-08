@@ -267,13 +267,14 @@ class Attention(snt.Module):
         self._nonlinearity = config['nonlinearity']
         self.initialiser = tf.keras.initializers.GlorotUniform()
 
-        self.module = snt.nets.MLP( # mapping a
-            output_sizes=self._output_sizes,
-            w_init=self.initialiser,
-            with_bias=True,
-            activation=self._nonlinearity,
-            name="deep_attention"
-            )
+        if self._rep == "mlp":
+            self.module = snt.nets.MLP( # mapping a
+                output_sizes=self._output_sizes,
+                w_init=self.initialiser,
+                with_bias=True,
+                activation=self._nonlinearity,
+                name="deep_attention"
+                )
 
         if self._att_type != tf.constant("dot_product",tf.string):
             raise NameError("Unknown attention type")
@@ -363,7 +364,7 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
 # Sampling
 #################################################################################
 
-def deterministic_sample(distribution_params, stddev_offsets):
+def deterministic_sample(distribution_params, stddev_offset):
     """deterministic sampling by splitting parameteres into mean and stddev directly"""
     means, unnormalised_stddev = tf.split(distribution_params, 2, axis=-1)
     return means

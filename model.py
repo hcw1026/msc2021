@@ -20,6 +20,7 @@ class MetaFunBase(snt.Module):
         self._kernel_type = tf.constant(_config["kernel_type"], dtype=tf.string)
         self._no_decoder = tf.constant(_config["no_decoder"], dtype=tf.bool)
         self._initial_state_type = tf.constant(_config["initial_state_type"], dtype=tf.string)
+        self._deterministic_decoder = tf.constant(_config["deterministic_decoder"], dtype=tf.bool)
 
         ## Architecture configurations
         _config = config["Model"]["arch"]
@@ -148,6 +149,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
         # Extra internal functions
         self.predict_init()
+        self.sample_init()
 
         # Change initialisation state
         self.has_initialised = True
@@ -390,9 +392,15 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
     def forward_decoder_without_decoder(self, cls_reprs):
         return cls_reprs, tf.constant(0.)
 
+    @snt.once
+    def sample_init(self):
+        if self._deterministic_decoder:
+            self._sample = lambda distribution_params, stddev_offset, is_training: submodules.deterministic_sample(distribution_params=distribution_params, stddev_offset=stddev_offset)
+        else:
+            self._sample = lambda distribution_params, stddev_offset, is_training: submodules.probabilistic_sample(distribution_params=distribution_params, stddev_offset=stddev_offset, is_training=is_training)
+
     def sample(self, distribution_params, stddev_offset=0.):
-        """sample from a normal distribution"""
-        return submodules.probabilistic_sample(
+        return self._sample(
             distribution_params=distribution_params, 
             stddev_offset=stddev_offset,
             is_training=self.is_training)
@@ -468,6 +476,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         # Extra internal functions
         self.predict_init()
         self.calculate_loss_and_metrics_init()
+        self.sample_init()
 
         # Change initialisation state
         self.has_initialised = True
@@ -698,7 +707,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config, complete_return=False)
+        self.attention = submodules.Attention(config=config, complete_return=False)
 
     def attention_block_precompute(self, querys, keys, values=None, iter=""):
         """dot-product kernel"""
@@ -707,6 +716,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
     def attention_block_backend(self, querys, keys, precomputed, values, iter=""):
         return self.attention.backend(weights=precomputed, values=values)
 
+    @snt.once
     def forward_decoder_with_decoder_init(self):
         self.decoder = submodules.decoder(
             embedding_dim=self.embedding_dim,
@@ -721,18 +731,25 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
     def forward_decoder_with_decoder(self, reprs):
         weights_dist_params = self.decoder(reprs)
-        stddev_offset = tf.math.sqrt(2. / self._nn_size)
+        stddev_offset = tf.math.sqrt(1. / self._nn_size)
         weights = self.sample(weights_dist_params, stddev_offset)
         return weights
 
     def forward_decoder_without_decoder(self, reprs):
         return reprs
 
+    @snt.once
+    def sample_init(self):
+        if self._deterministic_decoder:
+            self._sample = lambda distribution_params, stddev_offset, is_training: submodules.deterministic_sample(distribution_params=distribution_params, stddev_offset=stddev_offset)
+        else:
+            self._sample = lambda distribution_params, stddev_offset, is_training: submodules.probabilistic_sample(distribution_params=distribution_params, stddev_offset=stddev_offset, is_training=is_training)
+
     def sample(self, distribution_params, stddev_offset=0.):
-        """a deterministic sample"""
-        return submodules.deterministic_sample(
+        return self._sample(
             distribution_params=distribution_params, 
-            stddev_offsets=stddev_offset)
+            stddev_offset=stddev_offset,
+            is_training=self.is_training)
 
     @snt.once
     def calculate_loss_and_metrics_init(self):
@@ -745,7 +762,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         def log_prob_loss(target_y, mus, sigmas, coeffs=None):
             mu, sigma = mus, sigmas
             dist = tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
-            loss = -dist.log_prob(target_y)
+            loss = - dist.log_prob(target_y)
             mse = self.loss_fn(mu, target_y)
             return loss, mse
 
