@@ -120,17 +120,6 @@ class DatasetMerger():
     def __getattr__(self, attr):
         return getattr(self.datasets[0], attr)
 
-#### other utilities
-def rescale_range(X, old_range, new_range):
-    """Rescale X linearly to be in `new_range` rather than `old_range`."""
-    old_min = old_range[0]
-    new_min = new_range[0]
-    old_delta = old_range[1] - old_min
-    new_delta = new_range[1] - new_min
-    return (((X - old_min) * new_delta) / old_delta) + new_min
-
-class NotLoadedError(Exception):
-    pass
 
 #### save files
 def _parse_save_file_chunk(save_file, idx_chunk):
@@ -167,7 +156,8 @@ def load_chunk(keys, save_file, idx_chunk, n_samples=None):
                 elif n_samples <= data_len:
                     items[k] = tf.constant(data[:n_samples])
                 else: #TODO: only append instead of delete
-                    del hf["{}".format(save_group)]
+                    for k2 in keys:
+                        del hf["{}{}{}".format(save_group, k2, chunk_suffix)]
                     raise NotLoadedError()
 
     except KeyError:
@@ -202,6 +192,28 @@ def get_save_file(name, save_file):
     if save_file is not None:
         save_file = (save_file, name)
     return save_file
+
+
+#### other utilities
+def read_kwargs(kwargs, config, config_name, kwargs_name, delete=True):
+    if kwargs_name in kwargs:
+        output = kwargs[kwargs_name]
+        if delete:
+            del kwargs[kwargs_name]
+    else:
+        output = config[config_name]
+    return output
+
+def rescale_range(X, old_range, new_range):
+    """Rescale X linearly to be in `new_range` rather than `old_range`."""
+    old_min = old_range[0]
+    new_min = new_range[0]
+    old_delta = old_range[1] - old_min
+    new_delta = new_range[1] - new_min
+    return (((X - old_min) * new_delta) / old_delta) + new_min
+
+class NotLoadedError(Exception):
+    pass
 
 def ratio_to_int(percentage, max_val):
     """Converts a ratio to an integer if it is smaller than 1."""
@@ -241,8 +253,21 @@ def indep_shuffle_(a, axis=-1):
     for ndx in np.ndindex(shp):
         np.random.shuffle(b[ndx])
 
+def setdiff(target_indcs, context_indcs):
+    target_indcs = target_indcs.numpy()
+    context_indcs = context_indcs.numpy()
+
+    batch_size = target_indcs.shape[0]
+    target_unstack = np.vsplit(target_indcs, batch_size)
+    context_unstack = np.vsplit(context_indcs, batch_size)
+
+    output = [np.setdiff1d(target_unstack[i], context_unstack[i]) for i in range(batch_size)]
+    output = np.stack(output)
+
+    return tf.constant(output, dtype=tf.int32)
+
 def convert_indices(indices):
     """convert context getter indices into tf.gather_nd compatible indices"""
     batch_size, num_points = indices.shape
-    dim_indices =  tf.tile(tf.expand_dims(tf.range(batch_size),-1),(1,num_points))
+    dim_indices =  tf.tile(tf.expand_dims(tf.range(batch_size),-1), (1,num_points))
     return tf.stack([dim_indices, indices],axis=-1)
