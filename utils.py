@@ -158,3 +158,9 @@ def profile(cls, with_graph=False, profile_dir=None):
 
 def conditional_tf_function(condition, input_signature=None):
     return tf.function(input_signature=input_signature) if condition else lambda x: x
+
+def trim(data, size, description):
+    data = list(data)
+    for idx, d in enumerate(data):
+        data[idx] = d[:size]
+    return description(*data)

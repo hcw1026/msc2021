@@ -1,8 +1,9 @@
 #from msc2021.data.tools import RegressionDescription
+from math import ceil
 from model import MetaFunClassifier, MetaFunRegressor
 import tensorflow as tf
 import sonnet as snt
-from data.tools import RegressionDescription
+from data.tools import ClassificationDescription, RegressionDescription
 import utils
 import os
 
@@ -32,8 +33,11 @@ class CLearner():
         self._train_on_val = _config["train_on_val"]
         self._train_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
         self._epoch = _config["epoch"]
-        self._steps_per_epoch = _config["steps_per_epoch"]
+        self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32)
+        self._train_drop_remainder = _config["drop_remainder"]
         self._print_freq = _config["print_freq"]
+
+        self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
 
         # Early Stopping Configurations
         _config = config["Train"]["early_stop"]
@@ -60,7 +64,11 @@ class CLearner():
         _config = config["Eval"]
         self._val_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
         self._validation = _config["validation"]
-        self._val_num_batches = _config["num_batches"]
+
+        self._val_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32)
+        self._val_drop_remainder = _config["drop_remainder"]
+        self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
+
 
         # GPU Configurations
         self._gpu = config["GPU"]
@@ -81,8 +89,9 @@ class CLearner():
 
         self.current_time = datetime.now().strftime("%y%m%d-%H%M%S")
 
-        #tf.function input signature
-        self.signature = None
+        # Other
+        self.signature = None #tf.function input signature
+        self.description = ClassificationDescription
 
         # Setup (multi-)GPU training
         if self._gpu is not None:
@@ -94,11 +103,22 @@ class CLearner():
         else:
             self.strategy = snt.distribute.Replicator()
 
+    def set_signature(self, signature):
+        self.signature = signature
+
     def _load_data(self):
         """load data from dataprovider"""
         self.train_data = self.dataprovider("train", self.config).generate()
         self.val_data = self.dataprovider("val", self.config).generate()
         self.test_data = self.dataprovider("test", self.config).generate()
+
+        embedding_dim_x = next(iter(self.train_data)).tr_input.shape[-1]
+        embedding_dim_y = next(iter(self.train_data)).tr_output.shape[-1]
+        self.signature = (ClassificationDescription(
+        tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype), 
+        tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype),
+        tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype),
+        tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype)),)
 
 
     def load_custom_data(self, training=None, val=None, test=None):
@@ -106,6 +126,18 @@ class CLearner():
         self.train_data = training if training is not None else self.train_data
         self.val_data = val if val is not None else self.val_data
         self.test_data = test if test is not None else self.test_data
+        for dataset in [self.train_data, self.val_data, self.test_data]:
+            if dataset is not None:
+                embedding_dim_x = next(iter(self.train_data)).tr_input.shape[-1]
+                embedding_dim_y = next(iter(self.train_data)).tr_output.shape[-1]
+
+                self.signature = (ClassificationDescription(
+                tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype), 
+                tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype),
+                tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype),
+                tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype)),)
+    
+                break
 
     def train(self, data_source="leo_imagenet", name="MetaFunClassifier"):
         """train model"""
@@ -153,30 +185,27 @@ class CLearner():
 
     def _train_loop(self, train_step, validation_step):
         """training iterations"""
+        # Determine number of steps per epoch
+        train_last_step, train_remainder = divmod(int(self._train_num_per_epoch), int(self._train_batch_size))
+        val_last_step, val_remainder = divmod(int(self._val_num_per_epoch), int(self._val_batch_size))
+
         epoch_start = int(self.epoch_counter.numpy())
 
         for epoch in range(epoch_start, self._epoch+1):
             step_num = 0
             self.current_state = "train"
             print("Train>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            for train_batch in self.train_data.take(self._steps_per_epoch):
+            for train_batch in self.train_data.take(self._train_num_takes):
                 step_num += 1
+
+                if self._train_drop_remainder and step_num == train_last_step:
+                    train_batch = utils.trim(data=train_batch, size=train_remainder, description=self.description)
+
                 train_loss,  train_tr_metric, train_val_metric = train_step(train_batch)
                 self.metric_train_target_loss(train_loss) # TODO: check correctness of placing it here
 
                 train_tr_metric = tf.reduce_mean(train_tr_metric)
                 train_val_metric = tf.reduce_mean(train_val_metric)
-
-                # print("{}".format(self.eval_metric_type))
-                # print("{}".format(epoch))
-                # print("{}".format(self._epoch))
-                # print("{}".format(step_num))
-                # print("{0:.3f}".format(train_loss))
-                # print("{0:.3f}".format(self.metric_train_target_loss.result()))
-                # print("{0:.3f}".format(train_tr_metric))
-                # print("{0:.3f}".format(train_val_metric))
-                # print("{0:.3f}".format(self.metric_train_context_metric.result()))
-                # print("{0:.3f}".format(self.metric_train_target_metric.result()))
 
                 if step_num % self._print_freq == 0:
                     print("Train -- Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
@@ -190,8 +219,12 @@ class CLearner():
                 print("Validation>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 step_num = 0
                 self.current_state = "val"
-                for val_batch in self.val_data.take(self._val_num_batches):
+                for val_batch in self.val_data.take(self._val_num_takes):
                     step_num += 1
+
+                    if self._val_drop_remainder and step_num == val_last_step:
+                        val_batch = utils.trim(data=val_batch, size=val_remainder, description=self.description)
+
                     val_loss, val_tr_metric, val_val_metric = validation_step(val_batch)
                     self.metric_val_target_loss(val_loss) # TODO: check correctness of placing it here
 
@@ -219,7 +252,7 @@ class CLearner():
 
         #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function
         def _train_step(train_batch):
-            print("hi")
+            print("Graph built")
             with tf.GradientTape() as tape:
                 train_loss, additional_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)[:4] #additional_loss is orthogonality loss for imagenet datasets
                 reg_loss = self.regulariser(self.model.get_regularise_variables)
@@ -402,6 +435,8 @@ class GPLearner(CLearner):
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype)),)
 
+        self.description = RegressionDescription
+
         self.eval_metric_type = "mse"
 
         if load_data is True:
@@ -416,6 +451,13 @@ class GPLearner(CLearner):
         pass
 
 
+    def load_custom_data(self, training=None, val=None, test=None):
+        """load custom data"""
+        self.train_data = training if training is not None else self.train_data
+        self.val_data = val if val is not None else self.val_data
+        self.test_data = test if test is not None else self.test_data
+
+
 
 if __name__ == "__main__":
     from utils import parse_config
@@ -426,16 +468,16 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    mylearner = CLearner(config, MetaFunClassifier, dataprovider=imagenet_provider)
-    mylearner.train()
+    # mylearner = CLearner(config, MetaFunClassifier, dataprovider=imagenet_provider)
+    # mylearner.train()
 
 
-    # from data.gp_regression import DataProvider as gp_provider
-    # mylearn2 = GPLearner(config, MetaFunRegressor, dataprovider=None, load_data=False)
-    # gp_dataloader = gp_provider(dataset_split="train", config=config)
-    # gp_train_data = gp_dataloader.generate()["RBF_Kernel"]
-    # mylearn2.load_custom_data(training=gp_train_data, val=gp_train_data)
-    # mylearn2.train()
+    from data.gp_regression import DataProvider as gp_provider
+    mylearn2 = GPLearner(config, MetaFunRegressor, dataprovider=None, load_data=False)
+    gp_dataloader = gp_provider(dataset_split="train", config=config)
+    gp_train_data = gp_dataloader.generate()["RBF_Kernel"]
+    mylearn2.load_custom_data(training=gp_train_data, val=gp_train_data)
+    mylearn2.train()
 
 
     
