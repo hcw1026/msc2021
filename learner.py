@@ -4,6 +4,7 @@ from model import MetaFunClassifier, MetaFunRegressor
 import tensorflow as tf
 import sonnet as snt
 from data.tools import ClassificationDescription, RegressionDescription
+from data.gp_regression import DataProvider as gp_provider
 import utils
 import os
 
@@ -78,7 +79,7 @@ class CLearner():
         self.val_data = None
         self.test_data = None
         if load_data is True:
-            self._load_data()
+            self.load_data_from_provider()
 
         # Initialise
         self.train_dist_ds = None
@@ -106,7 +107,7 @@ class CLearner():
     def set_signature(self, signature):
         self.signature = signature
 
-    def _load_data(self):
+    def load_data_from_provider(self):
         """load data from dataprovider"""
         self.train_data = self.dataprovider("train", self.config).generate()
         self.val_data = self.dataprovider("val", self.config).generate()
@@ -121,7 +122,7 @@ class CLearner():
         tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype)),)
 
 
-    def load_custom_data(self, training=None, val=None, test=None):
+    def load_data_from_datasets(self, training=None, val=None, test=None):
         """load custom data"""
         self.train_data = training if training is not None else self.train_data
         self.val_data = val if val is not None else self.val_data
@@ -427,8 +428,17 @@ class CLearner():
 
 
 class GPLearner(CLearner):
-    def __init__(self, config, model, dataprovider=None, load_data=True, name="GPLearner"):
-        super(GPLearner, self).__init__(config=config, model=model, dataprovider=dataprovider, load_data=False, name=name)
+    def __init__(self, config, model=MetaFunRegressor, name="GPLearner"):
+        """Gaussain Process 1D function regression - Note that data is needed to be load manually
+        config: dict
+            - configuration file - the same format as a parsed yaml in the config/sample.yaml
+        model: MetaFunRegressor
+            - the model for training
+        name: str
+            - name of the learner
+        
+        """
+        super(GPLearner, self).__init__(config=config, model=model, dataprovider=None, load_data=False, name=name)
         self.signature = (RegressionDescription(
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype), 
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
@@ -439,25 +449,20 @@ class GPLearner(CLearner):
 
         self.eval_metric_type = "mse"
 
-        if load_data is True:
-            self._load_data()
-
-    def _load_data(self):
+    def load_data_from_provider(self, dataprovider=gp_provider, kernel_name=None, load_type="all", custom_kernels=None, custom_kernels_merge=False):
         """load data from dataprovider"""
-        # provider = self.dataprovider("train", self.config)
-        # self.train_data = provider.generate()
-        # self.val_data = self.train_data
-        # self.test_data = provider.generate_test()
-        pass
+        provider = dataprovider("train", self.config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
+        self.train_data, self.test_data = provider.generate(return_valid=False, return_test=True)
+        self.val_data = self.train_data
+        self.train_data = self.train_data[kernel_name] if kernel_name is not None else list(self.train_data.values())[0]
+        self.val_data = self.val_data[kernel_name] if kernel_name is not None else list(self.val_data.values())[0]
+        self.test_data = self.test_data[kernel_name] if kernel_name is not None else list(self.test_data.values())[0]
 
-
-    def load_custom_data(self, training=None, val=None, test=None):
+    def load_data_from_datasets(self, training=None, val=None, test=None):
         """load custom data"""
         self.train_data = training if training is not None else self.train_data
         self.val_data = val if val is not None else self.val_data
         self.test_data = test if test is not None else self.test_data
-
-
 
 if __name__ == "__main__":
     from utils import parse_config
@@ -472,12 +477,12 @@ if __name__ == "__main__":
     # mylearner.train()
 
 
-    from data.gp_regression import DataProvider as gp_provider
-    mylearn2 = GPLearner(config, MetaFunRegressor, dataprovider=None, load_data=False)
-    gp_dataloader = gp_provider(dataset_split="train", config=config)
-    gp_train_data = gp_dataloader.generate()["RBF_Kernel"]
-    mylearn2.load_custom_data(training=gp_train_data, val=gp_train_data)
-    mylearn2.train()
+    # from data.gp_regression import DataProvider as gp_provider
+    # mylearn2 = GPLearner(config, MetaFunRegressor)
+    # gp_dataloader = gp_provider(dataset_split="train", config=config)
+    # gp_train_data = gp_dataloader.generate()[0]["RBF_Kernel"]
+    # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data)
+    # mylearn2.train()
 
 
     
