@@ -150,7 +150,7 @@ def _parse_save_file_chunk(save_file, idx_chunk):
 
     return save_file, save_group, chunk_suffix
 
-def load_chunk(keys, save_file, idx_chunk):
+def load_chunk(keys, save_file, idx_chunk, n_samples=None):
     items = dict()
     save_file, save_group, chunk_suffix = _parse_save_file_chunk(save_file, idx_chunk)
 
@@ -158,9 +158,18 @@ def load_chunk(keys, save_file, idx_chunk):
         raise NotLoadedError()
 
     try:
-        with h5py.File(save_file, "r") as hf:
+        with h5py.File(save_file, "a") as hf:
             for k in keys:
-                items[k] = tf.constant(hf["{}{}{}".format(save_group, k, chunk_suffix)][:])
+                data = hf["{}{}{}".format(save_group, k, chunk_suffix)]
+                data_len = len(data)
+                if n_samples is None:
+                    items[k] = tf.constant(data[:])
+                elif n_samples <= data_len:
+                    items[k] = tf.constant(data[:n_samples])
+                else: #TODO: only append instead of delete
+                    del hf["{}".format(save_group)]
+                    raise NotLoadedError()
+
     except KeyError:
         raise NotLoadedError()
 
@@ -180,9 +189,34 @@ def save_chunk(to_save, save_file, idx_chunk):
                 "{}{}{}".format(save_group, k, chunk_suffix), data=v.numpy()
             )
 
+def generate_save_signature(kernel_name, min_max, n_points, is_vary_kernel_hyp, n_same_samples, rounding=5):
+    output = ""
+    output += kernel_name
+    output += str(np.round(min_max[0], rounding)) + str(np.round(min_max[1], rounding)) + "-"
+    output += str(int(n_points)) + "-"
+    output += str(int(is_vary_kernel_hyp)) + "-"
+    output += str(int(n_same_samples))
+    return output
+
+def get_save_file(name, save_file):
+    if save_file is not None:
+        save_file = (save_file, name)
+    return save_file
+
 def ratio_to_int(percentage, max_val):
     """Converts a ratio to an integer if it is smaller than 1."""
     if 1 <= percentage <= max_val:
+        out = percentage
+    elif 0 <= percentage < 1:
+        out = percentage * max_val
+    else:
+        raise ValueError("percentage={} outside of [0,{}].".format(percentage, max_val))
+
+    return int(out)
+
+def ratio_to_int2(percentage, max_val):
+    """Converts a ratio to an integer if it is smaller than 1, without maximum"""
+    if 1 <= percentage:
         out = percentage
     elif 0 <= percentage < 1:
         out = percentage * max_val

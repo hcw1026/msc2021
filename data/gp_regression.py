@@ -304,6 +304,7 @@ class GPDataset():
         n_same_samples=20,
         is_reuse_across_epochs=True,
         generated_from=None,
+        kernel_name=None,
         **kwargs,
     ):
 
@@ -316,6 +317,7 @@ class GPDataset():
         self.is_reuse_across_epochs = is_reuse_across_epochs
 
         self.generated_from = generated_from if generated_from is not None else "custom"
+        self.kernel_name = kernel_name
 
         self._float_dtype = tf.float32
 
@@ -359,6 +361,7 @@ class GPDataset():
         n_points=None,
         save_file=None,
         idx_chunk=None,
+        rounding=5
     ):
         """Return a batch of samples
 
@@ -375,21 +378,28 @@ class GPDataset():
             Number of points at which to evaluate f(x) for x in min_max. If None
             uses `self.n_points`.
 
-        save_file : string or tuple of strings, optional
-            Where to save and load the dataset. If tuple `(file, group)`, save in
-            the hdf5 under the given group. If `None` uses does not save.
+        save_file : string, optional
+            Where to save and load the dataset. The file will be save din
+            the hdf5 under the given group according to the dataset properties. If `None` uses does not save.
 
         idx_chunk : int, optional
             Index of the current chunk. This is used when `save_file` is not None,
             and you want to save a single dataset through multiple calls to
             `get_samples`.
+
+        rounding: int, optional
+            Decimal rounding used for test_min_max in saving signture
         """
         test_min_max = test_min_max if test_min_max is not None else self.min_max
         n_points = n_points if n_points is not None else self.n_points
         n_samples = n_samples if n_samples is not None else self.n_samples
 
+        save_signature = generate_save_signature(kernel_name=self.kernel_name, min_max=test_min_max, n_points=self.n_points, is_vary_kernel_hyp=self.is_vary_kernel_hyp, n_same_samples=self.n_same_samples, rounding=rounding)
+
+        save_file = get_save_file(name=save_signature, save_file=save_file)
+
         try:
-            loaded = load_chunk({"data", "targets"}, save_file, idx_chunk)
+            loaded = load_chunk({"data", "targets"}, save_file, idx_chunk, n_samples)
             data, targets = loaded["data"], loaded["targets"]
         except NotLoadedError:
             X = self._sample_features(test_min_max, n_points, n_samples)
@@ -546,8 +556,8 @@ class GetRandomIndcs:
                 n_indcs = rv.rvs()
 
             else:
-                a = ratio_to_int(self.a, n_possible_points)
-                b = ratio_to_int(self.b, n_possible_points)
+                a = ratio_to_int2(self.a, n_possible_points)
+                b = ratio_to_int2(self.b, n_possible_points)
                 n_indcs = random.randint(a, b)
 
         if self.is_ensure_one and n_indcs < 1:
@@ -815,23 +825,18 @@ def get_gp_datasets(
     if train_datasets is None and kernels is None:
         raise Exception("kernels must be specified when train_datasets is None")
 
-    def get_save_file(name, save_file=save_file):
-        if save_file is not None:
-            save_file = (save_file, name)
-        return save_file
-
     if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL or dataset_split == "any":
         datasets = dict() # store train datasets
         for name, kernel in kernels.items():
             datasets[name] = GPDataset(
-                kernel=kernel, save_file=get_save_file(name), n_samples=train_n_samples, **kwargs
+                kernel=kernel, save_file=save_file, n_samples=train_n_samples, kernel_name=name, **kwargs
             )
 
     elif dataset_split == "test" or dataset_split == MetaSplit.TEST:
         # get validation and test datasets
         datasets = { # store test datasets
             k: sample_gp_dataset_like(
-                dataset, save_file=get_save_file(k), idx_chunk=-1, n_samples=ratio_to_int(test_n_samples, dataset.n_samples)
+                dataset, save_file=save_file, idx_chunk=-1, n_samples=ratio_to_int2(test_n_samples, dataset.n_samples)
             )
             for k, dataset in train_datasets.items()
         }
@@ -840,9 +845,9 @@ def get_gp_datasets(
         datasets = { # store val datasets
             k: sample_gp_dataset_like(
                 dataset,
-                save_file=get_save_file(k),
+                save_file=save_file,
                 idx_chunk=-2,
-                n_samples=ratio_to_int(val_n_samples, dataset.n_samples),
+                n_samples=ratio_to_int2(val_n_samples, dataset.n_samples),
             )
             for k, dataset in train_datasets.items()
         }
