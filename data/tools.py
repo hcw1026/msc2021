@@ -1,3 +1,4 @@
+import copy
 import tensorflow as tf
 import collections
 import enum
@@ -93,13 +94,20 @@ class DatasetMerger():
     (redirect to the first one).
     """
 
-    def __init__(self, datasets):
+    def __init__(self, datasets, shuffle=True):
+        datasets = copy.deepcopy(datasets)
         self.datasets_names, self.datasets = list(zip(*datasets.items()))
         self.cumul_len = np.cumsum([len(d) for d in self.datasets])
+        self.shuffle_map = np.random.permutation(np.arange(self.cumul_len[-1]))
+        self.shuffle = shuffle
 
     def __getitem__(self, index):
         if not self.__getattr__("is_reuse_across_epochs"):
             index = index // self.cumul_len[-1] # allow generator dataset
+        
+        if self.shuffle:
+            index = self.shuffle_map[index]
+
         idx_dataset = self.cumul_len.searchsorted(index + 1)  # + 1 because of 0 index
         idx_in_dataset = index
         if idx_dataset > 0:
