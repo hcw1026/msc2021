@@ -33,6 +33,8 @@ from data.tools import *
 
 import tensorflow as tf
 
+DIR_DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Other/gp/"))
+
 ###########################################################################################
 # DataProvider
 ###########################################################################################
@@ -61,6 +63,7 @@ class DataProvider():
         # Dataset Configurations
         _config = config["Data"]["gp_regression"]
         self._shuffle = _config["shuffle"]
+        self._save_path = _config["save_path"]
 
         self._n_points = _config["n_points"] if "n_points" not in kwargs else kwargs["n_points"]
         self._n_samples = _config["n_samples"] if "n_samples" not in kwargs else kwargs["n_samples"]
@@ -106,19 +109,19 @@ class DataProvider():
 
     def _load(self, dataset_split="train", train_datasets=None, n_samples=50000, n_points=128, is_reuse_across_epochs=False):
         if self._load_type.lower() == "all":
-            return get_all_gp_datasets(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **self.kwargs)
+            return get_all_gp_datasets(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "single":
-            return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **self.kwargs)
+            return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "var_hyp":
-            return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **self.kwargs)
+            return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "var_kernel":
-            return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **self.kwargs)
+            return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "custom":
             if self._custom_kernels is not None:
                 if self._custom_kernels_merge:
-                    return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **self.kwargs)
+                    return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
                 else:
-                    return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **self.kwargs)
+                    return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
             else:
                 raise ValueError("custom_kernels must be provided when load_type == 'custom'")
         else:
@@ -694,11 +697,11 @@ def get_all_gp_datasets(dataset_split="train", train_datasets=None, n_samples=50
     else:
         for k, dataset in train_datasets.items():
             if dataset.generated_from == "single_gp":
-                datasets.update(get_datasets_single_gp(dataset_split=dataset_split, train_datasets={k:dataset}, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs))
+                datasets.update(get_datasets_single_gp(dataset_split=dataset_split, train_datasets={k:dataset}, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **kwargs))
             elif dataset.generated_from == "variable_hyp_gp":
-                datasets.update(get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets={k:dataset}, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs))
+                datasets.update(get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets={k:dataset}, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **kwargs))
             elif dataset.generated_from == "variable_kernel_gp":
-                datasets.update(get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets={k:dataset}, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs))
+                datasets.update(get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets={k:dataset}, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, **kwargs))
             else:
                 raise Exception("{} in train_datasets are not generated from one of get_datasets_single_gp(), get_datasets_variable_hyp_gp, get_datasets_variable_kernel_gp()".format(dataset))
 
@@ -782,8 +785,6 @@ def sample_gp_dataset_like(dataset, **kwargs):
     new_dataset.set_samples_(*dataset.get_samples(**kwargs))
     return new_dataset
 
-
-DIR_DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Other/gp/"))
 def get_gp_datasets(
     kernels=None, save_file=f"{os.path.join(DIR_DATA, 'gp_dataset.hdf5')}", dataset_split="train", 
     train_datasets=None, train_n_samples=50000, val_n_samples=0.1, test_n_samples=10000, **kwargs
