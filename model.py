@@ -153,7 +153,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
         # Change initialisation state
         self.has_initialised = True
-        self.__call__(data_instance)
+        #self.__call__(data_instance)
 
         # Regularisation variables
         self.regularise_variables = utils.get_linear_layer_variables(self)
@@ -480,7 +480,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         # Change initialisation state
         self.has_initialised = True
-        self.__call__(data_instance)
+        #self.__call__(data_instance)
 
         # Regularisation variables
         self.regularise_variables = utils.get_linear_layer_variables(self)

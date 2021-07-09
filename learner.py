@@ -37,6 +37,7 @@ class CLearner():
         self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32)
         self._train_drop_remainder = _config["drop_remainder"]
         self._print_freq = _config["print_freq"]
+        self._load_weight_path = _config["load_weight_path"]
 
         self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
 
@@ -146,6 +147,7 @@ class CLearner():
         print("Number of devices: {}".format(self.strategy.num_replicas_in_sync))
         with self.strategy.scope():
             self._initialise_model(data_source=data_source, name=name) # initialise model and optimisers
+
         self._check_validation()
         train_step = self._tf_func_train_step()
         distributed_train_step = self._distributed_step(train_step) # distributed train_step
@@ -312,7 +314,7 @@ class CLearner():
             self.metric_val_target_loss = tf.keras.metrics.Mean(name="val_target_loss")
             with self.strategy.scope():
                 self.metric_val_target_metric = tf.keras.metrics.Mean(name="val_target_{}".format(self.eval_metric_type))
-                self.metric_val_context_metric = tf.keras.metrics.Mean(name="val_target_{}".format(self.eval_metric_type))
+                self.metric_val_context_metric = tf.keras.metrics.Mean(name="val_context_{}".format(self.eval_metric_type))
 
     def _reset_metrics(self):
         self.metric_train_target_loss.reset_states()
@@ -451,7 +453,7 @@ class GPLearner(CLearner):
 
     def load_data_from_provider(self, dataprovider=gp_provider, kernel_name=None, load_type="all", custom_kernels=None, custom_kernels_merge=False):
         """load data from dataprovider"""
-        provider = dataprovider("train", self.config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
+        provider = dataprovider(self.config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
         self.train_data, self.test_data = provider.generate(return_valid=False, return_test=True)
         self.val_data = self.train_data
         self.train_data = self.train_data[kernel_name] if kernel_name is not None else list(self.train_data.values())[0]
@@ -473,16 +475,16 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    # mylearner = CLearner(config, MetaFunClassifier, dataprovider=imagenet_provider)
-    # mylearner.train()
+    mylearner = CLearner(config, MetaFunClassifier, dataprovider=imagenet_provider)
+    mylearner.train()
 
 
-    # from data.gp_regression import DataProvider as gp_provider
-    # mylearn2 = GPLearner(config, MetaFunRegressor)
-    # gp_dataloader = gp_provider(dataset_split="train", config=config)
-    # gp_train_data = gp_dataloader.generate()[0]["RBF_Kernel"]
-    # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data)
-    # mylearn2.train()
+    from data.gp_regression import DataProvider as gp_provider
+    mylearn2 = GPLearner(config, MetaFunRegressor)
+    gp_dataloader = gp_provider(config=config)
+    gp_train_data = gp_dataloader.generate()[0]["RBF_Kernel"]
+    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data)
+    mylearn2.train()
 
 
     
