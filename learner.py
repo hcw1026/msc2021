@@ -1,28 +1,33 @@
 #from msc2021.data.tools import RegressionDescription
 from math import ceil
+
+from tensorflow.python.ops.gen_array_ops import deep_copy
 from model import MetaFunClassifier, MetaFunRegressor
 import tensorflow as tf
 import sonnet as snt
 from data.tools import ClassificationDescription, RegressionDescription
 from data.gp_regression import DataProvider as gp_provider
+from data.leo_imagenet import DataProvider as imagenet_provider
 import utils
 import os
+import numpy as np
+from tqdm import tqdm
 
 from datetime import datetime
 
-class CLearner():
+class BaseLearner():
 
-    def __init__(self, config, model, dataprovider=None, load_data=True, name="CLearner"):
+    def __init__(self, config, model, name="CLearner", model_name=None):
         self.eval_metric_type = "acc"
 
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
         
         self.config = config
-        self.dataprovider = dataprovider
         self.model = model
-        self.load_data = load_data
+        self.model_dupl = model
         self.name = name
+        self.model_name = model_name
 
         # Model Configurations
         self._l2_penalty_weight = config["Model"]["reg"]["l2_penalty_weight"]
@@ -34,10 +39,9 @@ class CLearner():
         self._train_on_val = _config["train_on_val"]
         self._train_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
         self._epoch = _config["epoch"]
-        self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32)
+        self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._train_drop_remainder = _config["drop_remainder"]
         self._print_freq = _config["print_freq"]
-        self._load_weight_path = _config["load_weight_path"]
 
         self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
 
@@ -67,9 +71,11 @@ class CLearner():
         self._val_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
         self._validation = _config["validation"]
 
-        self._val_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32)
+        self._val_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._val_drop_remainder = _config["drop_remainder"]
         self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
+
+        self._test_batch_size = self._val_batch_size
 
 
         # GPU Configurations
@@ -79,8 +85,6 @@ class CLearner():
         self.train_data = None
         self.val_data = None
         self.test_data = None
-        if load_data is True:
-            self.load_data_from_provider()
 
         # Initialise
         self.train_dist_ds = None
@@ -94,6 +98,7 @@ class CLearner():
         # Other
         self.signature = None #tf.function input signature
         self.description = ClassificationDescription
+        self.has_train = False
 
         # Setup (multi-)GPU training
         if self._gpu is not None:
@@ -108,26 +113,20 @@ class CLearner():
     def set_signature(self, signature):
         self.signature = signature
 
-    def load_data_from_provider(self):
-        """load data from dataprovider"""
-        self.train_data = self.dataprovider("train", self.config).generate()
-        self.val_data = self.dataprovider("val", self.config).generate()
-        self.test_data = self.dataprovider("test", self.config).generate()
-
-        embedding_dim_x = next(iter(self.train_data)).tr_input.shape[-1]
-        embedding_dim_y = next(iter(self.train_data)).tr_output.shape[-1]
-        self.signature = (ClassificationDescription(
-        tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype), 
-        tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype),
-        tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype),
-        tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype)),)
-
-
     def load_data_from_datasets(self, training=None, val=None, test=None):
         """load custom data"""
-        self.train_data = training if training is not None else self.train_data
-        self.val_data = val if val is not None else self.val_data
-        self.test_data = test if test is not None else self.test_data
+        if training is not None:
+            self.train_data = training
+            self._train_batch_size = next(iter(self.train_data)).tr_input.shape[0]
+
+        if val is not None:
+            self.val_data = val
+            self._val_batch_size = next(iter(self.val_data)).tr_input.shape[0]
+
+        if test is not None:
+            self.test_data = test
+            self._test_batch_size = next(iter(self.test_data)).tr_input.shape[0]
+
         for dataset in [self.train_data, self.val_data, self.test_data]:
             if dataset is not None:
                 embedding_dim_x = next(iter(self.train_data)).tr_input.shape[-1]
@@ -141,12 +140,19 @@ class CLearner():
     
                 break
 
-    def train(self, data_source="leo_imagenet", name="MetaFunClassifier"):
-        """train model"""
+    def _initialise(self):
+        self.model = self._initialise_model(self.model)
+        self.optimiser = tf.keras.optimizers.Adam(learning_rate=self._outer_lr)
+        self.regulariser = snt.regularizers.L2(self._l2_penalty_weight)
 
+        # Initialise model
+        self.model.initialise(next(iter(self.train_data.take(1))))
+
+    def train(self):
+        """train model"""
         print("Number of devices: {}".format(self.strategy.num_replicas_in_sync))
         with self.strategy.scope():
-            self._initialise_model(data_source=data_source, name=name) # initialise model and optimisers
+            self._initialise() # initialise model and optimisers
 
         self._check_validation()
         train_step = self._tf_func_train_step()
@@ -176,15 +182,7 @@ class CLearner():
         # Save model
         if self._save_final_model:
             tf.saved_model.save(self.model, self._ckpt_save_dir)
-
-
-    def _initialise_model(self, data_source, name):
-        self.model = self.model(config=self.config, data_source=data_source, name=name)
-        self.optimiser = tf.keras.optimizers.Adam(learning_rate=self._outer_lr)
-        self.regulariser = snt.regularizers.L2(self._l2_penalty_weight)
-
-        # Initialise model
-        self.model.initialise(next(iter(self.train_data.take(1))))
+        self.has_train = True
 
     def _train_loop(self, train_step, validation_step):
         """training iterations"""
@@ -195,11 +193,19 @@ class CLearner():
         epoch_start = int(self.epoch_counter.numpy())
 
         for epoch in range(epoch_start, self._epoch+1):
-            step_num = 0
+
+            train_iter = iter(self.train_dist_ds)
+
+            #step_num = 0
             self.current_state = "train"
             print("Train>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            for train_batch in self.train_data.take(self._train_num_takes):
-                step_num += 1
+            for step_num in tqdm(range(1, self._train_num_takes+1)):
+            #for train_batch in self.train_dist_ds.take(self._train_num_takes):
+                #step_num += 1
+                try:
+                    train_batch = next(train_iter)
+                except StopIteration:
+                    break
 
                 if self._train_drop_remainder and step_num == train_last_step:
                     train_batch = utils.trim(data=train_batch, size=train_remainder, description=self.description)
@@ -220,10 +226,19 @@ class CLearner():
 
             if self._validation:
                 print("Validation>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                step_num = 0
+
+                val_iter = iter(self.val_dist_ds)
+
+                #step_num = 0
                 self.current_state = "val"
-                for val_batch in self.val_data.take(self._val_num_takes):
-                    step_num += 1
+
+                for step_num in tqdm(range(1, self._val_num_takes+1)):
+                #for val_batch in self.val_data.take(self._val_num_takes):
+                    #step_num += 1
+                    try:
+                        val_batch = next(val_iter)
+                    except StopIteration:
+                        break
 
                     if self._val_drop_remainder and step_num == val_last_step:
                         val_batch = utils.trim(data=val_batch, size=val_remainder, description=self.description)
@@ -422,25 +437,159 @@ class CLearner():
         dest_dir = os.path.join(self._ckpt_save_dir, "config")
         if not os.path.isdir(dest_dir):
             os.mkdir(dest_dir)
-        utils.save_as_yaml(self.config, os.path.join(dest_dir,"config_epoch_{}.py".format(self.epoch_counter.value())))
+        utils.save_as_yaml(self.config, os.path.join(dest_dir,"config_epoch_{}.yaml".format(self.epoch_counter.value())))
 
     def profile(self, with_graph=False, profile_dir=None):
         utils.profile(self, with_graph=with_graph, profile_dir=profile_dir)
 
+    def _test(self, test_size=None, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None, **kwargs):
+        """
+        test_size: int or None
+            - The number of testing samples from the learner's loaded test dataset. If None, all data are used (<=999999)
+        checkpoint_path: str or None
+            - If not None, the checkpoint will be restored (for this test function only). If the .train method has not been used by the learner, data_source must be provided. If None, the checkpoints from the current checkpoint saving directory in the class will be used
+        use_exact_ckpt_path: bool
+            - If True, use the newest checkpoint available, otherwise use the checkpoint with the best metric
+        result_save_dir: str or None
+            - The directory to save the npz results. If None, the result is saved in a subdirectory in the checkpoint path
+        result_save_filename: str or None
+            - The filename of the save. If None, the filename is "datetime_test_result.npz"
+        kwargs:
+            - for GPRegressor:
+                - save_pred: If True, prediction of each dataset is saved
+                - save_data: If True, test data is saved
+        """
+
+        if checkpoint_path is not None: # if checkpoint_path is provided, get the current model instance
+            if self.has_train:
+                model_instance = self._initialise_model(model=self.model_dupl)
+            else:
+                model_instance = self._initialise_model(model=self.model_dupl)
+        else: # if checkpoint_path is not provided, determine if using exact checkpoint path
+            if use_exact_ckpt_path: # does not require checkpoint restore
+                if self.has_train:
+                    model_instance = self.model           
+                else:
+                    raise Exception("The model has not been trained and no checkpoint_path is given")
+            else:
+                model_instance = self._initialise_model(model=self.model_dupl)
+                checkpoint_path = self._ckpt_save_dir          
+
+        if result_save_dir is None:
+            result_save_dir = os.path.join(self._ckpt_save_dir, "test_result")
+            if not os.path.isdir(result_save_dir):
+                os.mkdir(result_save_dir)
+  
+        utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt_path=use_exact_ckpt_path, **kwargs)
+
+class ImageNetLearner(BaseLearner):
+    def __init__(self, config, model, data_source="leo_imagenet", model_name="MetaFunClassifier", name="ImageNetLearner"):
+
+        super(ImageNetLearner, self).__init__(config=config, model=model, model_name=model_name, name=name)
+        self.data_source = data_source
+
+    def load_data_from_provider(self, dataprovider=imagenet_provider):
+        """load data from dataprovider"""
+        self.train_data = dataprovider("train", self.config).generate()
+        self.val_data = dataprovider("val", self.config).generate()
+        self.test_data = dataprovider("test", self.config).generate()
+
+        embedding_dim_x = next(iter(self.train_data)).tr_input.shape[-1]
+        embedding_dim_y = next(iter(self.train_data)).tr_output.shape[-1]
+        self.signature = (ClassificationDescription(
+        tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype), 
+        tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype),
+        tf.TensorSpec(shape=(None, None, embedding_dim_x), dtype=self._float_dtype),
+        tf.TensorSpec(shape=(None, None, embedding_dim_y), dtype=self._int_dtype)),)
+
+    def _initialise_model(self, model):
+        return model(config=self.config, data_source=self.data_source, name=self.model_name)
+
+    def _testloop(self, model_instance, test_data, test_size):
+
+        print("Testing>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+        # Define test step
+        def _test_step(test_batch):
+            test_loss, additional_loss, test_tr_metric, test_val_metric = model_instance(test_batch, is_training=False)[:4]
+            reg_loss = self.regulariser(model_instance.get_regularise_variables)
+            test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
+
+            # Update metrics
+            metric_test_target_metric(test_val_metric)
+            metric_test_context_metric(test_tr_metric)
+
+            return test_loss, test_tr_metric, test_val_metric
+
+        # Define metrics
+        metric_test_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
+        with self.strategy.scope():
+            metric_test_target_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
+            metric_test_context_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
+
+        # Strategy setup
+        distributed_test_step = self._distributed_step(_test_step)
+        test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
+
+        # Looping setup
+        test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
+        test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
+        test_iter = iter(test_dist_ds)
+        test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
+
+        # Looping
+        for step_num in tqdm(range(1, test_num_takes+1)):
+
+            try:
+                test_batch = next(test_iter)
+            except StopIteration:
+                break
+
+            if step_num == test_last_step:
+                test_batch = utils.trim(data=test_batch, size=test_remainder, description=self.description)
+
+            test_loss, test_tr_metric, test_val_metric = distributed_test_step(test_batch)
+
+            metric_test_target_loss(test_loss)
+            test_tr_metric = tf.reduce_mean(test_tr_metric)
+            test_val_metric = tf.reduce_mean(test_val_metric)
+
+            test_loss_ls.append(test_loss.numpy())
+            test_tr_metric_ls.append(test_tr_metric.numpy())
+            test_val_metric_ls.append(test_val_metric.numpy())
+
+        # Concatenate result
+        test_loss_ls = np.array(test_loss_ls)
+        test_tr_metric_ls = np.array(test_tr_metric_ls)
+        test_val_metric_ls = np.array(test_val_metric_ls)
+
+        return {
+            "test_loss":test_loss_ls, 
+            "test_tr_{}".format(self.eval_metric_type):test_tr_metric_ls, 
+            "test_val_{}".format(self.eval_metric_type):test_val_metric_ls,
+            "mean_test_target_loss":metric_test_target_loss.result().numpy(),
+            "mean_test_target_{}".format(self.eval_metric_type):metric_test_target_metric.result().numpy(),
+            "mean_test_context_{}".format(self.eval_metric_type):metric_test_context_metric.result().numpy()
+            }
+
+    def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None):
+        self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt_path=use_exact_ckpt_path, result_save_dir=result_save_dir, result_save_filename=result_save_filename)
 
 
-class GPLearner(CLearner):
-    def __init__(self, config, model=MetaFunRegressor, name="GPLearner"):
+class GPLearner(BaseLearner):
+    def __init__(self, config, model=MetaFunRegressor, model_name="MetaFunRegressor", name="GPLearner"):
         """Gaussain Process 1D function regression - Note that data is needed to be load manually
         config: dict
             - configuration file - the same format as a parsed yaml in the config/sample.yaml
         model: MetaFunRegressor
             - the model for training
+        model_name: str
+            - name of the model
         name: str
             - name of the learner
         
         """
-        super(GPLearner, self).__init__(config=config, model=model, dataprovider=None, load_data=False, name=name)
+        super(GPLearner, self).__init__(config=config, model=model, model_name=model_name, name=name)
         self.signature = (RegressionDescription(
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype), 
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
@@ -465,6 +614,123 @@ class GPLearner(CLearner):
         self.train_data = training if training is not None else self.train_data
         self.val_data = val if val is not None else self.val_data
         self.test_data = test if test is not None else self.test_data
+    
+    def _initialise_model(self, model):
+        return model(config=self.config, name=self.model_name)
+
+    def _testloop(self, model_instance, test_data, test_size, save_pred=False, save_data=False):
+
+        print("Testing>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+        # Define test step
+        def _test_step(test_batch):
+            test_loss, additional_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma = model_instance(test_batch, is_training=False)
+            reg_loss = self.regulariser(model_instance.get_regularise_variables)
+            test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
+
+            # Update metrics
+            metric_test_target_metric(test_val_metric)
+            metric_test_context_metric(test_tr_metric)
+
+            return test_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
+
+        # Define metrics
+        metric_test_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
+        with self.strategy.scope():
+            metric_test_target_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
+            metric_test_context_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
+
+        # Strategy setup
+        distributed_test_step = self._distributed_step(_test_step)
+        test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
+
+        # Looping setup
+        test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
+        test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
+        test_iter = iter(test_dist_ds)
+        test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
+        if save_pred:
+            tr_mu_ls, tr_sigma_ls, val_mu_ls, val_sigma_ls = [], [], [], []
+        if save_data:
+            tr_input_ls, tr_output_ls, val_input_ls, val_output_ls = [], [], [], []
+
+        # Looping
+        for step_num in tqdm(range(1, test_num_takes+1)):
+
+            try:
+                test_batch = next(test_iter)
+            except StopIteration:
+                break
+
+            if step_num == test_last_step:
+                test_batch = utils.trim(data=test_batch, size=test_remainder, description=self.description)
+
+            test_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma = distributed_test_step(test_batch)
+            
+            metric_test_target_loss(test_loss)
+            test_tr_metric = tf.reduce_mean(test_tr_metric)
+            test_val_metric = tf.reduce_mean(test_val_metric)
+
+            test_loss_ls.append(test_loss.numpy())
+            test_tr_metric_ls.append(test_tr_metric.numpy())
+            test_val_metric_ls.append(test_val_metric.numpy())
+
+            if save_pred:
+                tr_mu_ls.append(all_tr_mu.numpy().tolist())
+                tr_sigma_ls.append(all_tr_sigma.numpy().tolist())
+                val_mu_ls.append(all_val_mu.numpy().tolist())
+                val_sigma_ls.append(all_val_sigma.numpy().tolist())
+            
+            if save_data:
+                tr_input_ls.append(test_batch.tr_input.numpy().tolist())
+                tr_output_ls.append(test_batch.tr_output.numpy().tolist())
+                val_input_ls.append(test_batch.val_input.numpy().tolist())
+                val_output_ls.append(test_batch.val_output.numpy().tolist())
+
+        # Concatenate result
+        test_loss_ls = np.array(test_loss_ls)
+        test_tr_metric_ls = np.array(test_tr_metric_ls)
+        test_val_metric_ls = np.array(test_val_metric_ls)
+
+        if save_pred:
+            tr_mu_ls = np.array(tr_mu_ls, dtype=object)
+            tr_sigma_ls = np.array(tr_sigma_ls, dtype=object)
+            val_mu_ls = np.array(val_mu_ls, dtype=object)
+            val_sigma_ls = np.array(val_sigma_ls, dtype=object)
+        
+        if save_data:
+            tr_input_ls = np.array(tr_input_ls, dtype=object)
+            tr_output_ls = np.array(tr_output_ls, dtype=object)
+            val_input_ls = np.array(val_input_ls, dtype=object)
+            val_output_ls = np.array(val_output_ls, dtype=object)
+
+
+        output = {
+            "test_loss":test_loss_ls, 
+            "test_tr_{}".format(self.eval_metric_type):test_tr_metric_ls, 
+            "test_val_{}".format(self.eval_metric_type):test_val_metric_ls,
+            "mean_test_target_loss":metric_test_target_loss.result().numpy(),
+            "mean_test_target_{}".format(self.eval_metric_type):metric_test_target_metric.result().numpy(),
+            "mean_test_context_{}".format(self.eval_metric_type):metric_test_context_metric.result().numpy()
+            }
+
+        if save_pred:
+            output["tr_mu"] = tr_mu_ls
+            output["tr_sigma"] = tr_sigma_ls
+            output["val_mu"] = val_mu_ls
+            output["val_sigma"] = val_sigma_ls
+        
+        if save_data:
+            output["tr_input"] = tr_input_ls
+            output["tr_output"] = tr_output_ls
+            output["val_input"] = val_input_ls
+            output["val_output"] = val_output_ls
+
+        return output
+
+    def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False):
+        self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt_path=use_exact_ckpt_path, result_save_dir=result_save_dir, result_save_filename=result_save_filename, save_pred=save_pred, save_data=save_data)
+
 
 if __name__ == "__main__":
     from utils import parse_config
@@ -475,15 +741,18 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    mylearner = CLearner(config, MetaFunClassifier, dataprovider=imagenet_provider)
-    mylearner.train()
+    # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
+    # mylearner.load_data_from_provider(dataprovider=imagenet_provider)
+    # mylearner.train()
 
 
     from data.gp_regression import DataProvider as gp_provider
     mylearn2 = GPLearner(config, MetaFunRegressor)
     gp_dataloader = gp_provider(config=config)
-    gp_train_data = gp_dataloader.generate()[0]["RBF_Kernel"]
-    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data)
+    gp_data = gp_dataloader.generate()
+    gp_train_data = gp_data[0]["RBF_Kernel"]
+    gp_test_data = gp_data[1]["RBF_Kernel"]
+    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
     mylearn2.train()
 
 

@@ -1,6 +1,7 @@
 import yaml
 import os
 from datetime import datetime
+import numpy as np
 
 import tensorflow as tf
 
@@ -164,3 +165,83 @@ def trim(data, size, description):
     for idx, d in enumerate(data):
         data[idx] = d[:size]
     return description(*data)
+
+def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None, **kwargs):
+    """function for testing
+    model_instance: MetaFunClassifier/MetaFunRegressor
+        - A created model class object
+    testloop: func
+        - A function which takes test input of the form testloop(model_instance, test_data), and return a dictionary of numpy arrays results to be saved
+    test_data: tf.data.Dataset
+        - A test dataset to be used by model_instance
+    checkpoint_path: str or None
+        - The exact path or directory used to find the newest or best epoch checkpoint. If None, the model_instance supplied is used directly
+    use_exact_ckpt_path: bool
+        - If True, use the newest checkpoint available, otherwise use the checkpoint with the best metric
+    result_save_dir: str or None
+        - The directory to save the npz results. If None, the result is saved in a subdirectory in the checkpoint path
+    result_save_filename: str or None
+        - The filename of the save. If None, the filename is "test_result.npz"
+    """
+
+    test_size = tf.constant(test_size, dtype=tf.int32) if test_size is not None else tf.constant(999999, dtype=tf.int32)
+
+    # Initialise Model
+    if not model_instance.has_initialised:
+        model_instance.initialise(next(iter(test_data)))
+
+    # Restore
+    if checkpoint_path is not None:
+        if not use_exact_ckpt_path:
+            best_epoch = tf.Variable(0, trainable=False)
+
+            # Find best epoch
+            restore_path_pre = find_ckpt_path(checkpoint_path)
+            ckpt_pre = tf.train.Checkpoint(best_epoch=best_epoch)
+            ckpt_pre.restore(restore_path_pre).expect_partial()
+            print("A checkpoint path is found:", restore_path_pre)
+            best_epoch = int(tf.Variable(best_epoch).numpy())
+
+            # Compute best epoch path
+            restore_path = restore_path_pre.split("-")[:-1]
+            restore_path += str(best_epoch)
+            restore_path = "-".join(restore_path)
+
+            # Restore model
+            ckpt = tf.train.Checkpoint(model=model_instance)
+            try:
+                rp = ckpt.restore(restore_path).expect_partial()
+                print("Checkpoint with best epoch is found and restored", restore_path)
+            except:
+                rp = ckpt.restore(restore_path_pre).expect_partial()
+                print("Warning: the checkpoint with best epoch cannot be restored, the checkpoint path found earlier is restored instead", restore_path)
+                restore_path = restore_path_pre
+        else:
+            ckpt = tf.train.Checkpoint(model=model_instance)
+            restore_path = checkpoint_path
+            ckpt.restore(restore_path).expect_partial()
+    else:
+        restore_path = None
+
+
+    result = testloop(model_instance, test_data, test_size, **kwargs) # a function which returns dictionary of tensorflow tensors
+
+    # Write result
+    if result_save_filename is not None:
+        if result_save_filename[-4:] != ".npz":
+            result_save_filename = result_save_filename + ".npz"
+    else:
+        result_save_filename = datetime.now().strftime("%y%m%d-%H%M%S") + "_test_result.npz"
+
+    if result_save_dir is None:
+        if restore_path is None:
+            raise Exception("result_save_dir must be provided unless checkpoint_path is not None")
+        result_save_dir = os.path.join(os.path.dirname(restore_path), "test_result")
+
+    result_save_path = os.path.join(result_save_dir, result_save_filename)
+
+    if not os.path.isdir(result_save_dir):
+        os.mkdir(result_save_dir)
+
+    np.savez(result_save_path, **result)
+    print("result is saved at", result_save_path)
