@@ -21,7 +21,7 @@ Train:
     ckpt_restore_path: "/data/ziz/chho/Training"
     save_final_model: False
 
-GPU: [7]
+GPU: [0]
 
 Model:
   comp: # Components configurations
