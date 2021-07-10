@@ -532,6 +532,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         # Decode functional representation and compute loss and metric
         all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
         all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        all_tr_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        all_tr_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
 
         for k in range(self._num_iters+1): # store intermediate predictions
             weights = self.forward_decoder(all_tr_reprs.read(k))
@@ -540,6 +542,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             val_mu, val_sigma = self.predict(inputs=data.val_input, weights=weights)
             all_val_mu = all_val_mu.write(k, val_mu)
             all_val_sigma = all_val_sigma.write(k, val_sigma)
+            all_tr_mu = all_tr_mu.write(k, tr_mu)
+            all_tr_sigma = all_tr_sigma.write(k, tr_sigma)
 
         tr_loss, tr_metric = self.calculate_loss_and_metrics(
             target_y=data.tr_output,
@@ -553,10 +557,12 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         all_val_mu = all_val_mu.stack()
         all_val_sigma = all_val_sigma.stack()
+        all_tr_mu = all_tr_mu.stack()
+        all_tr_sigma = all_tr_sigma.stack()
 
         additional_loss = tf.constant(0., dtype=self._float_dtype)
 
-        return val_loss, additional_loss, tr_metric, val_metric, all_val_mu, all_val_sigma
+        return val_loss, additional_loss, tr_metric, val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
 
     @snt.once
     def initialiser_all_init(self):
