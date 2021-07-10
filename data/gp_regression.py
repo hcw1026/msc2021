@@ -66,7 +66,8 @@ class DataProvider():
         self._custom_kernels_merge = custom_kernels_merge
 
         # Training and eval Configurations
-        self._drop_remainder = config["Train"]["drop_remainder"]
+        self._train_drop_remainder = config["Train"]["drop_remainder"]
+        self._eval_drop_remainder = config["Eval"]["drop_remainder"]
         self._train_batch_size = train_batch_size if train_batch_size is not None else config["Train"]["batch_size"]
         self._eval_batch_size = eval_batch_size if eval_batch_size is not None else config["Eval"]["batch_size"]
 
@@ -160,12 +161,12 @@ class DataProvider():
             )
 
         dataset_out = dataset_out.repeat()
-        dataset_out = self._dataset_pipeline(dataset_out)
+        dataset_out = self._dataset_pipeline(dataset_out, batch_size)
 
         return dataset_out
 
     @tf.autograph.experimental.do_not_convert
-    def _generate_from_dataset(self, dataset, batch_size, indp_target):
+    def _generate_from_dataset(self, dataset, batch_size, indp_target, drop_remainder):
 
         if isinstance(dataset, DatasetMerger):
             X = tf.concat([d[:][0] for d in dataset.datasets], axis=0)
@@ -180,7 +181,7 @@ class DataProvider():
         X = tf.split(X[:num_points-remainder], num_or_size_splits=num_split, axis=0)
         y_remain = y[num_points-remainder:]
         y = tf.split(y[:num_points-remainder], num_or_size_splits=num_split, axis=0)
-        if not self._drop_remainder and X_remain.shape[0] > 0:
+        if (not drop_remainder) and (X_remain.shape[0] > 0):
             X.append(X_remain)
             y.append(y_remain)
 
@@ -196,28 +197,33 @@ class DataProvider():
             inp=[idx], 
             Tout=(tf.float32, tf.float32, tf.float32, tf.float32)))
 
-        dataset_out = self._dataset_pipeline(dataset_out)
+        dataset_out = self._dataset_pipeline(dataset_out, batch_size)
   
         return dataset_out
 
-    def _dataset_pipeline(self, dataset):
+    def _dataset_pipeline(self, dataset, batch_size):
         if self._shuffle:
             dataset = dataset.map(shuffle_map, num_parallel_calls=tf.data.AUTOTUNE)
         dataset = dataset.map(partial(description_map, description=RegressionDescription), 
             num_parallel_calls=tf.data.AUTOTUNE)
+        dataset = dataset.unbatch().batch(batch_size) #form tf.data batch
         dataset = dataset.prefetch(tf.data.AUTOTUNE)
         return dataset
 
-    def generate(self, datasets=None, return_valid=False, return_test=True, train_batch_size=None, eval_batch_size=None, train_indp_target=None, eval_indp_target=None):
+    def generate(self, datasets=None, return_valid=False, return_test=True, train_batch_size=None, eval_batch_size=None, train_indp_target=None, eval_indp_target=None, train_drop_remainder=None, eval_drop_remainder=None):
         """
         train_batch_size: int or None
             - the batch size of training datasets. If None, the value is taken from the class initialisation
         eval_batch_size int or None
-            - the batch size of validation and test datasets). If None, the value is taken from the class initialisation
+            - the batch size of validatiSon and test datasets). If None, the value is taken from the class initialisation
         train_indp_target: bool, optional
-            - If True, any overlapping context points are removed in the set of target points for training set. If None, the value is taken from the class initialisation
+            - If True, any overlapping context points are removed in the set of target points for training dataset. If None, the value is taken from the class initialisation
         eval_indp_target: bool, optional
             - If True, any overlapping context points are removed in the set of target points for validation and test datasets. If None, the value is taken from the class initialisation
+        train_drop_remainder: bool, optional
+            - If True, remainder from batches are dropped for training dataset. If None, the value is taken from the class initialisation
+        eval_drop_remainder: bool, optional
+            - If True, remainder from batches are dropped for validation and test dataset. If None, the value is taken from the class initialisation
         return in the order (training_data, validation_data, test_data) where appropriate
         """
 
@@ -227,6 +233,9 @@ class DataProvider():
         train_indp_target = train_indp_target if train_indp_target is not None else self._train_indp_target
         eval_indp_target = eval_indp_target if eval_indp_target is not None else self._eval_indp_target
 
+        train_drop_remainder = train_drop_remainder if train_drop_remainder is not None else self._train_drop_remainder
+        eval_drop_remainder = eval_drop_remainder if eval_drop_remainder is not None else self._eval_drop_remainder
+
         if datasets is None: # default generate from self.datasets
             datasets = self.datasets
 
@@ -234,7 +243,7 @@ class DataProvider():
 
         for k, dataset in datasets.items():
             if dataset.is_reuse_across_epochs:
-                datasets_out.update({k:self._generate_from_dataset(dataset, batch_size=train_batch_size, indp_target=train_indp_target)})
+                datasets_out.update({k:self._generate_from_dataset(dataset, batch_size=train_batch_size, indp_target=train_indp_target, drop_remainder=train_drop_remainder)})
             else:
                 datasets_out.update({k:self._generate_from_generator(dataset, batch_size=train_batch_size, indp_target=train_indp_target)})
 
@@ -251,7 +260,7 @@ class DataProvider():
             datasets_test = self.generate_test("test", train_datasets=datasets, n_samples=self._test_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
             return (datasets_out, datasets_valid, datasets_test)
 
-    def generate_test(self, dataset_split="test", train_datasets=None, n_samples=10000, batch_size=None, indp_target=None):
+    def generate_test(self, dataset_split="test", train_datasets=None, n_samples=10000, batch_size=None, indp_target=None, drop_remainder=None):
         """generate test set from a training dataset GPDataset class
         dataset_split: str
             - "val" or "test". Generate a fixed size dataset with the same parameters as the training dataset of this class instance
@@ -263,16 +272,19 @@ class DataProvider():
             - the batch size of the generated datasets. If None, the value is taken from the class eval_batch_size initialisation
         indp_target: bool, optional
             - If True, any overlapping context points are removed in the set of target points for training set. If None, the value is taken from the class eval_indp_target initialisation
+        drop_remainder: bool, optional
+            - If True, remainder of batches are dropped. If None, the value is taken from the class eval_drop_remainder initialisation
         """
 
         eval_batch_size = batch_size if batch_size is not None else self._eval_batch_size
         eval_indp_target = indp_target if indp_target is not None else self._eval_indp_target
+        eval_drop_remainder = drop_remainder if drop_remainder is not None else self._eval_drop_remainder
 
         if train_datasets is None:
             train_datasets = self.datasets
 
         test_datasets = self._load(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=None, is_reuse_across_epochs=True)
-        return self.generate(test_datasets, return_valid=False, return_test=False, train_batch_size=eval_batch_size, eval_batch_size=None, train_indp_target=eval_indp_target, eval_indp_target=None)
+        return self.generate(test_datasets, return_valid=False, return_test=False, train_batch_size=eval_batch_size, eval_batch_size=None, train_indp_target=eval_indp_target, eval_indp_target=None, train_drop_remainder=eval_drop_remainder, eval_drop_remainder=None)
 
 
 ###########################################################################################
