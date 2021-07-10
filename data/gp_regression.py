@@ -621,7 +621,7 @@ class GetRandomIndcs:
             )
             indep_shuffle_(indcs, -1)
             #indcs = torch.from_numpy(indcs[:, :n_indcs])
-            indcs = tf.constant(indcs[:,:n_indcs])
+            indcs = tf.constant(indcs[:,:n_indcs], dtype=self._int_dtype)
 
         if self.range_indcs is not None:
             # adding is teh same as shifting
@@ -654,6 +654,7 @@ class CntxtTrgtGetter:
         self.contexts_getter = contexts_getter
         self.targets_getter = targets_getter
         self.is_add_cntxts_to_trgts = is_add_cntxts_to_trgts
+        self._int_dtype = tf.int32
 
     def __call__(
         self, X, y=None, context_indcs=None, target_indcs=None, is_return_indcs=False, indp_target=False
