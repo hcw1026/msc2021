@@ -586,6 +586,7 @@ class GetRandomIndcs:
         self.is_ensure_one = is_ensure_one
         self.is_beta_binomial = is_beta_binomial
         self.proba_uniform = proba_uniform
+        self._int_dtype = tf.int32
 
     def __call__(self, batch_size, n_possible_points):
         if self.range_indcs is not None:
@@ -654,7 +655,6 @@ class CntxtTrgtGetter:
         self.contexts_getter = contexts_getter
         self.targets_getter = targets_getter
         self.is_add_cntxts_to_trgts = is_add_cntxts_to_trgts
-        self._int_dtype = tf.int32
 
     def __call__(
         self, X, y=None, context_indcs=None, target_indcs=None, is_return_indcs=False, indp_target=False
