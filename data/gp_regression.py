@@ -186,16 +186,24 @@ class DataProvider():
             y.append(y_remain)
 
         # Context and target splitter
-        tr_input, tr_output, val_input, val_output = (zip(*[self.splitter(X=X_, y=y_, indp_target=indp_target) for X_, y_ in zip(*[X,y])]))
+        #tr_input, tr_output, val_input, val_output = (zip(*[self.splitter(X=X_, y=y_, indp_target=indp_target) for X_, y_ in zip(*[X,y])]))
+        
+        # def map_fn(idx):
+        #     return (tr_input[idx], tr_output[idx], val_input[idx], val_output[idx])
 
-        def map_fn(idx):
-            return (tr_input[idx], tr_output[idx], val_input[idx], val_output[idx])
+        # dataset_out = tf.data.Dataset.range(len(X))
+        # dataset_out = dataset_out.map(lambda idx: tf.py_function(
+        #     func=map_fn, 
+        #     inp=[idx], 
+        #     Tout=(tf.float32, tf.float32, tf.float32, tf.float32)))
 
-        dataset_out = tf.data.Dataset.range(len(X))
-        dataset_out = dataset_out.map(lambda idx: tf.py_function(
-            func=map_fn, 
-            inp=[idx], 
-            Tout=(tf.float32, tf.float32, tf.float32, tf.float32)))
+        output_signature = (
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype), 
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
+        tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype))
+        data = [self.splitter(X=X_, y=y_, indp_target=indp_target) for X_, y_ in zip(*[X,y])]
+        dataset_out = tf.data.Dataset.from_generator(lambda: data, output_signature=output_signature)
 
         dataset_out = self._dataset_pipeline(dataset_out, batch_size)
   

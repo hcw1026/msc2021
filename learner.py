@@ -1,5 +1,6 @@
 #from msc2021.data.tools import RegressionDescription
 from math import ceil
+from numpy.lib.index_tricks import _fill_diagonal_dispatcher
 
 from tensorflow.python.ops.gen_array_ops import deep_copy
 from model import MetaFunClassifier, MetaFunRegressor
@@ -140,24 +141,26 @@ class BaseLearner():
     
                 break
 
-    def _initialise(self):
-        self.model = self._initialise_model(self.model)
+    def _initialise(self, model, data):
+        model = self._initialise_model(model)
         self.optimiser = tf.keras.optimizers.Adam(learning_rate=self._outer_lr)
         self.regulariser = snt.regularizers.L2(self._l2_penalty_weight)
 
         # Initialise model
-        self.model.initialise(next(iter(self.train_data.take(1))))
+        model.initialise(next(iter(data)))
+        return model
 
     def train(self):
         """train model"""
         print("Number of devices: {}".format(self.strategy.num_replicas_in_sync))
         with self.strategy.scope():
-            self._initialise() # initialise model and optimisers
+            self.model = self._initialise(model=self.model, data=self.train_data) # initialise model and optimisers
 
         self._check_validation()
+        self.train_dist_ds = self.strategy.experimental_distribute_dataset(self.train_data)
+        self.signature = (iter(self.train_dist_ds).element_spec,)
         train_step = self._tf_func_train_step()
         distributed_train_step = self._distributed_step(train_step) # distributed train_step
-        self.train_dist_ds = self.strategy.experimental_distribute_dataset(self.train_data)
 
         if self._validation:
             validation_step = self._tf_func_val_step()
@@ -165,6 +168,7 @@ class BaseLearner():
             self.val_dist_ds = self.strategy.experimental_distribute_dataset(self.val_data)
         else:
             distributed_val_step = None
+
 
         self._define_metrics()
         with self.strategy.scope():
@@ -462,24 +466,30 @@ class BaseLearner():
 
         if checkpoint_path is not None: # if checkpoint_path is provided, get the current model instance
             if self.has_train:
-                model_instance = self._initialise_model(model=self.model_dupl)
+                with self.strategy.scope():
+                    model_instance = self._initialise_model(model=self.model_dupl, data=self.test_data)
             else:
-                model_instance = self._initialise_model(model=self.model_dupl)
+                with self.strategy.scope():
+                    model_instance = self._initialise(model=self.model_dupl, data=self.test_data)
+                #model_instance = self._initialise_model(model=self.model_dupl)
         else: # if checkpoint_path is not provided, determine if using exact checkpoint path
             if use_exact_ckpt_path: # does not require checkpoint restore
                 if self.has_train:
+                    model_init = _fill_diagonal_dispatcher
                     model_instance = self.model           
                 else:
                     raise Exception("The model has not been trained and no checkpoint_path is given")
             else:
-                model_instance = self._initialise_model(model=self.model_dupl)
-                checkpoint_path = self._ckpt_save_dir          
+                with self.strategy.scope():
+                    model_instance = self._initialise(model=self.model_dupl, data=self.test_data)
+                #model_instance = self._initialise_model(model=self.model_dupl)
+                checkpoint_path = self._ckpt_save_dir      
 
         if result_save_dir is None:
             result_save_dir = os.path.join(self._ckpt_save_dir, "test_result")
             if not os.path.isdir(result_save_dir):
                 os.mkdir(result_save_dir)
-  
+
         utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt_path=use_exact_ckpt_path, **kwargs)
 
 class ImageNetLearner(BaseLearner):
@@ -511,7 +521,7 @@ class ImageNetLearner(BaseLearner):
 
         # Define test step
         def _test_step(test_batch):
-            test_loss, additional_loss, test_tr_metric, test_val_metric = model_instance(test_batch, is_training=False)[:4]
+            test_loss, additional_loss, test_tr_metric, test_val_metric = model_instance(test_batch, is_training=False)
             reg_loss = self.regulariser(model_instance.get_regularise_variables)
             test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
 
@@ -528,8 +538,9 @@ class ImageNetLearner(BaseLearner):
             metric_test_context_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
 
         # Strategy setup
-        distributed_test_step = self._distributed_step(_test_step)
         test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
+        self.signature = (iter(test_dist_ds).element_spec,)
+        distributed_test_step = self._distributed_step(_test_step)
 
         # Looping setup
         test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
@@ -641,8 +652,9 @@ class GPLearner(BaseLearner):
             metric_test_context_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
 
         # Strategy setup
-        distributed_test_step = self._distributed_step(_test_step)
         test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
+        self.signature = (iter(test_dist_ds).element_spec,)
+        distributed_test_step = self._distributed_step(_test_step)
 
         # Looping setup
         test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
