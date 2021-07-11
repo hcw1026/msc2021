@@ -16,10 +16,10 @@ Train:
     early_stop_monitor: "metric" #loss/metric
     early_stop_if_increase: True #if larger early_stop_monitor should triggers stop
   save:
-    ckpt_save_dir: "/data/ziz/chho/Training/debug"
+    ckpt_save_dir: "/data/ziz/chho/msc2021/Training/debug"
     ckpt_save_prefix: null
     restore_from_ckpt: False
-    ckpt_restore_path: "/data/ziz/chho/Training/debug"
+    ckpt_restore_path: "/data/ziz/chho/msc2021/Training/debug"
     save_final_model: False
 
 GPU: [0]
@@ -66,7 +66,7 @@ Data:
 
   gp_regression:
     n_points: 128
-    save_path: "/data/ziz/chho/Data/gp/gp_dataset.hdf5"
+    save_path: "/data/ziz/chho/msc2021/Data/gp/gp_dataset.hdf5"
     shuffle: False
     n_samples: 50000
     val_n_samples: 0.1
