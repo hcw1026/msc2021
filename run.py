@@ -25,30 +25,6 @@ def GPDataLoad(dataprovider, config, load_type, custom_kernels, custom_kernels_m
     return list(train_data.values())[0], list(val_data.values())[0], list(test_data.values())[0]
 
 
-
-    # from utils import parse_config
-    # from model import MetaFunClassifier
-    # import os
-    # import numpy as np
-    # import collections
-    # config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
-    # from data.leo_imagenet import DataProvider as imagenet_provider
-
-    # # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
-    # # mylearner.load_data_from_provider(dataprovider=imagenet_provider)
-    # # mylearner.train()
-
-
-    # from data.gp_regression import DataProvider as gp_provider
-    # mylearn2 = GPLearner(config, MetaFunRegressor)
-    # gp_dataloader = gp_provider(config=config)
-    # gp_data = gp_dataloader.generate()
-    # gp_train_data = gp_data[0]["RBF_Kernel"]
-    # gp_test_data = gp_data[1]["RBF_Kernel"]
-    # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
-    # mylearn2.train()
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("experiments", type=int, help="experiment number - refer to experiments.py", nargs="+")
@@ -86,6 +62,10 @@ if __name__ == "__main__":
     # Experiment
     for rep in range(args.repeats_start_from, args.repeats+1):
         for exp_idx in args.experiments:
+
+            print()
+            print("Repeat - ", rep, "Experiment -", exp_idx)
+            print()
 
             # Initialise
             exp_name = "Experiment_" + str(exp_idx)
