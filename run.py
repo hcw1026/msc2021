@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    train_csv_path = args.train_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/training.csv"
+    train_csv_path = args.train_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/debug/training.csv"
     test_csv_path = args.test_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/debug/training.csv"
 
     assert args.repeats >= args.repeats_start_from, "--repeats must be >= --repeats-start-from"
