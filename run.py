@@ -55,8 +55,12 @@ if __name__ == "__main__":
     parser.add_argument("--test-csv-path", default="/data/ziz/chho/msc2021/Result/testing.csv")
 
     parser.add_argument("-c", "--comment", default=None, help="extra comment to add and store")
+    parser.add_argument("--debug", action="store_true", help="debugging, for internal use only")
 
     args = parser.parse_args()
+
+    train_csv_path = args.train_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/training.csv"
+    test_csv_path = args.test_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/debug/training.csv"
 
     assert args.repeats >= args.repeats_start_from, "--repeats must be >= --repeats-start-from"
     # Experiment
@@ -179,26 +183,26 @@ if __name__ == "__main__":
                 
             # Save as csv
             if not args.no_train:
-                if os.path.isfile(args.train_csv_path):
-                    df = pd.read_csv(args.train_csv_path)
+                if os.path.isfile(train_csv_path):
+                    df = pd.read_csv(train_csv_path)
                 else:
                     df = pd.DataFrame()
 
                 train_frame = pd.Series(train_dict).to_frame().transpose()
                 df_train = pd.concat([df, train_frame])
 
-                df_train.to_csv(args.train_csv_path, index=False)
+                df_train.to_csv(train_csv_path, index=False)
             
             if not args.no_test:
-                if os.path.isfile(args.test_csv_path):
-                    df = pd.read_csv(args.test_csv_path)
+                if os.path.isfile(test_csv_path):
+                    df = pd.read_csv(test_csv_path)
                 else:
                     df = pd.DataFrame()
 
                 test_frame = pd.Series(test_dict).to_frame().transpose()
                 df_test = pd.concat([df, test_frame])
 
-                df_test.to_csv(args.test_csv_path, index=False)
+                df_test.to_csv(test_csv_path, index=False)
 
             if rep == 1:
                 # Copy python files
