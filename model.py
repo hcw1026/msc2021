@@ -459,7 +459,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         # Decoder neural network size of last layers
         self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) + [2]
-        self._loss_type = "mse"
+        self._loss_type = config["Training"]["loss_type"]
 
     @snt.once
     def initialise(self, data_instance):

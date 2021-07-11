@@ -50,6 +50,7 @@ class BaseLearner():
         self._early_stop_patience = _config["early_stop_patience"]
         self._early_stop_min_delta = abs(_config["early_stop_min_delta"])
         self._early_stop_monitor = _config["early_stop_monitor"]
+        self._early_stop_if_increase = _config["early_stop_if_increase"]
 
         self.early_stop_curr_best = tf.Variable(0., dtype=self._float_dtype)
         self.stop = False
@@ -414,7 +415,7 @@ class BaseLearner():
         # Early stopping output
         if isinstance(self._early_stop_monitor, str):
             self._early_stop_monitor = self._early_stop_monitor.lower()
-            if self._early_stop_monitor[-4:] == "loss":
+            if self._early_stop_if_increase:
                 self.early_stop_curr_best.assign(tf.constant(float("inf")))
             else:
                 self.early_stop_curr_best.assign(tf.constant(-float("inf")))
@@ -430,7 +431,7 @@ class BaseLearner():
         curr_metric = self.early_stop_map[self._early_stop_monitor].result()
 
         # Stopping condition
-        if self._early_stop_monitor[-4:] == "loss":
+        if self._early_stop_if_increase:
             diff = self.early_stop_curr_best -curr_metric
         else:
             diff = curr_metric - self.early_stop_curr_best
