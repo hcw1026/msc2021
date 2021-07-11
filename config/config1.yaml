@@ -64,7 +64,7 @@ Data:
 
   gp_regression:
     n_points: 128
-    save_path: "/data/ziz/chho/Data/gp/gp_dataset.hdf5"
+    save_path: "/data/ziz/chho/msc2021/Data/gp/gp_dataset.hdf5"
     shuffle: False
     n_samples: 50000
     val_n_samples: 0.1
