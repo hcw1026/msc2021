@@ -124,3 +124,28 @@ def Experiment_5():
             info = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )
+
+
+def Experiment_0(): #debug
+
+    return dict(
+        config_name = "debug_copy",
+        learner = dict(
+            learner = GPLearner,
+            model = MetaFunRegressor,
+            load_fn = GPLearnerLoad,
+            model_name = "MetaFunRegressor",
+        ),
+        train_fn = GPTrain,
+        test_fn = GPTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = GPDataLoad,
+            dataprovider = gp_provider,
+            load_type = "single",
+            custom_kernels = {"RBF_Kernel":kernels.RBF(length_scale=(0.2))}, 
+            custom_kernels_merge = False, 
+        ),
+        other = dict( # for saving
+            info = "Simple MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
+        )
+        )
