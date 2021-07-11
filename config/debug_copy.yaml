@@ -2,7 +2,6 @@
 
 Train:
   lr: 1.e-3
-  train_on_val: False
   batch_size: 2
   drop_remainder: False
   epoch: 5

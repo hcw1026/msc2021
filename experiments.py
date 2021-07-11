@@ -25,7 +25,7 @@ def Experiment_1():
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with RBF Kernel",
+            info = "Simple MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )
 
@@ -49,7 +49,7 @@ def Experiment_2():
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with Periodic Kernel",
+            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )
 
@@ -73,7 +73,7 @@ def Experiment_3():
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with Noisy Matern Kernel",
+            info = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )
 
@@ -97,7 +97,7 @@ def Experiment_4():
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with Variable Matern Kernel",
+            info = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )
 
@@ -121,6 +121,6 @@ def Experiment_5():
             custom_kernels_merge = True, 
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern",
+            info = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )

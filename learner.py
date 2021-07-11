@@ -37,7 +37,6 @@ class BaseLearner():
         # Training Configurations
         _config = config["Train"]
         self._outer_lr = _config["lr"]
-        self._train_on_val = _config["train_on_val"]
         self._epoch = _config["epoch"]
         self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._train_drop_remainder = _config["drop_remainder"]
