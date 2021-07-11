@@ -1,24 +1,23 @@
 # Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
 
 Train:
-  lr: 1.e-3
-  train_on_val: False
-  batch_size: 2
+  lr: 1.e-4
+  batch_size: 32
   drop_remainder: False
-  epoch: 5
-  num_per_epoch: 3
-  print_freq: 1
+  epoch: 1000
+  num_per_epoch: 50000
+  print_freq: 100
   early_stop: 
-    early_stop: False
+    early_stop: True
     early_stop_reset: False # reset and reinitialise early stopping
-    early_stop_patience: 100
+    early_stop_patience: 10
     early_stop_min_delta: 0
     early_stop_monitor: "metric" #loss/metric
   save:
-    ckpt_save_dir: "/data/ziz/chho/Training"
+    ckpt_save_dir: "/data/ziz/chho/msc2021/Training"
     ckpt_save_prefix: null
     restore_from_ckpt: False
-    ckpt_restore_path: "/data/ziz/chho/Training"
+    ckpt_restore_path: "/data/ziz/chho/msc2021/Training"
     save_final_model: False
 
 GPU: [0]
@@ -36,9 +35,9 @@ Model:
     deterministic_decoder: True
 
   arch: # Architecture configurations
-    num_iters: 2
-    dim_reprs: 64
-    nn_size: 64
+    num_iters: 5
+    dim_reprs: 128
+    nn_size: 128
     nn_layers: 3
     embedding_layers: 1
 
@@ -49,7 +48,7 @@ Model:
     label_smoothing: 0.0
 
   other: # Other configuratoins
-    initial_inner_lr: 1.0
+    initial_inner_lr: 0.1
     repr_as_inputs: False
 
 Data:
@@ -82,8 +81,8 @@ Data:
     eval_indp_target: True
 
 Eval:
-  batch_size: 2
+  batch_size: 32
   drop_remainder: False
   validation: True
-  num_per_epoch: 2
+  num_per_epoch: 5000
 
