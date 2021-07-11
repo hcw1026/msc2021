@@ -8,12 +8,14 @@ Training:
   epoch: 2
   num_per_epoch: 3
   print_freq: 1
+  loss_type: "log_prob" # if applicable
   early_stop: 
     early_stop: False
     early_stop_reset: False # reset and reinitialise early stopping
     early_stop_patience: 100
     early_stop_min_delta: 0
     early_stop_monitor: "acc"
+    early_stop_if_increase: True #if larger early_stop_monitor should triggers stop
   save:
     ckpt_save_dir: null
     ckpt_save_prefix: null
