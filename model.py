@@ -775,7 +775,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         if self._loss_type == "mse":
             self._calculate_loss_and_metrics =  mse_loss
         elif self._loss_type == "log_prob":
-            self._log_prob_loss =  log_prob_loss
+            self._calculate_loss_and_metrics =  log_prob_loss
         else:
             raise NameError("unknown loss type")
 
