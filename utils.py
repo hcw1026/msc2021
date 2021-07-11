@@ -1,5 +1,6 @@
 import yaml
 import os
+import shutil
 from datetime import datetime
 import numpy as np
 
@@ -95,12 +96,14 @@ def ckpt_restore(cls, ckpt):
                 rp = ckpt.restore(cls._ckpt_restore_path)
 
                 rp.assert_existing_objects_matched()
+                print()
                 print("Restored from checkpoint", cls._ckpt_restore_path)
                 init_from_start = False
 
                 # Check if need to reset early_stopping
                 if (cls._early_stop_reset is True) and cls._validation:
                     cls._early_stopping_init()
+                    print()
                     print("early stopping tracking has been reset as required")
 
                 cls.early_stop_counter = cls.epoch_counter - cls.best_epoch
@@ -113,16 +116,20 @@ def ckpt_restore(cls, ckpt):
                 if cls._ckpt_save_dir is None:
                     cls._ckpt_save_dir = os.path.dirname(cls._ckpt_restore_path)
                 elif os.path.dirname(cls._ckpt_restore_path) != cls._ckpt_save_dir:
+                    print()
                     print("Warning: save directory and restore directory could be different, please abort unless this is intended")
 
             except AssertionError:
                 print("Checkpoint not found, Initialising the model without checkpoint")
+                print()
                 init_from_start = True
         else:
+            print()
             print("Checkpoint not found, initialising from scratch")
             init_from_start = True
 
     else:
+        print()
         print("Initialising the model without checkpoint")
         init_from_start = True
 
@@ -139,6 +146,7 @@ def profile(cls, with_graph=False, profile_dir=None):
     prof_writer = tf.summary.create_file_writer(logdir)
 
     if with_graph is True:
+        print()
         print("Warning: as graph mode is activated, validation will not be performed, and only one epoch will be run")
         tf.summary.trace_on(graph=True, profiler=True)
         cls._validation = False
@@ -166,7 +174,7 @@ def trim(data, size, description):
         data[idx] = d[:size]
     return description(*data)
 
-def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None, **kwargs):
+def test(testloop, model_instance, test_data, test_size, current_time=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, **kwargs):
     """function for testing
     model_instance: MetaFunClassifier/MetaFunRegressor
         - A created model class object
@@ -176,7 +184,7 @@ def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, u
         - A test dataset to be used by model_instance
     checkpoint_path: str or None
         - The exact path or directory used to find the newest or best epoch checkpoint. If None, the model_instance supplied is used directly
-    use_exact_ckpt_path: bool
+    use_exact_ckpt: bool
         - If True, use the newest checkpoint available, otherwise use the checkpoint with the best metric
     result_save_dir: str or None
         - The directory to save the npz results. If None, the result is saved in a subdirectory in the checkpoint path
@@ -192,13 +200,14 @@ def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, u
 
     # Restore
     if checkpoint_path is not None:
-        if not use_exact_ckpt_path:
+        if not use_exact_ckpt:
             best_epoch = tf.Variable(0, trainable=False)
 
-            # Find best epoch
+            # Find best epoch if directory is given
             restore_path_pre = find_ckpt_path(checkpoint_path)
             ckpt_pre = tf.train.Checkpoint(best_epoch=best_epoch)
             ckpt_pre.restore(restore_path_pre).expect_partial()
+            print()
             print("A checkpoint path is found:", restore_path_pre)
             best_epoch = int(tf.Variable(best_epoch).numpy())
 
@@ -211,9 +220,11 @@ def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, u
             ckpt = tf.train.Checkpoint(model=model_instance)
             try:
                 rp = ckpt.restore(restore_path).expect_partial()
+                print()
                 print("Checkpoint with best epoch is found and restored", restore_path)
             except:
                 rp = ckpt.restore(restore_path_pre).expect_partial()
+                print()
                 print("Warning: the checkpoint with best epoch cannot be restored, the checkpoint path found earlier is restored instead", restore_path)
                 restore_path = restore_path_pre
         else:
@@ -231,7 +242,7 @@ def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, u
         if result_save_filename[-4:] != ".npz":
             result_save_filename = result_save_filename + ".npz"
     else:
-        result_save_filename = datetime.now().strftime("%y%m%d-%H%M%S") + "_test_result.npz"
+        result_save_filename = current_time + "_test_result.npz"
 
     if result_save_dir is None:
         if restore_path is None:
@@ -244,4 +255,23 @@ def test(testloop, model_instance, test_data, test_size, checkpoint_path=None, u
         os.mkdir(result_save_dir)
 
     np.savez(result_save_path, **result)
+    print()
     print("result is saved at", result_save_path)
+
+    output_mean_res = dict()
+    for key, value in result.items():
+        if key.startswith("mean_"):
+            output_mean_res[key] = value
+
+    return restore_path, result_save_path, output_mean_res
+
+
+#https://stackoverflow.com/questions/1868714/how-do-i-copy-an-entire-directory-of-files-into-an-existing-directory-using-pyth/31039095
+def copytree(src, dst, symlinks=False, ignore=None):
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+            shutil.copytree(s, d, symlinks, ignore)
+        else:
+            shutil.copy2(s, d)

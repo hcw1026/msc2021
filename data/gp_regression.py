@@ -120,11 +120,11 @@ class DataProvider():
         if self._load_type.lower() == "all":
             return get_all_gp_datasets(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "single":
-            return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "var_hyp":
-            return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "var_kernel":
-            return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
         elif self._load_type.lower() == "custom":
             if self._custom_kernels is not None:
                 if self._custom_kernels_merge:
@@ -165,7 +165,6 @@ class DataProvider():
 
         return dataset_out
 
-    @tf.autograph.experimental.do_not_convert
     def _generate_from_dataset(self, dataset, batch_size, indp_target, drop_remainder):
 
         if isinstance(dataset, DatasetMerger):
@@ -184,18 +183,6 @@ class DataProvider():
         if (not drop_remainder) and (X_remain.shape[0] > 0):
             X.append(X_remain)
             y.append(y_remain)
-
-        # Context and target splitter
-        #tr_input, tr_output, val_input, val_output = (zip(*[self.splitter(X=X_, y=y_, indp_target=indp_target) for X_, y_ in zip(*[X,y])]))
-        
-        # def map_fn(idx):
-        #     return (tr_input[idx], tr_output[idx], val_input[idx], val_output[idx])
-
-        # dataset_out = tf.data.Dataset.range(len(X))
-        # dataset_out = dataset_out.map(lambda idx: tf.py_function(
-        #     func=map_fn, 
-        #     inp=[idx], 
-        #     Tout=(tf.float32, tf.float32, tf.float32, tf.float32)))
 
         output_signature = (
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype), 
@@ -218,7 +205,7 @@ class DataProvider():
         dataset = dataset.prefetch(tf.data.AUTOTUNE)
         return dataset
 
-    def generate(self, datasets=None, return_valid=False, return_test=True, train_batch_size=None, eval_batch_size=None, train_indp_target=None, eval_indp_target=None, train_drop_remainder=None, eval_drop_remainder=None):
+    def generate(self, datasets=None, return_valid=False, return_test=True, train_batch_size=None, eval_batch_size=None, train_indp_target=None, eval_indp_target=None, train_drop_remainder=None, eval_drop_remainder=None, val_is_reuse_across_epochs=True, test_is_reuse_across_epochs=False):
         """
         train_batch_size: int or None
             - the batch size of training datasets. If None, the value is taken from the class initialisation
@@ -249,23 +236,40 @@ class DataProvider():
 
         datasets_out = dict()
 
+        # Training dataset
         for k, dataset in datasets.items():
             if dataset.is_reuse_across_epochs:
                 datasets_out.update({k:self._generate_from_dataset(dataset, batch_size=train_batch_size, indp_target=train_indp_target, drop_remainder=train_drop_remainder)})
             else:
                 datasets_out.update({k:self._generate_from_generator(dataset, batch_size=train_batch_size, indp_target=train_indp_target)})
 
+        # Validation dataset
+        if return_valid:
+            if not val_is_reuse_across_epochs:
+                datasets_valid = dict()
+                for k, dataset in datasets.items():
+                    datasets_valid.update({k:self._generate_from_generator(dataset, batch_size=eval_batch_size, indp_target=eval_indp_target)})
+            else:
+                datasets_valid = self.generate_test("valid", train_datasets=datasets, n_samples=self._test_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
+
+        # Test dataset
+        if return_test:
+            if not test_is_reuse_across_epochs:
+                datasets_test = dict()
+                for k, dataset in datasets.items():
+                    datasets_test.update({k:self._generate_from_generator(dataset, batch_size=eval_batch_size, indp_target=eval_indp_target)})
+
+            else:
+                datasets_test = self.generate_test("test", train_datasets=datasets, n_samples=self._test_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
+
+        # Return
         if not (return_valid or return_test):
             return datasets_out
         elif not return_valid:
-            datasets_test = self.generate_test("test", train_datasets=datasets, n_samples=self._test_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
             return (datasets_out, datasets_test)
         elif not return_test:
-            datasets_valid = self.generate_test("valid", train_datasets=datasets, n_samples=self._val_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
             return (datasets_out, datasets_valid)
         else:
-            datasets_valid = self.generate_test("valid", train_datasets=datasets, n_samples=self._val_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
-            datasets_test = self.generate_test("test", train_datasets=datasets, n_samples=self._test_n_samples, batch_size=eval_batch_size, indp_target=eval_indp_target)
             return (datasets_out, datasets_valid, datasets_test)
 
     def generate_test(self, dataset_split="test", train_datasets=None, n_samples=10000, batch_size=None, indp_target=None, drop_remainder=None):

@@ -38,13 +38,11 @@ class BaseLearner():
         _config = config["Train"]
         self._outer_lr = _config["lr"]
         self._train_on_val = _config["train_on_val"]
-        self._train_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
         self._epoch = _config["epoch"]
         self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._train_drop_remainder = _config["drop_remainder"]
         self._print_freq = _config["print_freq"]
 
-        self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
 
         # Early Stopping Configurations
         _config = config["Train"]["early_stop"]
@@ -69,14 +67,10 @@ class BaseLearner():
 
         # Evaluation Configurations
         _config = config["Eval"]
-        self._val_batch_size = tf.constant(_config["batch_size"], dtype=self._float_dtype)
         self._validation = _config["validation"]
 
         self._val_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._val_drop_remainder = _config["drop_remainder"]
-        self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
-
-        self._test_batch_size = self._val_batch_size
 
 
         # GPU Configurations
@@ -100,6 +94,8 @@ class BaseLearner():
         self.signature = None #tf.function input signature
         self.description = ClassificationDescription
         self.has_train = False
+        self.epoch_start = 0
+        self.epoch_end = 0
 
         # Setup (multi-)GPU training
         if self._gpu is not None:
@@ -118,15 +114,12 @@ class BaseLearner():
         """load custom data"""
         if training is not None:
             self.train_data = training
-            self._train_batch_size = next(iter(self.train_data)).tr_input.shape[0]
 
         if val is not None:
             self.val_data = val
-            self._val_batch_size = next(iter(self.val_data)).tr_input.shape[0]
 
         if test is not None:
             self.test_data = test
-            self._test_batch_size = next(iter(self.test_data)).tr_input.shape[0]
 
         for dataset in [self.train_data, self.val_data, self.test_data]:
             if dataset is not None:
@@ -152,7 +145,16 @@ class BaseLearner():
 
     def train(self):
         """train model"""
+        print()
         print("Number of devices: {}".format(self.strategy.num_replicas_in_sync))
+        self._train_batch_size = next(iter(self.train_data)).tr_input.shape[0]
+
+        if self.val_data is not None:
+            self._val_batch_size = next(iter(self.val_data)).tr_input.shape[0]
+
+        self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
+        self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
+
         with self.strategy.scope():
             self.model = self._initialise(model=self.model, data=self.train_data) # initialise model and optimisers
 
@@ -175,6 +177,7 @@ class BaseLearner():
             self._create_restore_checkpoint()
         
         if self.stop is True:
+            print()
             print("Early stopping criteria has been reached, training is terminated.")
             return
 
@@ -195,6 +198,7 @@ class BaseLearner():
         val_last_step, val_remainder = divmod(int(self._val_num_per_epoch), int(self._val_batch_size))
 
         epoch_start = int(self.epoch_counter.numpy())
+        self.epoch_start = epoch_start
 
         for epoch in range(epoch_start, self._epoch+1):
 
@@ -202,6 +206,7 @@ class BaseLearner():
 
             #step_num = 0
             self.current_state = "train"
+            print()
             print("Train>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
             for step_num in tqdm(range(1, self._train_num_takes+1)):
             #for train_batch in self.train_dist_ds.take(self._train_num_takes):
@@ -221,6 +226,7 @@ class BaseLearner():
                 train_val_metric = tf.reduce_mean(train_val_metric)
 
                 if step_num % self._print_freq == 0:
+                    print()
                     print("Train -- Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
                     self.eval_metric_type, epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result(), train_tr_metric, train_val_metric, self.metric_train_context_metric.result(), self.metric_train_target_metric.result()))
 
@@ -229,6 +235,7 @@ class BaseLearner():
             self._write_tensorboard_epoch(epoch)
 
             if self._validation:
+                print()
                 print("Validation>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
                 val_iter = iter(self.val_dist_ds)
@@ -254,6 +261,7 @@ class BaseLearner():
                     val_val_metric = tf.reduce_mean(val_val_metric)
 
                     if step_num % self._print_freq == 0:
+                        print()
                         print("Validation --Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
                         self.eval_metric_type, epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result(), val_tr_metric, val_val_metric, self.metric_val_context_metric.result(), self.metric_val_target_metric.result()))
 
@@ -265,15 +273,19 @@ class BaseLearner():
             self._reset_metrics()
             self._save_checkpoint()
             if self.stop is True:
+                print()
                 print("Early stopping criteria is reached, training is terminated.")
+                self.epoch_end = epoch
                 return
             self.epoch_counter.assign_add(tf.constant(1))
+            self.epoch_end = epoch
 
     def _tf_func_train_step(self):
         """one meta-training loop"""
 
         #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function
         def _train_step(train_batch):
+            print()
             print("Graph built")
             with tf.GradientTape() as tape:
                 train_loss, additional_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)[:4] #additional_loss is orthogonality loss for imagenet datasets
@@ -320,6 +332,7 @@ class BaseLearner():
     def _check_validation(self):
         """check if validation dataset is None"""
         if not self.val_data:
+            print()
             print("validation is disabled due to no validation dataset was provided")
             self._validation = False
 
@@ -435,6 +448,7 @@ class BaseLearner():
     def _save_checkpoint(self):
         # Save checkpoint
         path = self.ckpt_manager.save(checkpoint_number=self.epoch_counter)
+        print()
         print("checkpoint is saved to ",path)
 
         #save config
@@ -446,13 +460,13 @@ class BaseLearner():
     def profile(self, with_graph=False, profile_dir=None):
         utils.profile(self, with_graph=with_graph, profile_dir=profile_dir)
 
-    def _test(self, test_size=None, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None, **kwargs):
+    def _test(self, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, **kwargs):
         """
         test_size: int or None
             - The number of testing samples from the learner's loaded test dataset. If None, all data are used (<=999999)
         checkpoint_path: str or None
             - If not None, the checkpoint will be restored (for this test function only). If the .train method has not been used by the learner, data_source must be provided. If None, the checkpoints from the current checkpoint saving directory in the class will be used
-        use_exact_ckpt_path: bool
+        use_exact_ckpt: bool
             - If True, use the newest checkpoint available, otherwise use the checkpoint with the best metric
         result_save_dir: str or None
             - The directory to save the npz results. If None, the result is saved in a subdirectory in the checkpoint path
@@ -463,6 +477,8 @@ class BaseLearner():
                 - save_pred: If True, prediction of each dataset is saved
                 - save_data: If True, test data is saved
         """
+        self.test_time = datetime.now().strftime("%y%m%d-%H%M%S")
+        self._test_batch_size = next(iter(self.test_data)).tr_input.shape[0]
 
         if checkpoint_path is not None: # if checkpoint_path is provided, get the current model instance
             if self.has_train:
@@ -473,7 +489,7 @@ class BaseLearner():
                     model_instance = self._initialise(model=self.model_dupl, data=self.test_data)
                 #model_instance = self._initialise_model(model=self.model_dupl)
         else: # if checkpoint_path is not provided, determine if using exact checkpoint path
-            if use_exact_ckpt_path: # does not require checkpoint restore
+            if use_exact_ckpt: # does not require checkpoint restore
                 if self.has_train:
                     model_init = _fill_diagonal_dispatcher
                     model_instance = self.model           
@@ -490,7 +506,7 @@ class BaseLearner():
             if not os.path.isdir(result_save_dir):
                 os.mkdir(result_save_dir)
 
-        utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt_path=use_exact_ckpt_path, **kwargs)
+        return utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, current_time=self.test_time, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt=use_exact_ckpt, **kwargs)
 
 class ImageNetLearner(BaseLearner):
     def __init__(self, config, model, data_source="leo_imagenet", model_name="MetaFunClassifier", name="ImageNetLearner"):
@@ -516,7 +532,7 @@ class ImageNetLearner(BaseLearner):
         return model(config=self.config, data_source=self.data_source, name=self.model_name)
 
     def _testloop(self, model_instance, test_data, test_size):
-
+        print()
         print("Testing>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
         # Define test step
@@ -583,8 +599,8 @@ class ImageNetLearner(BaseLearner):
             "mean_test_context_{}".format(self.eval_metric_type):metric_test_context_metric.result().numpy()
             }
 
-    def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None):
-        self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt_path=use_exact_ckpt_path, result_save_dir=result_save_dir, result_save_filename=result_save_filename)
+    def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None):
+        return self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename)
 
 
 class GPLearner(BaseLearner):
@@ -630,7 +646,7 @@ class GPLearner(BaseLearner):
         return model(config=self.config, name=self.model_name)
 
     def _testloop(self, model_instance, test_data, test_size, save_pred=False, save_data=False):
-
+        print()
         print("Testing>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
         # Define test step
@@ -740,8 +756,8 @@ class GPLearner(BaseLearner):
 
         return output
 
-    def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt_path=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False):
-        self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt_path=use_exact_ckpt_path, result_save_dir=result_save_dir, result_save_filename=result_save_filename, save_pred=save_pred, save_data=save_data)
+    def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False):
+        return self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename, save_pred=save_pred, save_data=save_data)
 
 
 if __name__ == "__main__":
