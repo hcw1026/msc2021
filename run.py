@@ -2,7 +2,7 @@ import argparse
 import os
 import pandas as pd
 from time import time
-from utils import parse_config, copytree
+from utils import parse_config, copytree, remove_checkpoints
 
 import experiments
 
@@ -65,6 +65,10 @@ if __name__ == "__main__":
     assert args.repeats >= args.repeats_start_from, "--repeats must be >= --repeats-start-from"
     # Experiment
     for rep in range(args.repeats_start_from, args.repeats+1):
+
+        save_pred = args.save_pred if rep == args.repeats_start_from else False
+        save_data = args.save_data if rep == args.repeats_start_from else False
+
         for exp_idx in args.experiments:
 
             print()
@@ -113,12 +117,19 @@ if __name__ == "__main__":
 
                 train_fn = exp_dict.get("train_fn")
                 learner = train_fn(
-                    learner=learner,
-                    train_data=train_data, 
-                    val_data=val_data, 
-                    test_data=test_data)
+                    learner = learner,
+                    train_data = train_data, 
+                    val_data = val_data, 
+                    test_data = test_data)
 
                 end_time = time()
+
+                # remove unuseful checkpoints
+                best_epoch = int(learner.best_epoch)
+                last_epoch = int(learner.epoch_end)
+                ckpt_dir = learner._ckpt_save_dir
+                ckpt_prefix = learner._ckpt_save_prefix
+                remove_checkpoints(best_epoch=best_epoch, last_epoch=last_epoch, ckpt_dir=ckpt_dir, ckpt_prefix=ckpt_prefix)
 
             # Testing
             if not args.no_test:
@@ -126,13 +137,13 @@ if __name__ == "__main__":
                 test_fn = exp_dict.get("test_fn")
 
                 test_args = dict(
-                    test_size=args.test_size,
-                    checkpoint_path=args.ckpt_test_restore_path,
-                    use_exact_ckpt=args.use_exact_ckpt,
-                    result_save_dir=args.save_dir,
-                    result_save_filename=args.save_filename,
-                    save_pred=args.save_pred,
-                    save_data=args.save_data
+                    test_size = args.test_size,
+                    checkpoint_path = args.ckpt_test_restore_path,
+                    use_exact_ckpt = args.use_exact_ckpt,
+                    result_save_dir = args.save_dir,
+                    result_save_filename = args.save_filename,
+                    save_pred = save_pred,
+                    save_data = save_data
                 )
                 learner_test, test_output = test_fn(learner=learner, **test_args)
                 restore_path, result_save_path, output_mean_res = test_output
@@ -174,8 +185,8 @@ if __name__ == "__main__":
                     restore_path = restore_path,
                     result_save_path = result_save_path,
                     test_size = args.test_size,
-                    save_pred = args.save_pred,
-                    save_data = args.save_data,
+                    save_pred = save_pred,
+                    save_data = save_data,
                     has_train = not args.no_train,
                 ))
 

@@ -3,6 +3,7 @@ import os
 import shutil
 from datetime import datetime
 import numpy as np
+import glob
 
 import tensorflow as tf
 
@@ -275,3 +276,15 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copytree(s, d, symlinks, ignore)
         else:
             shutil.copy2(s, d)
+
+def remove_checkpoints(best_epoch, last_epoch, ckpt_dir, ckpt_prefix):
+    paths = glob.glob(os.path.join(ckpt_dir, ckpt_prefix+"*"))
+    for path in paths:
+        basename = os.path.basename(path)
+        ckpt = True if  (os.path.splitext(basename)[1].startswith(".data") or os.path.splitext(basename)[1].startswith(".index")) else False
+        ckpt_num = int((os.path.splitext(basename)[0][(len(ckpt_prefix)+1):])) if ckpt else -1
+        if ckpt and os.path.isfile(path):
+            if (ckpt_num == best_epoch-1) or (ckpt_num == best_epoch) or (ckpt_num == best_epoch+1) or (ckpt_num == last_epoch):
+                pass
+            else:
+                os.remove(path)
