@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt-train-save-dir", default=None, help="the directory to save checkpoint, should agree with ckpt-restore-path")
     parser.add_argument("--ckpt-train-restore-path", default=None, help="the directory or exact path to restore checkpoint for training, should agree with ckpt-restore-path")
     parser.add_argument("-r", "--restore-from-checkpoint", action="store_true", help="restore from a checkpoint specified by ckpt-train-restore-path")
+    parser.add_argument("-k", "--keep-ckpts", action="store_true", help="By default, checkpoints except the best epoch and +-1 best epoch and the last epoch are removed after each training. This flag keeps all most recent checkpoints (patience+1)")
 
     parser.add_argument("--test-size", default=None, type=int, help="number of samples for testing, default uses all")
     parser.add_argument("--ckpt-test-restore-path", default=None, help="For testing-only use only. The directory or exact path to restore checkpoint for testing. If None and training is run, restore directly from checkpoints saved in the training")
@@ -129,7 +130,8 @@ if __name__ == "__main__":
                 last_epoch = int(learner.epoch_end)
                 ckpt_dir = learner._ckpt_save_dir
                 ckpt_prefix = learner._ckpt_save_prefix
-                remove_checkpoints(best_epoch=best_epoch, last_epoch=last_epoch, ckpt_dir=ckpt_dir, ckpt_prefix=ckpt_prefix)
+                if not args.keep_ckpts:
+                    remove_checkpoints(best_epoch=best_epoch, last_epoch=last_epoch, ckpt_dir=ckpt_dir, ckpt_prefix=ckpt_prefix)
 
             # Testing
             if not args.no_test:
