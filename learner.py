@@ -376,7 +376,8 @@ class BaseLearner():
             else:
                 self._ckpt_save_dir = os.path.join(self._ckpt_save_dir,self.current_time)
 
-        self.ckpt_manager = tf.train.CheckpointManager(ckpt, self._ckpt_save_dir, max_to_keep=None, checkpoint_name=self._ckpt_save_prefix)
+        # only keep the useful checkpoints
+        self.ckpt_manager = tf.train.CheckpointManager(ckpt, self._ckpt_save_dir, max_to_keep=self._early_stop_patience+1, checkpoint_name=self._ckpt_save_prefix)
 
     def _create_summary_writers(self):
         train_log_dir = os.path.join(self._ckpt_save_dir, "logs/summary/train_epoch")
