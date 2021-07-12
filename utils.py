@@ -213,7 +213,7 @@ def test(testloop, model_instance, test_data, test_size, current_time=None, chec
 
             # Compute best epoch path
             restore_path = restore_path_pre.split("-")[:-1]
-            restore_path += str(best_epoch)
+            restore_path += [str(best_epoch)]
             restore_path = "-".join(restore_path)
 
             # Restore model
@@ -225,7 +225,7 @@ def test(testloop, model_instance, test_data, test_size, current_time=None, chec
             except:
                 rp = ckpt.restore(restore_path_pre).expect_partial()
                 print()
-                print("Warning: the checkpoint with best epoch cannot be restored, the checkpoint path found earlier is restored instead", restore_path)
+                print("Warning: the checkpoint with best epoch cannot be restored, the checkpoint path found earlier is restored instead", restore_path_pre)
                 restore_path = restore_path_pre
         else:
             ckpt = tf.train.Checkpoint(model=model_instance)
