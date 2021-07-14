@@ -30,8 +30,8 @@ def ImageNetTrain(learner, train_data, val_data, test_data, **kwargs):
     learner.train()
     return learner
 
-def ImageNetTest(learner, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False, **kwargs):
-    output = learner.test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename, save_pred=save_pred, save_data=save_data)
+def ImageNetTest(learner, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, **kwargs):
+    output = learner.test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename)
     return learner, output
 
 def ImageNetLearnerLoad(learner, config, model, data_source="leo_imagenet", model_name="MetaFunClassifier", name=None, **kwargs):
@@ -69,8 +69,8 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--use-exact-ckpt", action="store_true", help="use the exact (or latest) checkpoint in the directory of ckpt-test-restore-path (or from training if ckpt-test-restore-path is None)")
     parser.add_argument("--save-dir", default=None, help="directory to save test results")
     parser.add_argument("--save-filename", default=None, help="filename to save test results")
-    parser.add_argument("-p", "--save-pred", action="store_true", help="save predictions")
-    parser.add_argument("-d", "--save-data", action="store_true", help="save testing data")
+    parser.add_argument("-p", "--save-pred", action="store_true", help="save predictions (not available for imagenet)") #TODO: implement this for imagenet
+    parser.add_argument("-d", "--save-data", action="store_true", help="save testing data (not available for imagenet)")
 
     parser.add_argument("--train-csv-path", default="/data/ziz/chho/msc2021/Result/training.csv")
     parser.add_argument("--test-csv-path", default="/data/ziz/chho/msc2021/Result/testing.csv")
