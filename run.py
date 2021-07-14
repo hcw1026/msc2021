@@ -24,6 +24,26 @@ def GPDataLoad(dataprovider, config, load_type, custom_kernels, custom_kernels_m
     train_data, val_data, test_data = dataloader.generate(return_valid=True, return_test=True, val_is_reuse_across_epochs=False, test_is_reuse_across_epochs=True) # is_reuse_across_epochs follows the convention of the NP processes experiments used
     return list(train_data.values())[0], list(val_data.values())[0], list(test_data.values())[0]
 
+def ImageNetTrain(learner, train_data, val_data, test_data, **kwargs):
+    """perform imagenet classification experiment"""
+    learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data)
+    learner.train()
+    return learner
+
+def ImageNetTest(learner, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False, **kwargs):
+    output = learner.test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename, save_pred=save_pred, save_data=save_data)
+    return learner, output
+
+def ImageNetLearnerLoad(learner, config, model, data_source="leo_imagenet", model_name="MetaFunClassifier", name=None, **kwargs):
+    return learner(config=config, model=model, data_source=data_source, model_name=model_name, name=name)
+
+def ImageNetDataLoad(dataprovider, config, **kwargs):
+    train_data = dataprovider("train", config).generate()
+    val_data = dataprovider("val", config).generate()
+    test_data = dataprovider("test", config).generate()
+    return train_data, val_data, test_data
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -61,7 +81,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train_csv_path = args.train_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/debug/training.csv"
-    test_csv_path = args.test_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/debug/training.csv"
+    test_csv_path = args.test_csv_path if not args.debug else "/data/ziz/chho/msc2021/Result/debug/testing.csv"
 
     assert args.repeats >= args.repeats_start_from, "--repeats must be >= --repeats-start-from"
     # Experiment
@@ -110,7 +130,7 @@ if __name__ == "__main__":
             model_name = exp_dict_learner.get("model_name")
             learner_load_fn = exp_dict_learner.get("load_fn")
             name = exp_name + "_repeat_" + str(rep)
-            learner = learner_load_fn(learner=learner, config=config, model=model, model_name=model_name, name=name)
+            learner = learner_load_fn(learner=learner, config=config, name=name, **exp_dict_learner)
 
             # Training
             if not args.no_train:

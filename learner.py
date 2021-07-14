@@ -1,6 +1,5 @@
 #from msc2021.data.tools import RegressionDescription
 from math import ceil
-from numpy.lib.index_tricks import _fill_diagonal_dispatcher
 
 from tensorflow.python.ops.gen_array_ops import deep_copy
 from model import MetaFunClassifier, MetaFunRegressor
@@ -492,7 +491,6 @@ class BaseLearner():
         else: # if checkpoint_path is not provided, determine if using exact checkpoint path
             if use_exact_ckpt: # does not require checkpoint restore
                 if self.has_train:
-                    model_init = _fill_diagonal_dispatcher
                     model_instance = self.model           
                 else:
                     raise Exception("The model has not been trained and no checkpoint_path is given")

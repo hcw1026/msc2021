@@ -56,7 +56,7 @@ Model:
 Data:
   leo_imagenet:
     num_classes: 3 # N in N-way classification
-    data_path: "D://embeddings/embeddings" #"C://Users/hcw10/OneDrive/Documents/Oxford/Courses/Dissertation/Other/embeddings"
+    data_path: "/data/ziz/not-back-up/chho/embeddings" #"C://Users/hcw10/OneDrive/Documents/Oxford/Courses/Dissertation/Other/embeddings"
     embedding_crop: "center"
     num_tr_examples_per_class: 2 # K in K-shot; number of training examples per class
     num_val_examples_per_class: 2 # number of validation examples per class

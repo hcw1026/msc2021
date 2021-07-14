@@ -3,9 +3,9 @@ from data.leo_imagenet import DataProvider as imagenet_provider
 from learner import ImageNetLearner, GPLearner
 from model import MetaFunClassifier, MetaFunRegressor
 from sklearn.gaussian_process import kernels
-from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad
+from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad
 
-def Experiment_1():
+def Experiment_1a():
 
     return dict(
         config_name = "config1",
@@ -29,7 +29,7 @@ def Experiment_1():
         )
         )
 
-def Experiment_2():
+def Experiment_1b():
 
     return dict(
         config_name = "config1",
@@ -53,7 +53,31 @@ def Experiment_2():
         )
         )
 
-def Experiment_3():
+def Experiment_1bii():
+
+    return dict(
+        config_name = "config1b",
+        learner = dict(
+            learner = GPLearner,
+            model = MetaFunRegressor,
+            load_fn = GPLearnerLoad,
+            model_name = "MetaFunRegressor",
+        ),
+        train_fn = GPTrain,
+        test_fn = GPTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = GPDataLoad,
+            dataprovider = gp_provider,
+            load_type = "single",
+            custom_kernels = {"Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5)}, 
+            custom_kernels_merge = False, 
+        ),
+        other = dict( # for saving
+            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with lower lr than Experiment 2",
+        )
+        )
+
+def Experiment_1c():
 
     return dict(
         config_name = "config1",
@@ -77,7 +101,7 @@ def Experiment_3():
         )
         )
 
-def Experiment_4():
+def Experiment_1d():
 
     return dict(
         config_name = "config1",
@@ -101,7 +125,7 @@ def Experiment_4():
         )
         )
 
-def Experiment_5():
+def Experiment_1e():
 
     return dict(
         config_name = "config1",
@@ -126,30 +150,50 @@ def Experiment_5():
         )
 
 
-def Experiment_2b():
+def Experiment_cls1(): #imagenet experiments
 
     return dict(
-        config_name = "config1b",
+        config_name = "config_cls1",
         learner = dict(
-            learner = GPLearner,
-            model = MetaFunRegressor,
-            load_fn = GPLearnerLoad,
-            model_name = "MetaFunRegressor",
+            learner = ImageNetLearner,
+            model = MetaFunClassifier,
+            data_source="leo_imagenet",
+            load_fn = ImageNetLearnerLoad,
+            model_name = "MetaFunClassifier",
         ),
-        train_fn = GPTrain,
-        test_fn = GPTest,
+        train_fn = ImageNetTrain,
+        test_fn = ImageNetTest,
         data = dict( # for data loading function parser in run.py
-            load_fn = GPDataLoad,
-            dataprovider = gp_provider,
-            load_type = "single",
-            custom_kernels = {"Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5)}, 
-            custom_kernels_merge = False, 
+            load_fn = ImageNetDataLoad,
+            dataprovider = imagenet_provider,
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with lower lr than Experiment 2",
+            info = "MetaFunClassifier on tieredimagenet with deep se kernel and neural update",
         )
         )
 
+
+def Experiment_cls1b(): #imagenet experiments
+
+    return dict(
+        config_name = "config_cls1b",
+        learner = dict(
+            learner = ImageNetLearner,
+            model = MetaFunClassifier,
+            data_source="leo_imagenet",
+            load_fn = ImageNetLearnerLoad,
+            model_name = "MetaFunClassifier",
+        ),
+        train_fn = ImageNetTrain,
+        test_fn = ImageNetTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = ImageNetDataLoad,
+            dataprovider = imagenet_provider,
+        ),
+        other = dict( # for saving
+            info = "MetaFunClassifier on tieredimagenet with attention and neural update",
+        )
+        )
 
 
 def Experiment_0(): #debug
