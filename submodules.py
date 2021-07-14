@@ -377,7 +377,7 @@ def probabilistic_sample(distribution_params, stddev_offset, is_training=True):
     if not is_training:
         return means
     else:
-        return tf.random.normal(shape=means.shape, mean=means, stddev=stddev)
+        return tf.random.normal(shape=tf.shape(means), mean=means, stddev=stddev)
 
 
 #################################################################################
