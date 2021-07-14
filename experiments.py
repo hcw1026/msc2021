@@ -126,6 +126,32 @@ def Experiment_5():
         )
 
 
+def Experiment_2b():
+
+    return dict(
+        config_name = "config1b",
+        learner = dict(
+            learner = GPLearner,
+            model = MetaFunRegressor,
+            load_fn = GPLearnerLoad,
+            model_name = "MetaFunRegressor",
+        ),
+        train_fn = GPTrain,
+        test_fn = GPTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = GPDataLoad,
+            dataprovider = gp_provider,
+            load_type = "single",
+            custom_kernels = {"Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5)}, 
+            custom_kernels_merge = False, 
+        ),
+        other = dict( # for saving
+            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
+        )
+        )
+
+
+
 def Experiment_0(): #debug
 
     return dict(
