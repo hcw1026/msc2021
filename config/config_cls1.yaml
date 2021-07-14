@@ -8,6 +8,7 @@ Train:
   num_per_epoch: 2000
   print_freq: 200
   loss_type: null # if applicable
+  train_on_val: False #for leo only
   early_stop: 
     early_stop: True
     early_stop_reset: False # reset and reinitialise early stopping

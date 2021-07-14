@@ -1,14 +1,14 @@
 # Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
 
-Training:
-  outer_lr: 1.e-3
-  train_on_val: False
+Train:
+  lr: 1.e-3
   batch_size: 16
   drop_remainder: False
   epoch: 2
   num_per_epoch: 3
   print_freq: 1
   loss_type: "log_prob" # if applicable
+  train_on_val: False
   early_stop: 
     early_stop: False
     early_stop_reset: False # reset and reinitialise early stopping
