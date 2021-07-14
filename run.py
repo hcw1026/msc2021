@@ -130,7 +130,7 @@ if __name__ == "__main__":
             model_name = exp_dict_learner.get("model_name")
             learner_load_fn = exp_dict_learner.get("load_fn")
             name = exp_name + "_repeat_" + str(rep)
-            learner = learner_load_fn(learner=learner, config=config, name=name, **exp_dict_learner)
+            learner = learner_load_fn(config=config, name=name, **exp_dict_learner)
 
             # Training
             if not args.no_train:
