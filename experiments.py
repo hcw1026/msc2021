@@ -146,7 +146,7 @@ def Experiment_2b():
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
-            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
+            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with lower lr than Experiment 2",
         )
         )
 
