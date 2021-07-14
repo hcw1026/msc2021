@@ -219,3 +219,25 @@ def Experiment_0(): #debug
             info = "Simple MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
         )
         )
+
+def Experiment_cls0(): #imagenet experiments
+
+    return dict(
+        config_name = "debug_copy",
+        learner = dict(
+            learner = ImageNetLearner,
+            model = MetaFunClassifier,
+            data_source="leo_imagenet",
+            load_fn = ImageNetLearnerLoad,
+            model_name = "MetaFunClassifier",
+        ),
+        train_fn = ImageNetTrain,
+        test_fn = ImageNetTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = ImageNetDataLoad,
+            dataprovider = imagenet_provider,
+        ),
+        other = dict( # for saving
+            info = "MetaFunClassifier on tieredimagenet with deep se kernel and neural update",
+        )
+        )

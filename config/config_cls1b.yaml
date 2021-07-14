@@ -1,0 +1,90 @@
+# Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
+
+Train:
+  lr: 5.55e-05
+  batch_size: 12
+  drop_remainder: False
+  epoch: 60
+  num_per_epoch: 2000
+  print_freq: 200
+  loss_type: null # if applicable
+  early_stop: 
+    early_stop: True
+    early_stop_reset: False # reset and reinitialise early stopping
+    early_stop_patience: 6
+    early_stop_min_delta: 0
+    early_stop_monitor: "metric" #loss/metric
+    early_stop_if_increase: True #if larger early_stop_monitor should triggers stop
+  save:
+    ckpt_save_dir: "/data/ziz/chho/msc2021/Training"
+    ckpt_save_prefix: null
+    restore_from_ckpt: False
+    ckpt_restore_path: "/data/ziz/chho/msc2021/Training"
+    save_final_model: False
+
+GPU: [0]
+
+Model:
+  comp: # Components configurations
+    use_kernel: False
+    use_gradient: False
+    neural_updater_concat_x: True # for regression
+    repr_as_inputs: False # for regression
+    no_decoder: False
+    initial_state_type: "parametric"
+    attention_type: "dot_product"
+    kernel_type: "deep_se"
+    deterministic_decoder: False
+
+  arch: # Architecture configurations
+    num_iters: 3
+    dim_reprs: 128
+    nn_size: 128
+    nn_layers: 2
+    embedding_layers: 1
+
+  reg: # Regularisation configurations
+    dropout_rate: 0.123
+    l2_penalty_weight: 1.92e-09
+    orthogonality_penalty_weight: 1.37e-3
+    label_smoothing: 0.1
+
+  other: # Other configuratoins
+    initial_inner_lr: 1.0
+    repr_as_inputs: False
+
+Data:
+  leo_imagenet:
+    num_classes: 3 # N in N-way classification
+    data_path: "/data/ziz/not-back-up/chho/embeddings" #"C://Users/hcw10/OneDrive/Documents/Oxford/Courses/Dissertation/Other/embeddings"
+    embedding_crop: "center"
+    num_tr_examples_per_class: 1 # K in K-shot; number of training examples per class
+    num_val_examples_per_class: 1 # number of validation examples per class
+    model_cls: "metafun_classifier"
+    dataset_name: "tieredImageNet" # miniImageNet or tieredImageNet
+    shuffle: False
+
+  gp_regression:
+    n_points: 128
+    save_path: "/data/ziz/chho/msc2021/Data/gp/gp_dataset.hdf5"
+    shuffle: False
+    n_samples: 50000
+    val_n_samples: 0.1
+    test_n_samples: 10000
+    n_same_samples: 10
+    is_reuse_across_epochs: False
+    min_context: 0.0 #represent proportion when <1, else exact number
+    max_context: 50
+    is_batch_share: False
+    range_indcs: null
+    is_beta_binomial: False
+    proba_uniform: 0
+    train_indp_target: False
+    eval_indp_target: True
+
+Eval:
+  batch_size: 100
+  drop_remainder: False
+  validation: True
+  num_per_epoch: 100
+
