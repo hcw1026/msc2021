@@ -21,13 +21,13 @@ def GPLearnerLoad(learner, config, model, model_name="MetaFunRegressor", name=No
 
 def GPDataLoad(dataprovider, config, load_type, custom_kernels, custom_kernels_merge, **kwargs):
     dataloader = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
-    train_data, val_data, test_data = dataloader.generate(return_valid=True, return_test=True, val_is_reuse_across_epochs=False, test_is_reuse_across_epochs=True) # is_reuse_across_epochs follows the convention of the NP processes experiements used
+    train_data, val_data, test_data = dataloader.generate(return_valid=True, return_test=True, val_is_reuse_across_epochs=False, test_is_reuse_across_epochs=True) # is_reuse_across_epochs follows the convention of the NP processes experiments used
     return list(train_data.values())[0], list(val_data.values())[0], list(test_data.values())[0]
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("experiments", type=int, help="experiment number - refer to experiments.py", nargs="+")
+    parser.add_argument("experiments", type=str, help="experiment number - refer to experiments.py", nargs="+")
     parser.add_argument("-i", "--no-train", action="store_true")
     parser.add_argument("-t", "--no-test", action="store_true")
 
