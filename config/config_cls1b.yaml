@@ -15,7 +15,7 @@ Train:
     early_stop_patience: 6
     early_stop_min_delta: 0
     early_stop_monitor: "metric" #loss/metric
-    early_stop_if_increase: True #if larger early_stop_monitor should triggers stop
+    early_stop_if_increase: False #if larger early_stop_monitor should triggers stop
   save:
     ckpt_save_dir: "/data/ziz/chho/msc2021/Training"
     ckpt_save_prefix: null
