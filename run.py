@@ -257,7 +257,11 @@ if __name__ == "__main__":
                 else:
                     code_save_dir = os.path.dirname(result_save_path)
 
-                code_save_dir = os.path.join(code_save_dir, "code")
+                if not args.no_test:
+                    code_save_dir = os.path.join(code_save_dir, "code")
+                else:
+                    code_save_dir = os.path.join(code_save_dir, "code"+learner.test_time)
+
                 if not os.path.isdir(code_save_dir):
                     os.mkdir(code_save_dir)
 
