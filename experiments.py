@@ -43,6 +43,13 @@ def Experiment_1bii():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with lower lr than Experiment 1b"
     return output_dict
 
+def Experiment_1biii():
+
+    output_dict = Experiment_1b()
+    output_dict["config_name"] = "config1bii"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with 0.1 lengthscale initialisation instead"
+    return output_dict
+
 def Experiment_1c():
 
     output_dict = Experiment_1a()
