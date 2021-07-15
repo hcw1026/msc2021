@@ -6,10 +6,11 @@ from utils import parse_config, copytree, remove_checkpoints
 
 import experiments
 
-def GPTrain(learner, train_data, val_data, test_data, **kwargs):
+def GPTrain(learner, train_data, val_data, test_data, train=True, **kwargs):
     """perform GP experiment"""
     learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data)
-    learner.train()
+    if train:
+        learner.train()
     return learner
 
 def GPTest(learner, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False, **kwargs):
@@ -24,10 +25,11 @@ def GPDataLoad(dataprovider, config, load_type, custom_kernels, custom_kernels_m
     train_data, val_data, test_data = dataloader.generate(return_valid=True, return_test=True, val_is_reuse_across_epochs=False, test_is_reuse_across_epochs=True) # is_reuse_across_epochs follows the convention of the NP processes experiments used
     return list(train_data.values())[0], list(val_data.values())[0], list(test_data.values())[0]
 
-def ImageNetTrain(learner, train_data, val_data, test_data, **kwargs):
+def ImageNetTrain(learner, train_data, val_data, test_data, train=True, **kwargs):
     """perform imagenet classification experiment"""
     learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data)
-    learner.train()
+    if train:
+        learner.train()
     return learner
 
 def ImageNetTest(learner, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, **kwargs):
@@ -141,7 +143,8 @@ if __name__ == "__main__":
                     learner = learner,
                     train_data = train_data, 
                     val_data = val_data, 
-                    test_data = test_data)
+                    test_data = test_data,
+                    train = True)
 
                 end_time = time()
 
@@ -155,6 +158,15 @@ if __name__ == "__main__":
 
             # Testing
             if not args.no_test:
+                if args.no_train:
+                    train_fn = exp_dict.get("train_fn") #TODO: avoid loading all data
+                    learner = train_fn(
+                        learner = learner,
+                        train_data = train_data, 
+                        val_data = val_data, 
+                        test_data = test_data, 
+                        train = False)
+
 
                 test_fn = exp_dict.get("test_fn")
 
