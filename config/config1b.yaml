@@ -1,93 +1,83 @@
-# Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
-
-Train:
-  lr: 0.5e-4
-  batch_size: 32
-  drop_remainder: False
-  epoch: 1000
-  num_per_epoch: 50000
-  print_freq: 100
-  loss_type: "log_prob" # if applicable
-  train_on_val: False #for leo only
-  early_stop: 
-    early_stop: True
-    early_stop_reset: False # reset and reinitialise early stopping
-    early_stop_patience: 10
-    early_stop_min_delta: 0
-    early_stop_monitor: "metric" #loss/metric
-    early_stop_if_increase: True #if larger early_stop_monitor should triggers stop
-  save:
-    ckpt_save_dir: "/data/ziz/chho/msc2021/Training"
-    ckpt_save_prefix: null
-    restore_from_ckpt: False
-    ckpt_restore_path: "/data/ziz/chho/msc2021/Training"
-    save_final_model: False
-
-GPU: [0]
-
-Model:
-  comp: # Components configurations
-    use_kernel: True
-    use_gradient: False
-    neural_updater_concat_x: True # for regression
-    repr_as_inputs: False # for regression
-    no_decoder: False
-    initial_state_type: "parametric"
-    attention_type: "dot_product"
-    kernel_type: "deep_se"
-    deterministic_decoder: True
-    kernel_sigma_init:  1.
-    kernel_lengthscale_init: 1.
-
-  arch: # Architecture configurations
-    num_iters: 5
-    dim_reprs: 128
-    nn_size: 128
-    nn_layers: 3
-    embedding_layers: 1
-
-  reg: # Regularisation configurations
-    dropout_rate: 0.0
-    l2_penalty_weight: 1.e-8
-    orthogonality_penalty_weight: 1.e-3
-    label_smoothing: 0.0
-
-  other: # Other configuratoins
-    initial_inner_lr: 0.1
-    repr_as_inputs: False
-
 Data:
-  leo_imagenet:
-    num_classes: 3 # N in N-way classification
-    data_path: "D://embeddings/embeddings" #"C://Users/hcw10/OneDrive/Documents/Oxford/Courses/Dissertation/Other/embeddings"
-    embedding_crop: "center"
-    num_tr_examples_per_class: 2 # K in K-shot; number of training examples per class
-    num_val_examples_per_class: 2 # number of validation examples per class
-    model_cls: "metafun_classifier"
-    dataset_name: "tieredImageNet" # miniImageNet or tieredImageNet
-    shuffle: False
-
   gp_regression:
-    n_points: 128
-    save_path: "/data/ziz/chho/msc2021/Data/gp/gp_dataset.hdf5"
-    shuffle: False
-    n_samples: 50000
-    val_n_samples: 0.1
-    test_n_samples: 10000
-    n_same_samples: 10
-    is_reuse_across_epochs: False
-    min_context: 0.0 #represent proportion when <1, else exact number
+    eval_indp_target: true
+    is_batch_share: false
+    is_beta_binomial: false
+    is_reuse_across_epochs: false
     max_context: 50
-    is_batch_share: False
-    range_indcs: null
-    is_beta_binomial: False
+    min_context: 0.0
+    n_points: 128
+    n_same_samples: 10
+    n_samples: 50000
     proba_uniform: 0
-    train_indp_target: False
-    eval_indp_target: True
-
+    range_indcs: null
+    save_path: /data/ziz/chho/msc2021/Data/gp/gp_dataset.hdf5
+    shuffle: false
+    test_n_samples: 10000
+    train_indp_target: false
+    val_n_samples: 0.1
+  leo_imagenet:
+    data_path: D://embeddings/embeddings
+    dataset_name: tieredImageNet
+    embedding_crop: center
+    model_cls: metafun_classifier
+    num_classes: 3
+    num_tr_examples_per_class: 2
+    num_val_examples_per_class: 2
+    shuffle: false
 Eval:
   batch_size: 32
-  drop_remainder: False
-  validation: True
+  drop_remainder: false
   num_per_epoch: 5000
-
+  validation: true
+GPU: 0
+Model:
+  arch:
+    dim_reprs: 128
+    embedding_layers: 1
+    nn_layers: 3
+    nn_size: 128
+    num_iters: 5
+  comp:
+    attention_type: dot_product
+    deterministic_decoder: true
+    indp_iter: false
+    initial_state_type: parametric
+    kernel_lengthscale_init: 1.0
+    kernel_sigma_init: 1.0
+    kernel_type: deep_se
+    neural_updater_concat_x: true
+    no_decoder: false
+    repr_as_inputs: false
+    use_gradient: false
+    use_kernel: true
+  other:
+    initial_inner_lr: 0.1
+    repr_as_inputs: false
+  reg:
+    dropout_rate: 0.0
+    l2_penalty_weight: 1.0e-08
+    label_smoothing: 0.0
+    orthogonality_penalty_weight: 0.001
+Train:
+  batch_size: 32
+  drop_remainder: false
+  early_stop:
+    early_stop: true
+    early_stop_if_increase: true
+    early_stop_min_delta: 0
+    early_stop_monitor: metric
+    early_stop_patience: 10
+    early_stop_reset: false
+  epoch: 1000
+  loss_type: log_prob
+  lr: 5.0e-05
+  num_per_epoch: 50000
+  print_freq: 100
+  save:
+    ckpt_restore_path: /data/ziz/chho/msc2021/Training
+    ckpt_save_dir: /data/ziz/chho/msc2021/Training
+    ckpt_save_prefix: null
+    restore_from_ckpt: false
+    save_final_model: false
+  train_on_val: false
