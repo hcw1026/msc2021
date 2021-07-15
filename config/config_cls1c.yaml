@@ -1,7 +1,7 @@
 # Note: place decimal point for scientific notation to be read correctly, e.g. 1.e9 instead of 1e9
 
 Train:
-  lr: 5.55e-05
+  lr: 5.78e-05
   batch_size: 12
   drop_remainder: False
   epoch: 60
@@ -40,17 +40,17 @@ Model:
     kernel_lengthscale_init: 1.
 
   arch: # Architecture configurations
-    num_iters: 3
+    num_iters: 5
     dim_reprs: 128
     nn_size: 128
-    nn_layers: 2
+    nn_layers: 3
     embedding_layers: 1
 
   reg: # Regularisation configurations
-    dropout_rate: 0.123
-    l2_penalty_weight: 1.92e-09
-    orthogonality_penalty_weight: 1.37e-3
-    label_smoothing: 0.1
+    dropout_rate: 0.223
+    l2_penalty_weight: 1.63e-09
+    orthogonality_penalty_weight: 2.58e-3
+    label_smoothing: 0.0
 
   other: # Other configuratoins
     initial_inner_lr: 1.0
