@@ -67,7 +67,7 @@ Train:
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: metric
-    early_stop_patience: 6
+    early_stop_patience: 10
     early_stop_reset: false
   epoch: 60
   loss_type: null
