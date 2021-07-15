@@ -36,6 +36,8 @@ Model:
     attention_type: "dot_product"
     kernel_type: "deep_se"
     deterministic_decoder: False
+    kernel_sigma_init:  1.
+    kernel_lengthscale_init: 1.
 
   arch: # Architecture configurations
     num_iters: 3

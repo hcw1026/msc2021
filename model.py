@@ -21,6 +21,8 @@ class MetaFunBase(snt.Module):
         self._no_decoder = tf.constant(_config["no_decoder"], dtype=tf.bool)
         self._initial_state_type = tf.constant(_config["initial_state_type"], dtype=tf.string)
         self._deterministic_decoder = tf.constant(_config["deterministic_decoder"], dtype=tf.bool)
+        self._kernel_sigma_init = _config["kernel_sigma_init"]
+        self._kernel_lengthscale_init = _config["kernel_lengthscale_init"]
 
         ## Architecture configurations
         _config = config["Model"]["arch"]
@@ -304,7 +306,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
     def se_kernel_all_init(self):
         # Kernel sigma
         self.sigma = tf.Variable(
-            initial_value=tf.constant_initializer(1.0)(
+            initial_value=tf.constant_initializer(self._kernel_sigma_init)(
                 shape=(),
                 dtype=self._float_dtype
             ),
@@ -314,7 +316,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
         # Kernel lengthscale
         self.lengthscale = tf.Variable(
-            initial_value=tf.constant_initializer(1.0)(
+            initial_value=tf.constant_initializer(self._kernel_lengthscale_init)(
                 shape=(),
                 dtype=self._float_dtype
             ),
