@@ -57,38 +57,41 @@ class parametric_initialiser(snt.Module):
 #################################################################################
 class neural_local_updater(snt.Module):
     """neural local updater"""
-    def __init__(self, nn_size, nn_layers, dim_reprs, initialiser, nonlinearity, classification=True, num_classes=1, no_batch=False, xNone=False, name="neural_local_updater"):
+    def __init__(self, nn_size, nn_layers, dim_reprs, initialiser, nonlinearity, num_iters=1, indp_iter=False, classification=True, num_classes=1, no_batch=False, xNone=False, name="neural_local_updater"):
         super(neural_local_updater, self).__init__(name=name)
+
+        self._num_iters = num_iters if indp_iter else 1
+
         if classification:
             self._num_classes = num_classes
             self._dim_reprs = dim_reprs
 
             # MLP m
-            self.module1 = snt.nets.MLP(
+            self.module1_list = [
+                snt.nets.MLP(
                 output_sizes=[nn_size] * nn_layers,
                 w_init=initialiser,
                 with_bias=True,
                 activation=nonlinearity,
-                name="neural_local_updater_m"
-            )
+                name="neural_local_updater_m_{}".format(i)) for i in range(self._num_iters)]
 
             # MLP u+
-            self.module2 = snt.nets.MLP(
+            self.module2_list = [
+                snt.nets.MLP(
                 output_sizes=[nn_size] * nn_layers + [dim_reprs],
                 w_init=initialiser,
                 with_bias=True,
                 activation=nonlinearity,
-                name="neural_local_updater_uplus"
-            )
+                name="neural_local_updater_uplus_{}".format(i)) for i in range(self._num_iters)]
 
             # MLP u-
-            self.module3 = snt.nets.MLP(
+            self.module3_list = [
+                snt.nets.MLP(
                 output_sizes=[nn_size] * nn_layers + [dim_reprs],
                 w_init=initialiser,
                 with_bias=True,
                 activation=nonlinearity,
-                name="neural_local_updater_uminus"
-            )
+                name="neural_local_updater_uminus_{}".format(i)) for i in range(self._num_iters)]
 
             if no_batch:
                 self.perm = [0, 2, 1]
@@ -104,41 +107,40 @@ class neural_local_updater(snt.Module):
                 self.concat_fn = lambda r, y, x: tf.concat([r, y, x], axis=-1)
             else:
                 self.concat_fn = lambda r, y, x: tf.concat([r, y], axis=-1)
-            self.module = snt.nets.MLP(
+
+            self.module_list = [
+                snt.nets.MLP(
                 output_sizes=[nn_size] * nn_layers + [dim_reprs],
                 w_init=initialiser,
                 with_bias=True,
                 activation=nonlinearity,
-                name="neural_local_updater"
-            )
+                name="neural_local_updater_{}".format(i)) for i in range(self._num_iters)]
 
-            self.call_fn = self.regression
+            self.call_fn = self.regression        
 
-        
-
-    def classification(self, r, y, x=None, iter=""):
+    def classification(self, r, y, x=None, iteration=1):
         r_shape = tf.shape(r)
         r = tf.reshape(r, tf.concat([r_shape[:-1], tf.constant([self._num_classes, self._dim_reprs], dtype=tf.int32)], axis=0))
 
         y = tf.one_hot(y, self._num_classes) #TODO: move to data preprocessing
         y = tf.transpose(y, self.perm)
-        outputs = self.module1(r)
+        outputs = self.module1_list[iteration](r)
         agg_outputs = tf.math.reduce_mean(outputs, axis=-2, keepdims=True)
         outputs = tf.concat([outputs, tf.tile(agg_outputs, self.tile_dim)], axis=-1)
 
-        outputs_t = self.module2(outputs)
+        outputs_t = self.module2_list[iteration](outputs)
 
-        outputs_f = self.module3(outputs)
+        outputs_f = self.module3_list[iteration](outputs)
         outputs = outputs_t * y + outputs_f * (1-y)
         outputs = tf.reshape(outputs, shape=r_shape)
         return outputs
     
-    def regression(self, r, y, x, iter=""):
+    def regression(self, r, y, x, iteration=1):
         reprs = self.concat_fn(r, y, x)
-        return self.module(reprs)
+        return self.module_list[iteration](reprs)
 
-    def __call__(self, r, y, x=None, iter=""):
-        return self.call_fn(r=r, y=y, x=x, iter=iter)
+    def __call__(self, r, y, x=None, iteration=1):
+        return self.call_fn(r=r, y=y, x=x, iteration=min(self._num_iters-1, iteration))
 
 
 #################################################################################
@@ -248,7 +250,7 @@ def dot_product_attention_fn(querys, keys, values, normalise):
 class Attention(snt.Module):
     """attention - return frontend or backend results"""
   
-    def __init__(self, config, complete_return=True, name="attention"):
+    def __init__(self, config, num_iters=1, indp_iter=False, complete_return=True, name="attention"):
         """
         config: dict
             - configuration
@@ -267,14 +269,17 @@ class Attention(snt.Module):
         self._nonlinearity = config['nonlinearity']
         self.initialiser = tf.keras.initializers.GlorotUniform()
 
+        self._num_iters = num_iters if indp_iter else 1
+
         if self._rep == "mlp":
-            self.module = snt.nets.MLP( # mapping a
+            self.module_list = [
+                snt.nets.MLP( # mapping a
                 output_sizes=self._output_sizes,
                 w_init=self.initialiser,
                 with_bias=True,
                 activation=self._nonlinearity,
                 name="deep_attention"
-                )
+                ) for i in range(self._num_iters)]
 
         if self._att_type != tf.constant("dot_product",tf.string):
             raise NameError("Unknown attention type")
@@ -283,17 +288,18 @@ class Attention(snt.Module):
             raise NameError("Unknown attention representation - not among ['identity', 'mlp']")
 
         if self._rep == tf.constant("identity", dtype=tf.string):
-            self.call_fn_frontend = lambda keys, querys: dot_product_attention_frontend_fn(keys=keys, querys=querys, normalise=self._normalise)
+            self.call_fn_frontend = lambda keys, querys, iteration: dot_product_attention_frontend_fn(keys=keys, querys=querys, normalise=self._normalise)
         else:
-            self.call_fn_frontend = lambda keys, querys: dot_product_attention_frontend_fn(keys=self.module(keys), querys=self.module(querys), normalise=self._normalise)
+            self.call_fn_frontend = lambda keys, querys, iteration: dot_product_attention_frontend_fn(keys=self.module_list[iteration](keys), querys=self.module_list[iteration](querys), normalise=self._normalise)
         
         if complete_return:
             self.call_fn_backend = lambda weights, values: dot_product_attention_backend_fn(weights=weights, values=values)
         else:
             self.call_fn_backend = lambda weights, values: weights
 
-    def __call__(self, keys, querys, values=None):
-        weights = self.call_fn_frontend(keys=keys, querys=querys)
+
+    def __call__(self, keys, querys, values=None, iteration=1):
+        weights = self.call_fn_frontend(keys=keys, querys=querys, iteration=min(self._num_iters-1, iteration))
         return self.call_fn_backend(weights=weights, values=values)
 
     def backend(self, weights, values):
@@ -335,26 +341,30 @@ class squared_exponential_kernel(snt.Module):
 
 #### Deep squared-exponential kernel
 class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding dim should be used for nerual layer width
-    def __init__(self, embedding_layers, kernel_dim, initialiser, nonlinearity, complete_return=True, name="deep_se_kernel"):
+    def __init__(self, embedding_layers, kernel_dim, initialiser, nonlinearity, num_iters=1, indp_iter=False, complete_return=True, name="deep_se_kernel"):
         super(deep_se_kernel, self).__init__(name=name)
-        self.module = snt.nets.MLP( # mapping a
+
+        self._num_iters = num_iters if indp_iter else 1
+
+        self.module_list = [
+            snt.nets.MLP( # mapping a
             output_sizes=[kernel_dim] * embedding_layers,
             w_init=initialiser,
             with_bias=True,
             activation=nonlinearity,
             name="deep_se_kernel"
-        )
+        ) for i in range(self._num_iters)]
 
-        self.call_fn_frontend = lambda querys, keys, sigma, lengthscale: squared_exponential_kernel_frontend_fn(
-            querys=self.module(querys), keys=self.module(keys), sigma=sigma, lengthscale=lengthscale)
+        self.call_fn_frontend = lambda querys, keys, sigma, lengthscale, iteration: squared_exponential_kernel_frontend_fn(
+            querys=self.module_list[iteration](querys), keys=self.module_list[iteration](keys), sigma=sigma, lengthscale=lengthscale)
 
         if complete_return:
             self.call_fn_backend = lambda query_key, values: squared_exponential_kernel_backend_fn(query_key=query_key, values=values)
         else:
             self.call_fn_backend = lambda query_key, values: query_key
 
-    def __call__(self, querys, keys, sigma, lengthscale, values=None):
-        query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+    def __call__(self, querys, keys, sigma, lengthscale, values=None, iteration=1):
+        query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale, iteration=min(self._num_iters-1, iteration))
         return self.call_fn_backend(query_key=query_key, values=values)
 
     def backend(self, query_key, values):

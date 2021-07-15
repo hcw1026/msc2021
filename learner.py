@@ -560,6 +560,7 @@ class ImageNetLearner(BaseLearner):
         # Looping setup
         test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
         test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
+        test_remainder = int(self._test_batch_size) if test_remainder == 0 else test_remainder
         test_iter = iter(test_dist_ds)
         test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
 
@@ -573,6 +574,7 @@ class ImageNetLearner(BaseLearner):
 
             if step_num == test_last_step:
                 test_batch = utils.trim(data=test_batch, size=test_remainder, description=self.description)
+            print("here", test_batch)
 
             test_loss, test_tr_metric, test_val_metric = distributed_test_step(test_batch)
 
@@ -674,6 +676,7 @@ class GPLearner(BaseLearner):
         # Looping setup
         test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
         test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
+        test_remainder = int(self._test_batch_size) if test_remainder == 0 else test_remainder
         test_iter = iter(test_dist_ds)
         test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
         if save_pred:
@@ -693,7 +696,7 @@ class GPLearner(BaseLearner):
                 test_batch = utils.trim(data=test_batch, size=test_remainder, description=self.description)
 
             test_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma = distributed_test_step(test_batch)
-            
+
             metric_test_target_loss(test_loss)
             test_tr_metric = tf.reduce_mean(test_tr_metric)
             test_val_metric = tf.reduce_mean(test_val_metric)
@@ -731,7 +734,6 @@ class GPLearner(BaseLearner):
             val_input_ls = np.array(val_input_ls, dtype=object)
             val_output_ls = np.array(val_output_ls, dtype=object)
 
-
         output = {
             "test_loss":test_loss_ls, 
             "test_tr_{}".format(self.eval_metric_type):test_tr_metric_ls, 
@@ -768,19 +770,21 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
-    # mylearner.load_data_from_provider(dataprovider=imagenet_provider)
-    # mylearner.train()
+    mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
+    mylearner.load_data_from_provider(dataprovider=imagenet_provider)
+    mylearner.train()
+    mylearner.test(14)
 
 
-    from data.gp_regression import DataProvider as gp_provider
-    mylearn2 = GPLearner(config, MetaFunRegressor)
-    gp_dataloader = gp_provider(config=config)
-    gp_data = gp_dataloader.generate()
-    gp_train_data = gp_data[0]["RBF_Kernel"]
-    gp_test_data = gp_data[1]["RBF_Kernel"]
-    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
-    mylearn2.train()
+    # from data.gp_regression import DataProvider as gp_provider
+    # mylearn2 = GPLearner(config, MetaFunRegressor)
+    # gp_dataloader = gp_provider(config=config)
+    # gp_data = gp_dataloader.generate()
+    # gp_train_data = gp_data[0]["RBF_Kernel"]
+    # gp_test_data = gp_data[1]["RBF_Kernel"]
+    # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
+    # mylearn2.train()
+    # mylearn2.test(20)
 
 
     

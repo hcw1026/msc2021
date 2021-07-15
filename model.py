@@ -23,6 +23,7 @@ class MetaFunBase(snt.Module):
         self._deterministic_decoder = tf.constant(_config["deterministic_decoder"], dtype=tf.bool)
         self._kernel_sigma_init = _config["kernel_sigma_init"]
         self._kernel_lengthscale_init = _config["kernel_lengthscale_init"]
+        self._indp_iter = _config["indp_iter"]
 
         ## Architecture configurations
         _config = config["Model"]["arch"]
@@ -275,7 +276,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             name="lr"
         )
 
-    def gradient_local_updater(self, r, y, x=None, iter=""):
+    def gradient_local_updater(self, r, y, x=None, iteration=1):
         """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
             tape.watch(r) #watch r
@@ -297,10 +298,12 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             num_classes=self._num_classes, 
             initialiser=self.initialiser, 
             nonlinearity=self._nonlinearity,
-            no_batch=self._no_batch)
+            no_batch=self._no_batch,
+            num_iters=self._num_iters,
+            indp_iter=self._indp_iter)
 
-    def neural_local_updater(self, r, y, x, iter=""):
-        return self._neural_local_updater(r=r, y=y, x=x, iter=iter)
+    def neural_local_updater(self, r, y, x, iteration=1):
+        return self._neural_local_updater(r=r, y=y, x=x, iteration=iteration)
 
     @snt.once
     def se_kernel_all_init(self):
@@ -329,7 +332,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self.se_kernel_all_init()
         self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
 
-    def se_kernel_precompute(self, querys, keys, values=None):
+    def se_kernel_precompute(self, querys, keys, values=None, iteration=1):
         return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
 
     def se_kernel_backend(self, querys, keys, precomputed, values): # use this input format for generality
@@ -343,11 +346,13 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             kernel_dim=self.embedding_dim,
             initialiser=self.initialiser,
             nonlinearity=self._nonlinearity,
-            complete_return=False
+            complete_return=False,
+            num_iters=self._num_iters, 
+            indp_iter=self._indp_iter
         )
 
-    def deep_se_kernel_precompute(self, querys, keys, values=None):
-        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+    def deep_se_kernel_precompute(self, querys, keys, values=None, iteration=1):
+        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def deep_se_kernel_backend(self, querys, keys, precomputed, values):
         return self._deep_se_kernel.backend(query_key=precomputed, values=values)
@@ -364,13 +369,13 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config=config, complete_return=False)
+        self.attention = submodules.Attention(config=config, num_iters=self._num_iters, indp_iter=self._indp_iter, complete_return=False)
 
-    def attention_block_precompute(self, querys, keys, values=None, iter=""):
+    def attention_block_precompute(self, querys, keys, values=None, iteration=1):
         """dot-product kernel"""
-        return self.attention(keys=keys, querys=querys, values=values)
+        return self.attention(keys=keys, querys=querys, values=values, iteration=iteration)
 
-    def attention_block_backend(self, querys, keys, precomputed, values, iter=""):
+    def attention_block_backend(self, querys, keys, precomputed, values):
         return self.attention.backend(weights=precomputed, values=values)
 
     @snt.once
@@ -626,7 +631,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             name="lr"
         )
 
-    def gradient_local_updater(self, r, y, x=None, iter=""):
+    def gradient_local_updater(self, r, y, x=None, iteration=1):
         """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
             tape.watch(r)
@@ -648,10 +653,12 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             initialiser=self.initialiser, 
             nonlinearity=self._nonlinearity,
             no_batch=self._no_batch,
-            xNone=self._neural_updater_concat_x)
+            xNone=self._neural_updater_concat_x,
+            num_iters=self._num_iters,
+            indp_iter=self._indp_iter)
 
-    def neural_local_updater(self, r, y, x, iter=""):
-        return self._neural_local_updater(r=r, y=y, x=x, iter=iter)
+    def neural_local_updater(self, r, y, x, iteration=1):
+        return self._neural_local_updater(r=r, y=y, x=x, iteration=iteration)
 
     @snt.once
     def se_kernel_all_init(self):
@@ -680,8 +687,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         self.se_kernel_all_init()
         self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
     
-    def se_kernel_precompute(self, querys, keys, values=None):
-        return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+    def se_kernel_precompute(self, querys, keys, values=None, iteration=1):
+        return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def se_kernel_backend(self, querys, keys, precomputed, values):
         return self._se_kernel.backend(query_key=precomputed, values=values)
@@ -694,11 +701,13 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             kernel_dim=self._nn_size,
             initialiser=self.initialiser,
             nonlinearity=self._nonlinearity,
-            complete_return=False
+            complete_return=False,
+            num_iters=self._num_iters, 
+            indp_iter=self._indp_iter
         )
 
-    def deep_se_kernel_precompute(self, querys, keys, values=None):
-        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+    def deep_se_kernel_precompute(self, querys, keys, values=None, iteration=1):
+        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def deep_se_kernel_backend(self, querys, keys, precomputed, values):
         return self._deep_se_kernel.backend(query_key=precomputed, values=values)
@@ -715,13 +724,13 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             "nonlinearity": self._nonlinearity
             }
 
-        self.attention = submodules.Attention(config=config, complete_return=False)
+        self.attention = submodules.Attention(config=config, num_iters=self._num_iters, indp_iter=self._indp_iter, complete_return=False)
 
-    def attention_block_precompute(self, querys, keys, values=None, iter=""):
+    def attention_block_precompute(self, querys, keys, values=None, iteration=1):
         """dot-product kernel"""
-        return self.attention(keys=keys, querys=querys, values=values)
+        return self.attention(keys=keys, querys=querys, values=values, iteration=iteration)
 
-    def attention_block_backend(self, querys, keys, precomputed, values, iter=""):
+    def attention_block_backend(self, querys, keys, precomputed, values):
         return self.attention.backend(weights=precomputed, values=values)
 
     @snt.once

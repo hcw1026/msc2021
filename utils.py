@@ -7,6 +7,9 @@ import glob
 
 import tensorflow as tf
 
+#############################################################################################
+# config
+#############################################################################################
 def parse_config(yaml_path):
     """convert a yaml path into the corresponding dictionary
     Input:
@@ -28,6 +31,27 @@ def save_as_yaml(config, path):
     """
     with open(path, "w") as f:
         yaml.dump(config, f)
+
+def add_to_yaml(dir, levels, new_level, value):
+    paths = glob.glob(os.path.join(dir, "*"))
+
+    for path in paths:
+        config = parse_config(path)
+
+        if len(levels) > 0:
+            c = config[levels[0]]
+
+            for idx, level in enumerate(levels[1:]):
+                c = c[level]
+        else:
+            c = config
+
+        c[new_level] = value
+        save_as_yaml(config, path)        
+
+#############################################################################################
+# learner
+#############################################################################################
 
 def get_linear_layer_variables(module):
     """obtain all linear layer variables in a snt.Module
@@ -266,6 +290,10 @@ def test(testloop, model_instance, test_data, test_size, current_time=None, chec
 
     return restore_path, result_save_path, output_mean_res
 
+
+#############################################################################################
+# run.py
+#############################################################################################
 
 #https://stackoverflow.com/questions/1868714/how-do-i-copy-an-entire-directory-of-files-into-an-existing-directory-using-pyth/31039095
 def copytree(src, dst, symlinks=False, ignore=None):
