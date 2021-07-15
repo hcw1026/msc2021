@@ -500,11 +500,6 @@ class BaseLearner():
                 #model_instance = self._initialise_model(model=self.model_dupl)
                 checkpoint_path = self._ckpt_save_dir      
 
-        if result_save_dir is None:
-            result_save_dir = os.path.join(self._ckpt_save_dir, "test_result")
-            if not os.path.isdir(result_save_dir):
-                os.mkdir(result_save_dir)
-
         return utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, current_time=self.test_time, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt=use_exact_ckpt, **kwargs)
 
 class ImageNetLearner(BaseLearner):
@@ -574,7 +569,6 @@ class ImageNetLearner(BaseLearner):
 
             if step_num == test_last_step:
                 test_batch = utils.trim(data=test_batch, size=test_remainder, description=self.description)
-            print("here", test_batch)
 
             test_loss, test_tr_metric, test_val_metric = distributed_test_step(test_batch)
 
@@ -770,21 +764,21 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
-    mylearner.load_data_from_provider(dataprovider=imagenet_provider)
-    mylearner.train()
-    mylearner.test(14)
+    # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
+    # mylearner.load_data_from_provider(dataprovider=imagenet_provider)
+    # mylearner.train()
+    # mylearner.test()
 
 
-    # from data.gp_regression import DataProvider as gp_provider
-    # mylearn2 = GPLearner(config, MetaFunRegressor)
-    # gp_dataloader = gp_provider(config=config)
-    # gp_data = gp_dataloader.generate()
-    # gp_train_data = gp_data[0]["RBF_Kernel"]
-    # gp_test_data = gp_data[1]["RBF_Kernel"]
-    # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
-    # mylearn2.train()
-    # mylearn2.test(20)
+    from data.gp_regression import DataProvider as gp_provider
+    mylearn2 = GPLearner(config, MetaFunRegressor)
+    gp_dataloader = gp_provider(config=config)
+    gp_data = gp_dataloader.generate()
+    gp_train_data = gp_data[0]["RBF_Kernel"]
+    gp_test_data = gp_data[1]["RBF_Kernel"]
+    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
+    mylearn2.train()
+    mylearn2.test(20)
 
 
     
