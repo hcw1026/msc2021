@@ -68,7 +68,7 @@ def Experiment_1e():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel"
     return output_dict
 
-def Experiment_cls1(): #imagenet experiments
+def Experiment_cls1a(): #imagenet experiments
 
     return dict(
         config_name = "config_cls1",
@@ -93,21 +93,21 @@ def Experiment_cls1(): #imagenet experiments
 
 def Experiment_cls1b(): #imagenet experiments
 
-    output_dict = Experiment_cls1()
+    output_dict = Experiment_cls1a()
     output_dict["config_name"] = "config_cls1b"
     output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-1-shot"
     return output_dict
 
 def Experiment_cls1c(): #imagenet experiments
 
-    output_dict = Experiment_cls1()
+    output_dict = Experiment_cls1a()
     output_dict["config_name"] = "config_cls1c"
     output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with kernel and neural update 5-way-5-shot"
     return output_dict
 
 def Experiment_cls1d(): #imagenet experiments
 
-    output_dict = Experiment_cls1()
+    output_dict = Experiment_cls1a()
     output_dict["config_name"] = "config_cls1d"
     output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-5-shot"
     return output_dict
