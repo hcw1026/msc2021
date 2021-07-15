@@ -373,7 +373,8 @@ def probabilistic_sample(distribution_params, stddev_offset, is_training=True):
     """probabilistic sampling"""
     means, unnormalized_stddev = tf.split(distribution_params, 2, axis=-1) # mean and log std
     stddev = tf.math.exp(unnormalized_stddev) - (1. - stddev_offset)
-    stddev = tf.math.maximum(stddev, 1e-10)
+    stddev = tf.math.maximum(stddev, 1.e-10)
+    stddev = tf.math.minimum(stddev, 1.e5)
     if not is_training:
         return means
     else:
