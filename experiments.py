@@ -31,124 +31,42 @@ def Experiment_1a():
 
 def Experiment_1b():
 
-    return dict(
-        config_name = "config1",
-        learner = dict(
-            learner = GPLearner,
-            model = MetaFunRegressor,
-            load_fn = GPLearnerLoad,
-            model_name = "MetaFunRegressor",
-        ),
-        train_fn = GPTrain,
-        test_fn = GPTest,
-        data = dict( # for data loading function parser in run.py
-            load_fn = GPDataLoad,
-            dataprovider = gp_provider,
-            load_type = "single",
-            custom_kernels = {"Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5)}, 
-            custom_kernels_merge = False, 
-        ),
-        other = dict( # for saving
-            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
-        )
-        )
+    output_dict = Experiment_1a()
+    output_dict["data"]["custom_kernels"] = {"Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5)}
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel"
+    return output_dict
 
 def Experiment_1bii():
 
-    return dict(
-        config_name = "config1b",
-        learner = dict(
-            learner = GPLearner,
-            model = MetaFunRegressor,
-            load_fn = GPLearnerLoad,
-            model_name = "MetaFunRegressor",
-        ),
-        train_fn = GPTrain,
-        test_fn = GPTest,
-        data = dict( # for data loading function parser in run.py
-            load_fn = GPDataLoad,
-            dataprovider = gp_provider,
-            load_type = "single",
-            custom_kernels = {"Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5)}, 
-            custom_kernels_merge = False, 
-        ),
-        other = dict( # for saving
-            info = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with lower lr than Experiment 2",
-        )
-        )
+    output_dict = Experiment_1b()
+    output_dict["config_name"] = "config1b"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, deep-se kernel, with lower lr than Experiment 1b"
+    return output_dict
 
 def Experiment_1c():
 
-    return dict(
-        config_name = "config1",
-        learner = dict(
-            learner = GPLearner,
-            model = MetaFunRegressor,
-            load_fn = GPLearnerLoad,
-            model_name = "MetaFunRegressor",
-        ),
-        train_fn = GPTrain,
-        test_fn = GPTest,
-        data = dict( # for data loading function parser in run.py
-            load_fn = GPDataLoad,
-            dataprovider = gp_provider,
-            load_type = "single",
-            custom_kernels = {"Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}, 
-            custom_kernels_merge = False, 
-        ),
-        other = dict( # for saving
-            info = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
-        )
-        )
+    output_dict = Experiment_1a()
+    output_dict["data"]["custom_kernels"] = {"Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel"
+    return output_dict
+
 
 def Experiment_1d():
 
-    return dict(
-        config_name = "config1",
-        learner = dict(
-            learner = GPLearner,
-            model = MetaFunRegressor,
-            load_fn = GPLearnerLoad,
-            model_name = "MetaFunRegressor",
-        ),
-        train_fn = GPTrain,
-        test_fn = GPTest,
-        data = dict( # for data loading function parser in run.py
-            load_fn = GPDataLoad,
-            dataprovider = gp_provider,
-            load_type = "var_hyp",
-            custom_kernels = {"Variable_Matern_Kernel":kernels.Matern(length_scale_bounds=(0.01, 0.3), nu=1.5)}, 
-            custom_kernels_merge = False, 
-        ),
-        other = dict( # for saving
-            info = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel",
-        )
-        )
+    output_dict = Experiment_1d()
+    output_dict["data"]["custom_kernels"] = {"Variable_Matern_Kernel":kernels.Matern(length_scale_bounds=(0.01, 0.3), nu=1.5)}
+    output_dict["data"]["load_type"] = "var_hyp"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel"
+    return output_dict
 
 def Experiment_1e():
 
-    return dict(
-        config_name = "config1",
-        learner = dict(
-            learner = GPLearner,
-            model = MetaFunRegressor,
-            load_fn = GPLearnerLoad,
-            model_name = "MetaFunRegressor",
-        ),
-        train_fn = GPTrain,
-        test_fn = GPTest,
-        data = dict( # for data loading function parser in run.py
-            load_fn = GPDataLoad,
-            dataprovider = gp_provider,
-            load_type = "var_kernel",
-            custom_kernels = {"RBF_Kernel":kernels.RBF(length_scale=(0.2)), "Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5), "Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}, 
-            custom_kernels_merge = True, 
-        ),
-        other = dict( # for saving
-            info = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel",
-        )
-        )
-
+    output_dict = Experiment_1e()
+    output_dict["data"]["custom_kernels"] = {"RBF_Kernel":kernels.RBF(length_scale=(0.2)), "Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5), "Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}
+    output_dict["data"]["load_type"] = "var_kernel"
+    output_dict["data"]["custom_kernels_merge"] = True
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel"
+    return output_dict
 
 def Experiment_cls1(): #imagenet experiments
 
@@ -168,32 +86,31 @@ def Experiment_cls1(): #imagenet experiments
             dataprovider = imagenet_provider,
         ),
         other = dict( # for saving
-            info = "MetaFunClassifier on tieredimagenet with deep se kernel and neural update",
+            info = "MetaFunClassifier on tieredimagenet with deep se kernel and neural update 5-way-1-shot",
         )
         )
 
 
 def Experiment_cls1b(): #imagenet experiments
 
-    return dict(
-        config_name = "config_cls1b",
-        learner = dict(
-            learner = ImageNetLearner,
-            model = MetaFunClassifier,
-            data_source="leo_imagenet",
-            load_fn = ImageNetLearnerLoad,
-            model_name = "MetaFunClassifier",
-        ),
-        train_fn = ImageNetTrain,
-        test_fn = ImageNetTest,
-        data = dict( # for data loading function parser in run.py
-            load_fn = ImageNetDataLoad,
-            dataprovider = imagenet_provider,
-        ),
-        other = dict( # for saving
-            info = "MetaFunClassifier on tieredimagenet with attention and neural update",
-        )
-        )
+    output_dict = Experiment_cls1()
+    output_dict["config_name"] = "config_cls1b"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-1-shot"
+    return output_dict
+
+def Experiment_cls1c(): #imagenet experiments
+
+    output_dict = Experiment_cls1()
+    output_dict["config_name"] = "config_cls1c"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with kernel and neural update 5-way-5-shot"
+    return output_dict
+
+def Experiment_cls1d(): #imagenet experiments
+
+    output_dict = Experiment_cls1()
+    output_dict["config_name"] = "config_cls1d"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-5-shot"
+    return output_dict
 
 
 def Experiment_0(): #debug

@@ -27,7 +27,7 @@ GPU: [0]
 
 Model:
   comp: # Components configurations
-    use_kernel: False
+    use_kernel: True
     use_gradient: False
     neural_updater_concat_x: True # for regression
     repr_as_inputs: False # for regression
@@ -59,8 +59,8 @@ Data:
     num_classes: 5 # N in N-way classification
     data_path: "/data/ziz/not-backed-up/chho/embeddings" #"C://Users/hcw10/OneDrive/Documents/Oxford/Courses/Dissertation/Other/embeddings"
     embedding_crop: "center"
-    num_tr_examples_per_class: 1 # K in K-shot; number of training examples per class
-    num_val_examples_per_class: 1 # number of validation examples per class
+    num_tr_examples_per_class: 5 # K in K-shot; number of training examples per class
+    num_val_examples_per_class: 5 # number of validation examples per class
     model_cls: "metafun_classifier"
     dataset_name: "tieredImageNet" # miniImageNet or tieredImageNet
     shuffle: False
