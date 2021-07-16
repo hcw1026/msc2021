@@ -539,13 +539,14 @@ class ImageNetLearner(BaseLearner):
             metric_test_target_metric(test_val_metric)
             metric_test_context_metric(test_tr_metric)
 
+
             return test_loss, test_tr_metric, test_val_metric
 
         # Define metrics
         metric_test_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
         with self.strategy.scope():
-            metric_test_target_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
-            metric_test_context_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
+            metric_test_target_metric = tf.keras.metrics.Mean(name="test_target__{}".format(self.eval_metric_type))
+            metric_test_context_metric = tf.keras.metrics.Mean(name="test_context_{}".format(self.eval_metric_type))
 
         # Strategy setup
         test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
@@ -659,8 +660,8 @@ class GPLearner(BaseLearner):
         # Define metrics
         metric_test_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
         with self.strategy.scope():
-            metric_test_target_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
-            metric_test_context_metric = tf.keras.metrics.Mean(name="train_test_{}".format(self.eval_metric_type))
+            metric_test_target_metric = tf.keras.metrics.Mean(name="test_target_{}".format(self.eval_metric_type))
+            metric_test_context_metric = tf.keras.metrics.Mean(name="test_context_{}".format(self.eval_metric_type))
 
         # Strategy setup
         test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
@@ -670,7 +671,7 @@ class GPLearner(BaseLearner):
         # Looping setup
         test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
         test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
-        test_remainder = int(self._test_batch_size) if test_remainder == 0 else test_remainder
+        test_last_step += 1 # iteration begins at 1
         test_iter = iter(test_dist_ds)
         test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
         if save_pred:
