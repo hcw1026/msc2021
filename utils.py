@@ -222,6 +222,7 @@ def test(testloop, model_instance, test_data, test_size, current_time=None, chec
     # Initialise Model
     if not model_instance.has_initialised:
         model_instance.initialise(next(iter(test_data)))
+        _ = model_instance(next(iter(test_data)))
 
     # Restore
     if checkpoint_path is not None:
