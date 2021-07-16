@@ -75,6 +75,36 @@ def Experiment_1e():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel"
     return output_dict
 
+def Experiment_2a():
+    output_dict = Experiment_1a()
+    output_dict["config_name"] = "config2"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_2b():
+    output_dict = Experiment_1b()
+    output_dict["config_name"] = "config2"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_2c():
+    output_dict = Experiment_1c()
+    output_dict["config_name"] = "config2"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, same neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_2d():
+    output_dict = Experiment_1d()
+    output_dict["config_name"] = "config2"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_2e():
+    output_dict = Experiment_1e()
+    output_dict["config_name"] = "config2"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, attention, logprob"
+    return output_dict
+
 def Experiment_cls1a(): #imagenet experiments
 
     return dict(
