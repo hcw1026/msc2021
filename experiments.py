@@ -60,7 +60,7 @@ def Experiment_1c():
 
 def Experiment_1d():
 
-    output_dict = Experiment_1d()
+    output_dict = Experiment_1a()
     output_dict["data"]["custom_kernels"] = {"Variable_Matern_Kernel":kernels.Matern(length_scale_bounds=(0.01, 0.3), nu=1.5)}
     output_dict["data"]["load_type"] = "var_hyp"
     output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, parametric init, deep-se kernel"
@@ -68,7 +68,7 @@ def Experiment_1d():
 
 def Experiment_1e():
 
-    output_dict = Experiment_1e()
+    output_dict = Experiment_1a()
     output_dict["data"]["custom_kernels"] = {"RBF_Kernel":kernels.RBF(length_scale=(0.2)), "Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5), "Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}
     output_dict["data"]["load_type"] = "var_kernel"
     output_dict["data"]["custom_kernels_merge"] = True
