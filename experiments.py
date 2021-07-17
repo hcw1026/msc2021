@@ -5,6 +5,12 @@ from model import MetaFunClassifier, MetaFunRegressor
 from sklearn.gaussian_process import kernels
 from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad
 
+############################################################################################################################
+# Regression
+############################################################################################################################
+
+#### Experiment 1 ##########################################################################################################
+
 def Experiment_1a():
 
     return dict(
@@ -75,6 +81,10 @@ def Experiment_1e():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel"
     return output_dict
 
+
+
+#### Experiment 2 ##########################################################################################################
+
 def Experiment_2a():
     output_dict = Experiment_1a()
     output_dict["config_name"] = "config2"
@@ -102,8 +112,50 @@ def Experiment_2d():
 def Experiment_2e():
     output_dict = Experiment_1e()
     output_dict["config_name"] = "config2"
-    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, attention, logprob"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, parametric init, deep-se kernel, logprob"
     return output_dict
+
+
+
+#### Experiment 3 ##########################################################################################################
+
+def Experiment_3a():
+    output_dict = Experiment_1a()
+    output_dict["config_name"] = "config3"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
+    return output_dict
+
+def Experiment_3b():
+    output_dict = Experiment_1b()
+    output_dict["config_name"] = "config3"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
+    return output_dict
+
+def Experiment_3c():
+    output_dict = Experiment_1c()
+    output_dict["config_name"] = "config3"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
+    return output_dict
+
+def Experiment_3d():
+    output_dict = Experiment_1d()
+    output_dict["config_name"] = "config3"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
+    return output_dict
+
+def Experiment_3e():
+    output_dict = Experiment_1e()
+    output_dict["config_name"] = "config3"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
+    return output_dict
+
+
+
+############################################################################################################################
+# Classification
+############################################################################################################################
+
+#### Experiment cls1 ##########################################################################################################
 
 def Experiment_cls1a(): #imagenet experiments
 
@@ -127,7 +179,6 @@ def Experiment_cls1a(): #imagenet experiments
         )
         )
 
-
 def Experiment_cls1b(): #imagenet experiments
 
     output_dict = Experiment_cls1a()
@@ -149,6 +200,11 @@ def Experiment_cls1d(): #imagenet experiments
     output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-5-shot"
     return output_dict
 
+
+
+############################################################################################################################
+# Debug
+############################################################################################################################
 
 def Experiment_0(): #debug
 
