@@ -140,6 +140,10 @@ class BaseLearner():
 
         # Initialise model
         model.initialise(next(iter(data)))
+        self.metric_names = model._metric_names
+
+        if self._early_stop_monitor == "metric": # for debug
+            self._early_stop_monitor = self.metric_names[0]
         return model
 
     def train(self):
@@ -221,13 +225,13 @@ class BaseLearner():
                 train_loss,  train_tr_metric, train_val_metric = train_step(train_batch)
                 self.metric_train_target_loss(train_loss) # TODO: check correctness of placing it here
 
-                train_tr_metric = tf.reduce_mean(train_tr_metric)
-                train_val_metric = tf.reduce_mean(train_val_metric)
-
                 if step_num % self._print_freq == 0:
                     print()
-                    print("Train -- Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
-                    self.eval_metric_type, epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result(), train_tr_metric, train_val_metric, self.metric_train_context_metric.result(), self.metric_train_target_metric.result()))
+                    print("Train -- Epoch: {0}/{1}, Step: {2}, target_loss: {3:.3f}, mean_target_loss: {4:.3f}".format(
+                    epoch, self._epoch, step_num, train_loss, self.metric_train_target_loss.result()))
+                    for idx, metric in enumerate(self.metric_names):
+                        print("      -- context_{0}: {1:.3f}, mean_context_{0}: {2:.3f}, target_{0}: {3:.3f}, mean_target_{0}: {4:.3f}".format(
+                            metric, tf.reduce_mean(train_tr_metric[idx]), self.metric_tr_context[idx].result(), tf.reduce_mean(train_val_metric[idx]), self.metric_tr_target[idx].result()))
 
                 self._write_tensorboard_step(self.optimiser.iterations, train_loss)
 
@@ -256,13 +260,13 @@ class BaseLearner():
                     val_loss, val_tr_metric, val_val_metric = validation_step(val_batch)
                     self.metric_val_target_loss(val_loss) # TODO: check correctness of placing it here
 
-                    val_tr_metric = tf.reduce_mean(val_tr_metric)
-                    val_val_metric = tf.reduce_mean(val_val_metric)
-
                     if step_num % self._print_freq == 0:
                         print()
-                        print("Validation --Epoch: {1}/{2}, Step: {3}, target_loss: {4:.3f}, mean_target_loss: {5:.3f}, context_{0}: {6:.3f}, target_{0}: {7:.3f}, mean_context_{0}: {8:.3f}, mean_target_{0}: {9:.3f}".format(
-                        self.eval_metric_type, epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result(), val_tr_metric, val_val_metric, self.metric_val_context_metric.result(), self.metric_val_target_metric.result()))
+                        print("Validation -- Epoch: {0}/{1}, Step: {2}, target_loss: {3:.3f}, mean_target_loss: {4:.3f}".format(
+                        epoch, self._epoch, step_num, val_loss, self.metric_val_target_loss.result()))
+                        for idx, metric in enumerate(self.metric_names):
+                            print("      -- context_{0}: {1:.3f}, mean_context_{0}: {2:.3f}, target_{0}: {3:.3f}, mean_target_{0}: {4:.3f}".format(
+                                metric, tf.reduce_mean(val_tr_metric[idx]), self.metric_val_context[idx].result(), tf.reduce_mean(val_val_metric[idx]), self.metric_val_target[idx].result()))
 
             self._write_tensorboard_epoch(epoch)
 
@@ -296,8 +300,9 @@ class BaseLearner():
             self.optimiser.apply_gradients(zip(gradients, self.model.trainable_variables))
 
             # Update metrics
-            self.metric_train_target_metric(train_val_metric)
-            self.metric_train_context_metric(train_tr_metric)
+            for idx in range(len(self.metric_names)):
+                self.metric_tr_target[idx](train_val_metric[idx])
+                self.metric_tr_context[idx](train_tr_metric[idx])
 
             return train_loss, train_tr_metric, train_val_metric
 
@@ -313,8 +318,9 @@ class BaseLearner():
             val_loss = utils.combine_losses(val_loss, reg_loss + additional_loss, self._val_batch_size)
 
             # Update metrics
-            self.metric_val_target_metric(val_val_metric)
-            self.metric_val_context_metric(val_tr_metric)
+            for idx in range(len(self.metric_names)):
+                self.metric_val_target[idx](val_val_metric[idx])
+                self.metric_val_context[idx](val_tr_metric[idx])
 
             return val_loss, val_tr_metric, val_val_metric
 
@@ -338,24 +344,34 @@ class BaseLearner():
     def _define_metrics(self):
         self.metric_train_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
         with self.strategy.scope():
-            self.metric_train_target_metric = tf.keras.metrics.Mean(name="train_target_{}".format(self.eval_metric_type))
-            self.metric_train_context_metric = tf.keras.metrics.Mean(name="train_context_{}".format(self.eval_metric_type))
+            self.metric_tr_context = []
+            self.metric_tr_target = []
+            for metric in self.metric_names:
+                self.metric_tr_target.append(tf.keras.metrics.Mean(name="train_target_{}".format(metric)))
+                self.metric_tr_context.append(tf.keras.metrics.Mean(name="train_context_{}".format(metric)))
 
         if self._validation:
             self.metric_val_target_loss = tf.keras.metrics.Mean(name="val_target_loss")
             with self.strategy.scope():
-                self.metric_val_target_metric = tf.keras.metrics.Mean(name="val_target_{}".format(self.eval_metric_type))
-                self.metric_val_context_metric = tf.keras.metrics.Mean(name="val_context_{}".format(self.eval_metric_type))
+                self.metric_val_context = []
+                self.metric_val_target = []
+                for metric in self.metric_names:
+                    self.metric_val_target.append(tf.keras.metrics.Mean(name="val_target_{}".format(metric)))
+                    self.metric_val_context.append(tf.keras.metrics.Mean(name="val_context_{}".format(metric)))
 
     def _reset_metrics(self):
         self.metric_train_target_loss.reset_states()
-        self.metric_train_target_metric.reset_states()
-        self.metric_train_context_metric.reset_states()
+        for metric in self.metric_tr_target:
+            metric.reset_states()
+        for metric in self.metric_tr_context:
+            metric.reset_states()
 
         if self._validation:
             self.metric_val_target_loss.reset_states()
-            self.metric_val_target_metric.reset_states()
-            self.metric_val_context_metric.reset_states()
+            for metric in self.metric_val_target:
+                metric.reset_states()
+            for metric in self.metric_val_context:
+                metric.reset_states()
 
     def _create_restore_checkpoint(self):
         # Checkpoints
@@ -392,23 +408,26 @@ class BaseLearner():
         if self.current_state == "train":
             with self.train_summary_writer.as_default():
                 tf.summary.scalar("Mean Train Target loss", self.metric_train_target_loss.result(), step=epoch)
-                tf.summary.scalar("Train Target {}".format(self.eval_metric_type), self.metric_train_target_metric.result(), step=epoch)
-                tf.summary.scalar("Train Context {}".format(self.eval_metric_type), self.metric_train_context_metric.result(), step=epoch)
+                for idx, metric in enumerate(self.metric_names):
+                    tf.summary.scalar("Train Target {}".format(metric), self.metric_tr_target[idx].result(), step=epoch)
+                    tf.summary.scalar("Train Context {}".format(metric), self.metric_tr_context[idx].result(), step=epoch)
                 tf.summary.flush()
 
         elif self.current_state == "val":
             with self.val_summary_writer.as_default():
                 tf.summary.scalar("Mean Validation Target loss", self.metric_val_target_loss.result(), step=epoch)
-                tf.summary.scalar("Validation Target {}".format(self.eval_metric_type), self.metric_val_target_metric.result(), step=epoch)
-                tf.summary.scalar("Validation Context {}".format(self.eval_metric_type), self.metric_val_context_metric.result(), step=epoch)
+                for idx, metric in enumerate(self.metric_names):
+                    tf.summary.scalar("Validation Target {}".format(metric), self.metric_val_target[idx].result(), step=epoch)
+                    tf.summary.scalar("Validation Context {}".format(metric), self.metric_val_context[idx].result(), step=epoch)
                 tf.summary.flush()
 
     def _write_tensorboard_step(self, iteration, loss):
         with self.train_summary_writer.as_default():
             tf.summary.scalar("Train Target loss (step)", loss, step=iteration)
             tf.summary.scalar("Mean Train Target loss (step)", self.metric_train_target_loss.result(), step=iteration)
-            tf.summary.scalar("Train Target {} (step)".format(self.eval_metric_type), self.metric_train_target_metric.result(), step=iteration)
-            tf.summary.scalar("Train Context {} (step)".format(self.eval_metric_type), self.metric_train_context_metric.result(), step=iteration)
+            for idx, metric in enumerate(self.metric_names):
+                tf.summary.scalar("Train Target {} (step)".format(metric), self.metric_tr_target[idx].result(), step=iteration)
+                tf.summary.scalar("Train Context {} (step)".format(metric), self.metric_tr_context[idx].result(), step=iteration)
             tf.summary.flush()
 
     def _early_stopping_init(self):
@@ -425,7 +444,9 @@ class BaseLearner():
         # Early stopping utils
         self.early_stop_counter = tf.constant(0)
         self.stop = False
-        self.early_stop_map = {"loss":self.metric_val_target_loss, "metric":self.metric_val_target_metric}
+        self.early_stop_map = {"loss":self.metric_val_target_loss}
+        for idx, metric in enumerate(self.metric_names):
+            self.early_stop_map[metric] = self.metric_val_target[idx]
 
     def _early_stopping(self):
         curr_metric = self.early_stop_map[self._early_stop_monitor].result()
@@ -536,17 +557,20 @@ class ImageNetLearner(BaseLearner):
             test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
 
             # Update metrics
-            metric_test_target_metric(test_val_metric)
-            metric_test_context_metric(test_tr_metric)
-
+            for idx in range(len(self.metric_names)):
+                self.metric_test_target[idx](test_val_metric[idx])
+                self.metric_test_context[idx](test_tr_metric[idx])
 
             return test_loss, test_tr_metric, test_val_metric
 
         # Define metrics
         metric_test_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
         with self.strategy.scope():
-            metric_test_target_metric = tf.keras.metrics.Mean(name="test_target__{}".format(self.eval_metric_type))
-            metric_test_context_metric = tf.keras.metrics.Mean(name="test_context_{}".format(self.eval_metric_type))
+            self.metric_test_target = []
+            self.metric_test_context = []
+            for metric in self.metric_names:
+                self.metric_test_target.append(tf.keras.metrics.Mean(name="test_target__{}".format(metric)))
+                self.metric_test_context.append(tf.keras.metrics.Mean(name="test_context_{}".format(metric)))
 
         # Strategy setup
         test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
@@ -556,9 +580,9 @@ class ImageNetLearner(BaseLearner):
         # Looping setup
         test_num_takes = ceil(int(test_size)/int(self._test_batch_size))
         test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
-        test_remainder = int(self._test_batch_size) if test_remainder == 0 else test_remainder
+        test_last_step += 1 # iteration begins at 1
         test_iter = iter(test_dist_ds)
-        test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
+        test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [[]]*len(self.metric_names), [[]]*len(self.metric_names)
 
         # Looping
         for step_num in tqdm(range(1, test_num_takes+1)):
@@ -574,26 +598,27 @@ class ImageNetLearner(BaseLearner):
             test_loss, test_tr_metric, test_val_metric = distributed_test_step(test_batch)
 
             metric_test_target_loss(test_loss)
-            test_tr_metric = tf.reduce_mean(test_tr_metric)
-            test_val_metric = tf.reduce_mean(test_val_metric)
-
             test_loss_ls.append(test_loss.numpy())
-            test_tr_metric_ls.append(test_tr_metric.numpy())
-            test_val_metric_ls.append(test_val_metric.numpy())
+
+            for idx, metric in enumerate(self.metric_names):
+                test_tr_metric_ls[idx].append(tf.reduce_mean(test_tr_metric[idx]).numpy())
+                test_val_metric_ls[idx].append(tf.reduce_mean(test_val_metric[idx]).numpy())
 
         # Concatenate result
         test_loss_ls = np.array(test_loss_ls)
-        test_tr_metric_ls = np.array(test_tr_metric_ls)
-        test_val_metric_ls = np.array(test_val_metric_ls)
+        test_tr_metric_ls = [np.array(ls) for ls in test_tr_metric_ls]
+        test_val_metric_ls = [np.array(ls) for ls in test_val_metric_ls]
 
-        return {
-            "test_loss":test_loss_ls, 
-            "test_tr_{}".format(self.eval_metric_type):test_tr_metric_ls, 
-            "test_val_{}".format(self.eval_metric_type):test_val_metric_ls,
-            "mean_test_target_loss":metric_test_target_loss.result().numpy(),
-            "mean_test_target_{}".format(self.eval_metric_type):metric_test_target_metric.result().numpy(),
-            "mean_test_context_{}".format(self.eval_metric_type):metric_test_context_metric.result().numpy()
-            }
+        output_dict = {"test_loss":test_loss_ls, "mean_test_target_loss":metric_test_target_loss.result().numpy()}
+
+        for idx, metric in enumerate(self.metric_names):
+            output_dict.update({
+                "test_tr_{}".format(metric): test_tr_metric_ls[idx],
+                "test_val_{}".format(metric): test_val_metric_ls[idx],
+                "mean_test_context_{}".format(metric): self.metric_test_context[idx].result().numpy(),
+                "mean_test_target_{}".format(metric): self.metric_test_target[idx].result().numpy()})
+
+        return output_dict
 
     def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None):
         return self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename)
@@ -652,16 +677,20 @@ class GPLearner(BaseLearner):
             test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
 
             # Update metrics
-            metric_test_target_metric(test_val_metric)
-            metric_test_context_metric(test_tr_metric)
+            for idx in range(len(self.metric_names)):
+                self.metric_test_target[idx](test_val_metric[idx])
+                self.metric_test_context[idx](test_tr_metric[idx])
 
             return test_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
 
         # Define metrics
         metric_test_target_loss = tf.keras.metrics.Mean(name="train_target_loss")
         with self.strategy.scope():
-            metric_test_target_metric = tf.keras.metrics.Mean(name="test_target_{}".format(self.eval_metric_type))
-            metric_test_context_metric = tf.keras.metrics.Mean(name="test_context_{}".format(self.eval_metric_type))
+            self.metric_test_target = []
+            self.metric_test_context = []
+            for metric in self.metric_names:
+                self.metric_test_target.append(tf.keras.metrics.Mean(name="test_target_{}".format(metric)))
+                self.metric_test_context.append(tf.keras.metrics.Mean(name="test_context_{}".format(metric)))
 
         # Strategy setup
         test_dist_ds = self.strategy.experimental_distribute_dataset(test_data)
@@ -673,7 +702,8 @@ class GPLearner(BaseLearner):
         test_last_step, test_remainder = divmod(int(test_size), int(self._test_batch_size))
         test_last_step += 1 # iteration begins at 1
         test_iter = iter(test_dist_ds)
-        test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [], []
+        test_loss_ls, test_tr_metric_ls, test_val_metric_ls = [], [[]]*len(self.metric_names), [[]]*len(self.metric_names)
+
         if save_pred:
             tr_mu_ls, tr_sigma_ls, val_mu_ls, val_sigma_ls = [], [], [], []
         if save_data:
@@ -693,12 +723,11 @@ class GPLearner(BaseLearner):
             test_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma = distributed_test_step(test_batch)
 
             metric_test_target_loss(test_loss)
-            test_tr_metric = tf.reduce_mean(test_tr_metric)
-            test_val_metric = tf.reduce_mean(test_val_metric)
-
             test_loss_ls.append(test_loss.numpy())
-            test_tr_metric_ls.append(test_tr_metric.numpy())
-            test_val_metric_ls.append(test_val_metric.numpy())
+
+            for idx, metric in enumerate(self.metric_names):
+                test_tr_metric_ls[idx].append(tf.reduce_mean(test_tr_metric[idx]).numpy())
+                test_val_metric_ls[idx].append(tf.reduce_mean(test_val_metric[idx]).numpy())
 
             if save_pred:
                 tr_mu_ls.append(all_tr_mu.numpy().tolist())
@@ -714,8 +743,8 @@ class GPLearner(BaseLearner):
 
         # Concatenate result
         test_loss_ls = np.array(test_loss_ls)
-        test_tr_metric_ls = np.array(test_tr_metric_ls)
-        test_val_metric_ls = np.array(test_val_metric_ls)
+        test_tr_metric_ls = [np.array(ls) for ls in test_tr_metric_ls]
+        test_val_metric_ls = [np.array(ls) for ls in test_val_metric_ls]
 
         if save_pred:
             tr_mu_ls = np.array(tr_mu_ls, dtype=object)
@@ -729,28 +758,29 @@ class GPLearner(BaseLearner):
             val_input_ls = np.array(val_input_ls, dtype=object)
             val_output_ls = np.array(val_output_ls, dtype=object)
 
-        output = {
-            "test_loss":test_loss_ls, 
-            "test_tr_{}".format(self.eval_metric_type):test_tr_metric_ls, 
-            "test_val_{}".format(self.eval_metric_type):test_val_metric_ls,
-            "mean_test_target_loss":metric_test_target_loss.result().numpy(),
-            "mean_test_target_{}".format(self.eval_metric_type):metric_test_target_metric.result().numpy(),
-            "mean_test_context_{}".format(self.eval_metric_type):metric_test_context_metric.result().numpy()
-            }
+        # Output results
+        output_dict = {"test_loss":test_loss_ls, "mean_test_target_loss":metric_test_target_loss.result().numpy()}
+
+        for idx, metric in enumerate(self.metric_names):
+            output_dict.update({
+                "test_tr_{}".format(metric): test_tr_metric_ls[idx],
+                "test_val_{}".format(metric): test_val_metric_ls[idx],
+                "mean_test_context_{}".format(metric): self.metric_test_context[idx].result().numpy(),
+                "mean_test_target_{}".format(metric): self.metric_test_target[idx].result().numpy()})
 
         if save_pred:
-            output["tr_mu"] = tr_mu_ls
-            output["tr_sigma"] = tr_sigma_ls
-            output["val_mu"] = val_mu_ls
-            output["val_sigma"] = val_sigma_ls
+            output_dict["tr_mu"] = tr_mu_ls
+            output_dict["tr_sigma"] = tr_sigma_ls
+            output_dict["val_mu"] = val_mu_ls
+            output_dict["val_sigma"] = val_sigma_ls
         
         if save_data:
-            output["tr_input"] = tr_input_ls
-            output["tr_output"] = tr_output_ls
-            output["val_input"] = val_input_ls
-            output["val_output"] = val_output_ls
+            output_dict["tr_input"] = tr_input_ls
+            output_dict["tr_output"] = tr_output_ls
+            output_dict["val_input"] = val_input_ls
+            output_dict["val_output"] = val_output_ls
 
-        return output
+        return output_dict
 
     def test(self, test_size=None, checkpoint_path=None, use_exact_ckpt=False, result_save_dir=None, result_save_filename=None, save_pred=False, save_data=False):
         return self._test(test_size=test_size, checkpoint_path=checkpoint_path, use_exact_ckpt=use_exact_ckpt, result_save_dir=result_save_dir, result_save_filename=result_save_filename, save_pred=save_pred, save_data=save_data)
@@ -765,10 +795,10 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
-    # mylearner.load_data_from_provider(dataprovider=imagenet_provider)
-    # mylearner.train()
-    # mylearner.test()
+    mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
+    mylearner.load_data_from_provider(dataprovider=imagenet_provider)
+    mylearner.train()
+    mylearner.test(20)
 
 
     from data.gp_regression import DataProvider as gp_provider

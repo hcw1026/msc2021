@@ -1,3 +1,4 @@
+from functools import partial
 import tensorflow as tf
 import tensorflow_probability as tfp
 import sonnet as snt
@@ -23,7 +24,7 @@ class MetaFunBase(snt.Module):
         self._deterministic_decoder = tf.constant(_config["deterministic_decoder"], dtype=tf.bool)
         self._kernel_sigma_init = _config["kernel_sigma_init"]
         self._kernel_lengthscale_init = _config["kernel_lengthscale_init"]
-        self._indp_iter = _config["indp_iter"]
+        self._indp_iter = tf.constant(_config["indp_iter"], dtype=tf.bool)
 
         ## Architecture configurations
         _config = config["Model"]["arch"]
@@ -58,9 +59,11 @@ class MetaFunBase(snt.Module):
         self._repr_as_inputs = config["Model"]["comp"]["repr_as_inputs"]
         self._neural_updater_concat_x = config["Model"]["comp"]["neural_updater_concat_x"]
 
+        # Define metric
+        self._metric_names = []
+
         if self._no_decoder:
             self._dim_reprs = 1
-
 
     def forward_initialiser_base(self):
         """initialise neural latent - r"""
@@ -110,6 +113,10 @@ class MetaFunBase(snt.Module):
             return self.forward_decoder_with_decoder
 
     @property
+    def get_metric_name(self):
+        return self._metric_names
+
+    @property
     def get_regularise_variables(self):
         return self.regularise_variables
 
@@ -134,6 +141,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self._num_classes = config["Data"][data_source]["num_classes"]
 
         super(MetaFunClassifier, self).__init__(config, no_batch, num_classes=self._num_classes, name=name)
+        self._metric_names = ["acc"] # must be in the order of metric output
 
         # Metric initialisation
         #self.metric = tf.keras.metrics.BinaryAccuracy(name="inner accuracy", dtype=self._float_dtype)
@@ -149,6 +157,16 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self.forward_local_updater = self.forward_local_updater_base()
         self.forward_decoder = self.forward_decoder_base()
         self.forward_kernel_or_attention_precompute, self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
+
+        # Deduce precompute shape of forward_kernel_or_attention_precompute
+        self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
+            keys=self.sample_tr_data,
+            values=None,
+            recompute=True,
+            precomputed=None,
+            iteration=0
+        ))
 
         # Extra internal functions
         self.predict_init()
@@ -179,12 +197,23 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         # Precompute target context interaction for kernel/attention
         precomputed = self.forward_kernel_or_attention_precompute(
             querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-            keys=data.tr_input, 
+            keys=data.tr_input,
+            recompute=tf.math.logical_not(self._indp_iter), # if not indepnedent iteration, precompute 
+            precomputed=self.precomputed_init,
             values=None)
 
         # Iterative functional updating
-        for k in tf.range(self._num_iters):
-            updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input) #return negative u
+        for k in range(self._num_iters):
+            updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input, iteration=k) #return negative u
+
+            precomputed = self.forward_kernel_or_attention_precompute(
+                querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
+                keys=data.tr_input,
+                recompute=self._indp_iter,
+                precomputed=precomputed,
+                values=None,
+                iteration=k)
+
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
                     querys=None, 
@@ -276,7 +305,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             name="lr"
         )
 
-    def gradient_local_updater(self, r, y, x=None, iteration=1):
+    def gradient_local_updater(self, r, y, x=None, iteration=0):
         """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
             tape.watch(r) #watch r
@@ -302,7 +331,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             num_iters=self._num_iters,
             indp_iter=self._indp_iter)
 
-    def neural_local_updater(self, r, y, x, iteration=1):
+    def neural_local_updater(self, r, y, x, iteration=0):
         return self._neural_local_updater(r=r, y=y, x=x, iteration=iteration)
 
     @snt.once
@@ -332,8 +361,8 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         self.se_kernel_all_init()
         self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
 
-    def se_kernel_precompute(self, querys, keys, values=None, iteration=1):
-        return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale)
+    def se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+        return self._se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale)
 
     def se_kernel_backend(self, querys, keys, precomputed, values): # use this input format for generality
         return self._se_kernel.backend(query_key=precomputed, values=values)
@@ -351,8 +380,8 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
             indp_iter=self._indp_iter
         )
 
-    def deep_se_kernel_precompute(self, querys, keys, values=None, iteration=1):
-        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
+    def deep_se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+        return self._deep_se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def deep_se_kernel_backend(self, querys, keys, precomputed, values):
         return self._deep_se_kernel.backend(query_key=precomputed, values=values)
@@ -371,9 +400,9 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
 
         self.attention = submodules.Attention(config=config, num_iters=self._num_iters, indp_iter=self._indp_iter, complete_return=False)
 
-    def attention_block_precompute(self, querys, keys, values=None, iteration=1):
+    def attention_block_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
         """dot-product kernel"""
-        return self.attention(keys=keys, querys=querys, values=values, iteration=iteration)
+        return self.attention(keys=keys, querys=querys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration)
 
     def attention_block_backend(self, querys, keys, precomputed, values):
         return self.attention.backend(weights=precomputed, values=values)
@@ -420,7 +449,7 @@ class MetaFunClassifier(MetaFunBase, snt.Module):
         # accuracy = self.metric(model_predictions, tf.squeeze(true_outputs, axis=-1))
         # self.metric.reset_state()
         accuracy = tf.cast(tf.equal(model_predictions, tf.squeeze(true_outputs, axis=-1)), dtype=self._float_dtype)
-        return self.loss_fn(model_outputs, true_outputs), accuracy
+        return self.loss_fn(model_outputs, true_outputs), [accuracy]
 
     def predict_init(self):
         """unnormalised class probabilities"""
@@ -468,6 +497,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) + [2]
         self._loss_type = config["Train"]["loss_type"]
 
+        self._metric_names = ["mse", "logprob"] # must be in the order of metric output
+
     @snt.once
     def initialise(self, data_instance):
         """initialiser variables and functions"""
@@ -479,6 +510,16 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         self.forward_local_updater = self.forward_local_updater_base()
         self.forward_decoder = self.forward_decoder_base()
         self.forward_kernel_or_attention_precompute, self.forward_kernel_or_attention = self.forward_kernel_or_attention_base()
+
+        # Deduce precompute shape of forward_kernel_or_attention_precompute
+        self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
+            keys=self.sample_tr_data,
+            values=None,
+            recompute=True,
+            precomputed=None,
+            iteration=0
+        ))
 
         # Extra internal functions
         self.predict_init()
@@ -516,12 +557,24 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         # Precompute target context interaction for kernel/attention
         precomputed = self.forward_kernel_or_attention_precompute(
             querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-            keys=data.tr_input, 
-            values=None)
+            keys=data.tr_input,
+            recompute=tf.math.logical_not(self._indp_iter),
+            precomputed=self.precomputed_init,
+            values=None,
+            iteration=0)
 
         # Iterative functional updating
-        for k in tf.range(self._num_iters):
-            updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input)
+        for k in range(self._num_iters):
+            updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input, iteration=k)
+
+            precomputed = self.forward_kernel_or_attention_precompute(
+                querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
+                keys=data.tr_input,
+                recompute=self._indp_iter,
+                precomputed=precomputed,
+                values=None,
+                iteration=k)
+
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
                     querys=None,
@@ -631,13 +684,13 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             name="lr"
         )
 
-    def gradient_local_updater(self, r, y, x=None, iteration=1):
+    def gradient_local_updater(self, r, y, x=None, iteration=0):
         """functional gradient update instead of neural update"""
         with tf.GradientTape() as tape:
             tape.watch(r)
             weights = self.forward_decoder(r)
             tr_mu, tr_sigma = self.predict(x, weights)
-            tr_loss, tr_mse = self.calculate_loss_and_metrics(target_y=y, mus=tr_mu, sigmas=tr_sigma)
+            tr_loss, _ = self.calculate_loss_and_metrics(target_y=y, mus=tr_mu, sigmas=tr_sigma)
 
             batch_tr_loss = tf.reduce_mean(tr_loss)
         loss_grad = tape.gradient(batch_tr_loss, r)
@@ -657,7 +710,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             num_iters=self._num_iters,
             indp_iter=self._indp_iter)
 
-    def neural_local_updater(self, r, y, x, iteration=1):
+    def neural_local_updater(self, r, y, x, iteration=0):
         return self._neural_local_updater(r=r, y=y, x=x, iteration=iteration)
 
     @snt.once
@@ -687,8 +740,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         self.se_kernel_all_init()
         self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
     
-    def se_kernel_precompute(self, querys, keys, values=None, iteration=1):
-        return self._se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
+    def se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+        return self._se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def se_kernel_backend(self, querys, keys, precomputed, values):
         return self._se_kernel.backend(query_key=precomputed, values=values)
@@ -706,8 +759,8 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             indp_iter=self._indp_iter
         )
 
-    def deep_se_kernel_precompute(self, querys, keys, values=None, iteration=1):
-        return self._deep_se_kernel(querys=querys, keys=keys, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
+    def deep_se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+        return self._deep_se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def deep_se_kernel_backend(self, querys, keys, precomputed, values):
         return self._deep_se_kernel.backend(query_key=precomputed, values=values)
@@ -726,9 +779,9 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         self.attention = submodules.Attention(config=config, num_iters=self._num_iters, indp_iter=self._indp_iter, complete_return=False)
 
-    def attention_block_precompute(self, querys, keys, values=None, iteration=1):
+    def attention_block_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
         """dot-product kernel"""
-        return self.attention(keys=keys, querys=querys, values=values, iteration=iteration)
+        return self.attention(keys=keys, querys=querys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration)
 
     def attention_block_backend(self, querys, keys, precomputed, values):
         return self.attention.backend(weights=precomputed, values=values)
@@ -774,19 +827,24 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         def mse_loss(target_y, mus, sigmas, coeffs=None):
             mu, sigma = mus, sigmas
             mse = self.loss_fn(mu, target_y)
-            return mse, mse
+            return mse
 
         def log_prob_loss(target_y, mus, sigmas, coeffs=None):
             mu, sigma = mus, sigmas
             dist = tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
             loss = - dist.log_prob(target_y)
-            mse = self.loss_fn(mu, target_y)
-            return loss, mse
+            return loss
+
+        def loss_and_metric(loss_fn, target_y, mus, sigmas, coeffs=None):
+            loss = loss_fn(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
+            mse = mse_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
+            logprob = - tf.math.reduce_mean(log_prob_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs), axis=1) / tf.cast(tf.shape(target_y)[1], self._float_dtype)
+            return loss, [mse, logprob]
 
         if self._loss_type == "mse":
-            self._calculate_loss_and_metrics =  mse_loss
+            self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=mse_loss)
         elif self._loss_type == "log_prob":
-            self._calculate_loss_and_metrics =  log_prob_loss
+            self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_loss)
         else:
             raise NameError("unknown loss type")
 
@@ -915,10 +973,11 @@ if __name__ == "__main__":
     tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
     @tf.function
     def trial(x, is_training=True):
-        l,_,_,_,_,_ = module2(x, is_training=is_training)
+        l,*_ = module2(x, is_training=is_training)
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")
+ 
     print(trial(data_reg, is_training=False))
     print(module2(data_reg, is_training=False)[0])
 

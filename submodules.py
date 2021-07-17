@@ -99,7 +99,7 @@ class neural_local_updater(snt.Module):
             else:
                 self.perm = [0, 1, 3, 2]
                 self.tile_dim = [1, 1, self._num_classes, 1]
-            
+
             self.call_fn = self.classification
 
         else:
@@ -118,7 +118,7 @@ class neural_local_updater(snt.Module):
 
             self.call_fn = self.regression        
 
-    def classification(self, r, y, x=None, iteration=1):
+    def classification(self, r, y, x=None, iteration=0):
         r_shape = tf.shape(r)
         r = tf.reshape(r, tf.concat([r_shape[:-1], tf.constant([self._num_classes, self._dim_reprs], dtype=tf.int32)], axis=0))
 
@@ -134,12 +134,12 @@ class neural_local_updater(snt.Module):
         outputs = outputs_t * y + outputs_f * (1-y)
         outputs = tf.reshape(outputs, shape=r_shape)
         return outputs
-    
-    def regression(self, r, y, x, iteration=1):
+
+    def regression(self, r, y, x, iteration=0):
         reprs = self.concat_fn(r, y, x)
         return self.module_list[iteration](reprs)
 
-    def __call__(self, r, y, x=None, iteration=1):
+    def __call__(self, r, y, x=None, iteration=0):
         return self.call_fn(r=r, y=y, x=x, iteration=min(self._num_iters-1, iteration))
 
 
@@ -278,7 +278,7 @@ class Attention(snt.Module):
                 w_init=self.initialiser,
                 with_bias=True,
                 activation=self._nonlinearity,
-                name="deep_attention"
+                name="deep_attention".format(i)
                 ) for i in range(self._num_iters)]
 
         if self._att_type != tf.constant("dot_product",tf.string):
@@ -298,8 +298,11 @@ class Attention(snt.Module):
             self.call_fn_backend = lambda weights, values: weights
 
 
-    def __call__(self, keys, querys, values=None, iteration=1):
-        weights = self.call_fn_frontend(keys=keys, querys=querys, iteration=min(self._num_iters-1, iteration))
+    def __call__(self, keys, querys, recompute, precomputed, values=None, iteration=0):
+        if recompute:
+            weights = self.call_fn_frontend(keys=keys, querys=querys, iteration=min(self._num_iters-1, iteration))
+        else:
+            weights = precomputed
         return self.call_fn_backend(weights=weights, values=values)
 
     def backend(self, weights, values):
@@ -332,8 +335,11 @@ class squared_exponential_kernel(snt.Module):
         else:
             self.call_fn_backend = lambda query_key, values: query_key
 
-    def __call__(self, querys, keys, sigma, lengthscale, values=None):
-        query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+    def __call__(self, querys, keys, sigma, lengthscale, recompute, precomputed, values=None, iteration=0):
+        if recompute:
+            query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale)
+        else:
+            query_key = precomputed
         return self.call_fn_backend(query_key=query_key, values=values)
 
     def backend(self, query_key, values):
@@ -352,7 +358,7 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
             w_init=initialiser,
             with_bias=True,
             activation=nonlinearity,
-            name="deep_se_kernel"
+            name="deep_se_kernel_{}".format(i)
         ) for i in range(self._num_iters)]
 
         self.call_fn_frontend = lambda querys, keys, sigma, lengthscale, iteration: squared_exponential_kernel_frontend_fn(
@@ -363,8 +369,11 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
         else:
             self.call_fn_backend = lambda query_key, values: query_key
 
-    def __call__(self, querys, keys, sigma, lengthscale, values=None, iteration=1):
-        query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale, iteration=min(self._num_iters-1, iteration))
+    def __call__(self, querys, keys, sigma, lengthscale, recompute, precomputed, values=None, iteration=0):
+        if recompute:
+            query_key = self.call_fn_frontend(querys=querys, keys=keys, sigma=sigma, lengthscale=lengthscale, iteration=min(self._num_iters-1, iteration))
+        else:
+            query_key = precomputed
         return self.call_fn_backend(query_key=query_key, values=values)
 
     def backend(self, query_key, values):
