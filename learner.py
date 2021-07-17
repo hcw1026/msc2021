@@ -18,8 +18,6 @@ from datetime import datetime
 class BaseLearner():
 
     def __init__(self, config, model, name="CLearner", model_name=None):
-        self.eval_metric_type = "acc"
-
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
         
@@ -645,8 +643,6 @@ class GPLearner(BaseLearner):
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype)),)
 
         self.description = RegressionDescription
-
-        self.eval_metric_type = "mse"
 
     def load_data_from_provider(self, dataprovider=gp_provider, kernel_name=None, load_type="all", custom_kernels=None, custom_kernels_merge=False):
         """load data from dataprovider"""
