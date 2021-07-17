@@ -11,7 +11,7 @@ Data:
     n_samples: 50000
     proba_uniform: 0
     range_indcs: null
-    save_path: /data/ziz/chho/msc2021/Data/gp/gp_dataset.hdf5
+    save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
     shuffle: false
     test_n_samples: 10000
     train_indp_target: false
@@ -66,7 +66,7 @@ Train:
     early_stop: true
     early_stop_if_increase: true
     early_stop_min_delta: 0
-    early_stop_monitor: metric
+    early_stop_monitor: mse
     early_stop_patience: 10
     early_stop_reset: false
   epoch: 1000
