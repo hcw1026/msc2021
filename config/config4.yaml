@@ -66,12 +66,12 @@ Train:
     early_stop: true
     early_stop_if_increase: true
     early_stop_min_delta: 0
-    early_stop_monitor: logprob
+    early_stop_monitor: mse
     early_stop_patience: 10
     early_stop_reset: false
-  epoch: 100
-  loss_type: logprob
-  lr: 0.005
+  epoch: 1000
+  loss_type: log_prob
+  lr: 0.0005
   num_per_epoch: 50000
   print_freq: 100
   save:
