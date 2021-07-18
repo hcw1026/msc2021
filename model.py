@@ -839,7 +839,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         def loss_and_metric(loss_fn, target_y, mus, sigmas, coeffs=None):
             loss = loss_fn(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
             mse = mse_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
-            if tf.shape(target_y)[-1] != tf.constant(0, dtype=tf.int32): # to avoid nan when computing metrics
+            if tf.shape(target_y)[-2] != tf.constant(0, dtype=tf.int32): # to avoid nan when computing metrics
                 logprob = - tf.math.reduce_mean(log_prob_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs), axis=-1, keepdims=True)
             else:
                 logprob = target_y[...,0] #empty shape
