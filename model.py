@@ -717,7 +717,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
     def se_kernel_all_init(self):
         # Kernel sigma
         self.sigma = tf.Variable(
-            initial_value=tf.constant_initializer(1.0)(
+            initial_value=tf.constant_initializer(self._kernel_sigma_init)(
                 shape=(),
                 dtype=self._float_dtype
             ),
@@ -727,7 +727,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
 
         # Kernel lengthscale
         self.lengthscale = tf.Variable(
-            initial_value=tf.constant_initializer(1.0)(
+            initial_value=tf.constant_initializer(self._kernel_lengthscale_init)(
                 shape=(),
                 dtype=self._float_dtype
             ),
@@ -838,12 +838,15 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
         def loss_and_metric(loss_fn, target_y, mus, sigmas, coeffs=None):
             loss = loss_fn(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
             mse = mse_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs)
-            logprob = - tf.math.reduce_mean(log_prob_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs), axis=1) / tf.cast(tf.shape(target_y)[1], self._float_dtype)
+            if tf.shape(target_y)[-1] == tf.constant(0, dtype=tf.int32): # to avoid nan when computing metrics
+                logprob = - tf.math.reduce_mean(log_prob_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs), axis=-1, keepdims=True)
+            else:
+                logprob = target_y
             return loss, [mse, logprob]
 
         if self._loss_type == "mse":
             self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=mse_loss)
-        elif self._loss_type == "log_prob":
+        elif self._loss_type == "logprob":
             self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_loss)
         else:
             raise NameError("unknown loss type")

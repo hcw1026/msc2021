@@ -791,10 +791,10 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
-    mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
-    mylearner.load_data_from_provider(dataprovider=imagenet_provider)
-    mylearner.train()
-    mylearner.test(20)
+    # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
+    # mylearner.load_data_from_provider(dataprovider=imagenet_provider)
+    # mylearner.train()
+    # mylearner.test(20)
 
 
     from data.gp_regression import DataProvider as gp_provider

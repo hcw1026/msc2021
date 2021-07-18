@@ -278,7 +278,7 @@ class Attention(snt.Module):
                 w_init=self.initialiser,
                 with_bias=True,
                 activation=self._nonlinearity,
-                name="deep_attention".format(i)
+                name="deep_attention_{}".format(i)
                 ) for i in range(self._num_iters)]
 
         if self._att_type != tf.constant("dot_product",tf.string):
