@@ -150,6 +150,35 @@ def Experiment_3e():
     return output_dict
 
 
+def Experiment_4a():
+    output_dict = Experiment_3a()
+    output_dict["config_name"] = "config4"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_4b():
+    output_dict = Experiment_3b()
+    output_dict["config_name"] = "config4"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_4c():
+    output_dict = Experiment_3c()
+    output_dict["config_name"] = "config4"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_4d():
+    output_dict = Experiment_3d()
+    output_dict["config_name"] = "config4"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob"
+    return output_dict
+
+def Experiment_4e():
+    output_dict = Experiment_3e()
+    output_dict["config_name"] = "config4"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
+    return output_dict
 
 ############################################################################################################################
 # Classification
