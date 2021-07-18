@@ -842,7 +842,7 @@ class MetaFunRegressor(MetaFunBase, snt.Module):
             if tf.shape(target_y)[-1] != tf.constant(0, dtype=tf.int32): # to avoid nan when computing metrics
                 logprob = - tf.math.reduce_mean(log_prob_loss(target_y=target_y, mus=mus, sigmas=sigmas, coeffs=coeffs), axis=-1, keepdims=True)
             else:
-                logprob = target_y #empty shape
+                logprob = target_y[...,0] #empty shape
             return loss, [mse, logprob]
 
         if self._loss_type == "mse":
