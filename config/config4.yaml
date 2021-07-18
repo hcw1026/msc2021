@@ -64,7 +64,7 @@ Train:
   drop_remainder: false
   early_stop:
     early_stop: true
-    early_stop_if_increase: true
+    early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob
     early_stop_patience: 10
