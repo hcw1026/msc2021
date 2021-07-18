@@ -70,7 +70,7 @@ Train:
     early_stop_patience: 10
     early_stop_reset: false
   epoch: 1000
-  loss_type: log_prob
+  loss_type: logprob
   lr: 0.0001
   num_per_epoch: 50000
   print_freq: 100
