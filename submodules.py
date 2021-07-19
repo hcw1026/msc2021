@@ -1,5 +1,6 @@
-import tensorflow as tf
+import math
 import sonnet as snt
+import tensorflow as tf
 
 
 #################################################################################
@@ -474,3 +475,31 @@ class custom_MLP(snt.Module):
         preds = tf.linalg.matvec(w, preds, transpose_a=True) + b
         return preds
 
+
+#################################################################################
+# Fourier Features
+#################################################################################
+
+class FourierFeatures(snt.Module):
+    def __init__(self, stddev_init, embedding_dim, num_freq, learnable, num_iters, indp_iter, float_dtype=tf.float32, name="fourier_features"):
+        super(FourierFeatures, self).__init__(name=name)
+        self._num_iters = num_iters if indp_iter else 1
+
+        if learnable:
+            self.freq_mat = [tf.Variable(
+                initial_value=tf.random.normal(shape=[embedding_dim, num_freq], mean=0, stddev=stddev_init, dtype=float_dtype), 
+                trainable=True, 
+                name=name+"_"+str(i)) for i in range(self._num_iters)]
+        else:
+            self.freq_mat = [tf.random.normal(shape=[embedding_dim, num_freq], mean=0, stddev=stddev_init, dtype=float_dtype, name=name+"_"+str(i)) for i in range(self._num_iters)]
+
+        self.embedding_dim = 2 * num_freq
+
+    def __call__(self, X, recompute, precomputed, iteration=0):
+        if recompute:
+            X_tr = tf.linalg.matmul(X, self.freq_mat[min(self._num_iters-1, iteration)])
+            cos_tr = tf.math.cos(2 * math.pi * X_tr)
+            sin_tr = tf.math.sin(2* math.pi * X_tr)
+            return tf.concat([cos_tr, sin_tr], axis=-1)
+        else:
+            return precomputed
