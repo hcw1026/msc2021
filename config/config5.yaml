@@ -41,7 +41,7 @@ Model:
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    indp_iter: false
+    indp_iter: true
     initial_state_type: parametric
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
@@ -50,12 +50,12 @@ Model:
     no_decoder: false
     repr_as_inputs: false
     use_gradient: false
-    use_kernel: false
+    use_kernel: true
   ff:
     learnable: false
     num_freq: 10
     stddev_init: 10
-    use_ff: false
+    use_ff: true
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false
@@ -69,12 +69,12 @@ Train:
   drop_remainder: false
   early_stop:
     early_stop: true
-    early_stop_if_increase: true
+    early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: metric
+    early_stop_monitor: logprob
     early_stop_patience: 10
     early_stop_reset: false
-  epoch: 1000
+  epoch: 100
   loss_type: logprob
   lr: 0.0001
   num_per_epoch: 50000

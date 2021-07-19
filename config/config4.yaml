@@ -51,6 +51,11 @@ Model:
     repr_as_inputs: false
     use_gradient: false
     use_kernel: false
+  ff:
+    learnable: false
+    num_freq: 10
+    stddev_init: 10
+    use_ff: false
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false
