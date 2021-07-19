@@ -929,11 +929,11 @@ class MetaFunRegressor(MetaFunBase):
 class MetaFunBaseV2(MetaFunBase):
     def __init__(self, config, no_batch, num_classes=1, name="MetaFunV2", **kwargs):
         super(MetaFunBaseV2, self).__init__(config=config, no_batch=no_batch, num_classes=num_classes, name=name)
-        _config = config["Model"]["comp"]
+        _config = config["Model"]["ff"]
         self._use_ff = _config["use_ff"]
-        self._ff_stddev_init = _config["ff_stddev_init"]
-        self._ff_num_freq = _config["ff_num_freq"]
-        self._ff_learnable = _config["ff_learnable"]
+        self._ff_stddev_init = _config["stddev_init"]
+        self._ff_num_freq = _config["num_freq"]
+        self._ff_learnable = _config["learnable"]
 
     @snt.once
     def additional_initialise(self, data_instance):
