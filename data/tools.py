@@ -3,6 +3,7 @@ import tensorflow as tf
 import collections
 import enum
 from functools import partial
+from itertools import cycle
 
 import os
 import h5py
@@ -98,7 +99,7 @@ class DatasetMerger():
         datasets = copy.deepcopy(datasets)
         self.datasets_names, self.datasets = list(zip(*datasets.items()))
         self.cumul_len = np.cumsum([len(d) for d in self.datasets])
-        self.shuffle_map = np.random.permutation(np.arange(self.cumul_len[-1]))
+        self.shuffle_map = cycle(np.random.permutation(np.arange(self.cumul_len[-1])))
         self.shuffle = shuffle
 
     def __getitem__(self, index):
@@ -106,7 +107,8 @@ class DatasetMerger():
             index = index // self.cumul_len[-1] # allow generator dataset
         
         if self.shuffle:
-            index = self.shuffle_map[index]
+            #index = self.shuffle_map[index]
+            index = next(self.shuffle_map)
 
         idx_dataset = self.cumul_len.searchsorted(index + 1)  # + 1 because of 0 index
         idx_in_dataset = index
