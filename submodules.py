@@ -485,14 +485,10 @@ class FourierFeatures(snt.Module):
         super(FourierFeatures, self).__init__(name=name)
         self._num_iters = num_iters if indp_iter else 1
 
-        if learnable:
-            self.freq_mat = [tf.Variable(
-                initial_value=tf.random.normal(shape=[embedding_dim, num_freq], mean=0, stddev=stddev_init, dtype=float_dtype), 
-                trainable=True, 
-                name=name+"_"+str(i)) for i in range(self._num_iters)]
-        else:
-            self.freq_mat = [tf.random.normal(shape=[embedding_dim, num_freq], mean=0, stddev=stddev_init, dtype=float_dtype, name=name+"_"+str(i)) for i in range(self._num_iters)]
-
+        self.freq_mat = [tf.Variable(
+            initial_value=tf.random.normal(shape=[embedding_dim, num_freq], mean=0, stddev=stddev_init, dtype=float_dtype), 
+            trainable=learnable, 
+            name=name+"_"+str(i)) for i in range(self._num_iters)]
         self.embedding_dim = 2 * num_freq
 
     def __call__(self, X, recompute, precomputed, iteration=0):
