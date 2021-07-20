@@ -183,6 +183,74 @@ def Experiment_4e():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob"
     return output_dict
 
+
+
+#### Experiment 5 ##########################################################################################################
+
+def Experiment_5a():
+    output_dict = Experiment_1a()
+    output_dict["config_name"] = "config5"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_5b():
+    output_dict = Experiment_1b()
+    output_dict["config_name"] = "config5"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_5c():
+    output_dict = Experiment_1c()
+    output_dict["config_name"] = "config5"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_5d():
+    output_dict = Experiment_1d()
+    output_dict["config_name"] = "config5"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_5e():
+    output_dict = Experiment_1e()
+    output_dict["config_name"] = "config5"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+
+
+#### Experiment 6 ##########################################################################################################
+
+def Experiment_6a():
+    output_dict = Experiment_3a()
+    output_dict["config_name"] = "config6"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_6b():
+    output_dict = Experiment_3b()
+    output_dict["config_name"] = "config6"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_6c():
+    output_dict = Experiment_3c()
+    output_dict["config_name"] = "config6"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_6d():
+    output_dict = Experiment_3d()
+    output_dict["config_name"] = "config6"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_6e():
+    output_dict = Experiment_3e()
+    output_dict["config_name"] = "config6"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################
