@@ -170,6 +170,13 @@ class DataProvider():
         if isinstance(dataset, DatasetMerger):
             X = tf.concat([d[:][0] for d in dataset.datasets], axis=0)
             y = tf.concat([d[:][1] for d in dataset.datasets], axis=0)
+
+            # mix indices
+            indices = tf.range(start=0, limit=tf.shape(X)[0], dtype=tf.int32)
+            indices = tf.random.shuffle(indices)
+
+            X = tf.gather(X, indices)
+            y = tf.gather(y, indices)
         else:
             X, y = dataset[:]
 
