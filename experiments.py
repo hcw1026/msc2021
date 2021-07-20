@@ -252,7 +252,7 @@ def Experiment_5e():
 #### Experiment 6 ##########################################################################################################
 
 def Experiment_6a():
-    output_dict = Experiment_6a()
+    output_dict = Experiment_5a()
     output_dict["config_name"] = "config6"
     output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable"
     return output_dict
