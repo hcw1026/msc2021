@@ -332,6 +332,36 @@ def Experiment_cls1d(): #imagenet experiments
 
 
 
+#### Experiment cls2 ##########################################################################################################
+
+def Experiment_cls2a(): #imagenet experiments
+
+    output_dict = Experiment_cls1a()
+    output_dict["config_name"] = "config_cls2"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-1-shot (almost exact same)"
+    return output_dict
+
+def Experiment_cls2b(): #imagenet experiments
+
+    output_dict = Experiment_cls1a()
+    output_dict["config_name"] = "config_cls2b"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-1-shot (almost exact same)"
+    return output_dict
+
+def Experiment_cls2c(): #imagenet experiments
+
+    output_dict = Experiment_cls1a()
+    output_dict["config_name"] = "config_cls2c"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-1-shot (almost exact same)"
+    return output_dict
+
+def Experiment_cls2d(): #imagenet experiments
+
+    output_dict = Experiment_cls1a()
+    output_dict["config_name"] = "config_cls2d"
+    output_dict["other"]["info"] = "MetaFunClassifier on tieredimagenet with attention and neural update 5-way-1-shot (almost exact same)"
+    return output_dict
+
 ############################################################################################################################
 # Debug
 ############################################################################################################################
