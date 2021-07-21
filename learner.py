@@ -517,7 +517,7 @@ class BaseLearner():
                 with self.strategy.scope():
                     model_instance = self._initialise(model=self.model_dupl, data=self.test_data)
                 #model_instance = self._initialise_model(model=self.model_dupl)
-                checkpoint_path = self._ckpt_save_dir      
+            checkpoint_path = self._ckpt_save_dir      
 
         return utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, current_time=self.test_time, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt=use_exact_ckpt, **kwargs)
 
