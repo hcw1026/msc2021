@@ -93,6 +93,7 @@ class BaseLearner():
         self.has_train = False
         self.epoch_start = 0
         self.epoch_end = 0
+        self.latest_ckpt_path = None
 
         # Setup (multi-)GPU training
         if self._gpu is not None:
@@ -466,9 +467,9 @@ class BaseLearner():
 
     def _save_checkpoint(self):
         # Save checkpoint
-        path = self.ckpt_manager.save(checkpoint_number=self.epoch_counter)
+        self.latest_ckpt_path = self.ckpt_manager.save(checkpoint_number=self.epoch_counter)
         print()
-        print("checkpoint is saved to ",path)
+        print("checkpoint is saved to ", self.latest_ckpt_path)
 
         #save config
         dest_dir = os.path.join(self._ckpt_save_dir, "config")
@@ -510,14 +511,15 @@ class BaseLearner():
         else: # if checkpoint_path is not provided, determine if using exact checkpoint path
             if use_exact_ckpt: # does not require checkpoint restore
                 if self.has_train:
-                    model_instance = self.model           
+                    model_instance = self.model
+                    checkpoint_path = self.latest_ckpt_path      
                 else:
                     raise Exception("The model has not been trained and no checkpoint_path is given")
             else:
                 with self.strategy.scope():
                     model_instance = self._initialise(model=self.model_dupl, data=self.test_data)
                 #model_instance = self._initialise_model(model=self.model_dupl)
-            checkpoint_path = self._ckpt_save_dir      
+                checkpoint_path = self._ckpt_save_dir      
 
         return utils.test(checkpoint_path=checkpoint_path, testloop=self._testloop, model_instance=model_instance, test_data=self.test_data, test_size=test_size, current_time=self.test_time, result_save_dir=result_save_dir, result_save_filename=result_save_filename, use_exact_ckpt=use_exact_ckpt, **kwargs)
 
