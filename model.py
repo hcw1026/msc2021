@@ -1216,26 +1216,26 @@ if __name__ == "__main__":
 
 
 
-    # print("Classification")
-    # from data.leo_imagenet import DataProvider
-    # module = MetaFunClassifier(config=config)
-    # dataloader = DataProvider("trial", config)
-    # dat = dataloader.generate()
-    # for i in dat.take(1):
-    #     module.initialise(i)
+    print("Classification")
+    from data.leo_imagenet import DataProvider
+    module = MetaFunClassifier(config=config)
+    dataloader = DataProvider("trial", config)
+    dat = dataloader.generate()
+    for i in dat.take(1):
+        module.initialise(i)
 
-    # @tf.function
-    # def trial(x, is_training=tf.constant(True,tf.bool)):
-    #     l,_,_,_ = module(x, is_training=is_training)
-    #     return l
+    @tf.function
+    def trial(x, is_training=tf.constant(True,tf.bool)):
+        l,_,_,_ = module(x, is_training=is_training)
+        return l
 
-    # print("DEBUGGGGGGGGGGGGGGG")
-    # for i in dat.take(1):
-    #     print(trial(i, is_training=False))
-    #     print(module(i, is_training=False)[0])
+    print("DEBUGGGGGGGGGGGGGGG")
+    for i in dat.take(1):
+        print(trial(i, is_training=False))
+        print(module(i, is_training=False)[0])
 
-    # trial(i, is_training=True)
-    # module(i, is_training=True)[0]
+    trial(i, is_training=True)
+    module(i, is_training=True)[0]
 
 
     # print("Regression")
@@ -1266,54 +1266,54 @@ if __name__ == "__main__":
     # print(trial(data_reg, is_training=False))
     # print(module2(data_reg, is_training=False)[0])
 
-    print("Classification")
-    from data.leo_imagenet import DataProvider
-    module = MetaFunClassifierV2(config=config)
-    dataloader = DataProvider("trial", config)
-    dat = dataloader.generate()
-    for i in dat.take(1):
-        module.initialise(i)
+    # print("Classification")
+    # from data.leo_imagenet import DataProvider
+    # module = MetaFunClassifierV2(config=config)
+    # dataloader = DataProvider("trial", config)
+    # dat = dataloader.generate()
+    # for i in dat.take(1):
+    #     module.initialise(i)
 
-    @tf.function
-    def trial(x, is_training=tf.constant(True,tf.bool)):
-        l,_,_,_ = module(x, is_training=is_training)
-        return l
+    # @tf.function
+    # def trial(x, is_training=tf.constant(True,tf.bool)):
+    #     l,_,_,_ = module(x, is_training=is_training)
+    #     return l
 
-    print("DEBUGGGGGGGGGGGGGGG")
-    for i in dat.take(1):
-        print(trial(i, is_training=False))
-        print(module(i, is_training=False)[0])
+    # print("DEBUGGGGGGGGGGGGGGG")
+    # for i in dat.take(1):
+    #     print(trial(i, is_training=False))
+    #     print(module(i, is_training=False)[0])
 
-    trial(i, is_training=True)
-    module(i, is_training=True)[0]
+    # trial(i, is_training=True)
+    # module(i, is_training=True)[0]
 
 
-    print("Regression")
-    module2 = MetaFunRegressorV2(config=config)
-    ClassificationDescription = collections.namedtuple(
-    "ClassificationDescription",
-    ["tr_input", "tr_output", "val_input", "val_output"])
+    # print("Regression")
+    # module2 = MetaFunRegressorV2(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
     
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
 
-    module2.initialise(data_reg)
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
-    @tf.function
-    def trial(x, is_training=True):
-        l,*_ = module2(x, is_training=is_training)
-        return l
+    # module2.initialise(data_reg)
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # @tf.function
+    # def trial(x, is_training=True):
+    #     l,*_ = module2(x, is_training=is_training)
+    #     return l
 
-    print("DEBUGGGGGGGGGGGGGGG")
+    # print("DEBUGGGGGGGGGGGGGGG")
  
-    print(trial(data_reg, is_training=False))
-    print(module2(data_reg, is_training=False)[0])
+    # print(trial(data_reg, is_training=False))
+    # print(module2(data_reg, is_training=False)[0])
 
 

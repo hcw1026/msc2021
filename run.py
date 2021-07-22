@@ -118,7 +118,7 @@ if __name__ == "__main__":
                 config["Train"]["save"]["ckpt_save_dir"] = args.ckpt_train_save_dir
             if args.ckpt_train_restore_path:
                 config["Train"]["save"]["ckpt_restore_path"] = args.ckpt_train_restore_path
-            config["Train"]["save"]["restore_from_ckpt"] = args.restore_from_checkpoint
+            config["Train"]["save"]["restore_from_ckpt"] = args.restore_from_checkpoint | config["Train"]["save"]["restore_from_ckpt"]
 
             # Data loading
             exp_dict_data = exp_dict.get("data")
