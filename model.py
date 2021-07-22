@@ -484,7 +484,7 @@ class MetaFunClassifier(MetaFunBase):
         """binary cross entropy"""
         original_classes = tf.squeeze(original_classes, axis=-1)
         one_hot_outputs = tf.one_hot(original_classes, depth=self._num_classes) #TODO: move onehot to data preprocessing
-        return tf.keras.losses.BinaryCrossentropy(
+        return tf.keras.losses.CategoricalCrossentropy(
             from_logits=True,
             label_smoothing=self._label_smoothing,
             reduction=tf.keras.losses.Reduction.NONE)(
