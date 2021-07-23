@@ -5,7 +5,7 @@ import sys
 import torch
 
 npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
-is_retrain = False
+is_retrain = True
 reval = True
 is_reuse_across_epochs = True
 starting_run = 1
