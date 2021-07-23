@@ -281,6 +281,40 @@ def Experiment_6e():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable"
     return output_dict
 
+
+
+#### Experiment 7 ##########################################################################################################
+
+def Experiment_7a():
+    output_dict = Experiment_5a()
+    output_dict["config_name"] = "config7"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable, reuse_across_epochs"
+    return output_dict
+
+def Experiment_7b():
+    output_dict = Experiment_5b()
+    output_dict["config_name"] = "config7"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable, reuse_across_epochs"
+    return output_dict
+
+def Experiment_7c():
+    output_dict = Experiment_5c()
+    output_dict["config_name"] = "config7"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable, reuse_across_epochs"
+    return output_dict
+
+def Experiment_7d():
+    output_dict = Experiment_5d()
+    output_dict["config_name"] = "config7"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 10 and stddev 10 non-trainable, reuse_across_epochs"
+    return output_dict
+
+def Experiment_7e():
+    output_dict = Experiment_5e()
+    output_dict["config_name"] = "config7"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, reuse_across_epochs"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################
