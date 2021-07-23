@@ -6,6 +6,7 @@ import torch
 
 npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
 is_retrain = True
+reval = True
 
 sys.path.remove(os.path.dirname(os.path.realpath(__file__)))
 if npf_path not in sys.path:
@@ -28,7 +29,7 @@ from utils.train import train_models
 
 
 
-gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(is_save=False)
+gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=None)
 get_cntxt_trgt_1d = cntxt_trgt_collate(
     CntxtTrgtGetter(
         contexts_getter=GetRandomIndcs(a=0.0, b=50), targets_getter=get_all_indcs,
@@ -260,7 +261,7 @@ for trainers_name, trainers in all_trainers.items():
         dataset = gp_test_datasets[data_name]
 
         savepath = os.path.join(save_dir, data_name+"_"+model_name) + ".npz"
-        if not os.path.isfile(savepath):
+        if not os.path.isfile(savepath) and (not reval):
             if isinstance(dataset, DatasetMerger):
                 X_all = torch.cat([d[:][0] for d in dataset.datasets], dim=0)
                 y_all = torch.cat([d[:][1] for d in dataset.datasets], dim=0)
