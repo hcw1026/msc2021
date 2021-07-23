@@ -33,16 +33,16 @@ Eval:
 GPU: 0
 Model:
   arch:
-    dim_reprs: 64
+    dim_reprs: 128
     embedding_layers: 1
     nn_layers: 2
-    nn_size: 64
-    num_iters: 4
+    nn_size: 128
+    num_iters: 3
   comp:
     attention_type: dot_product
     deterministic_decoder: false
     indp_iter: false
-    initial_state_type: parametric
+    initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
     kernel_type: deep_se
@@ -57,13 +57,13 @@ Model:
     stddev_init: 10
     use_ff: false
   other:
-    initial_inner_lr: 0.1
+    initial_inner_lr: 1.0
     repr_as_inputs: false
   reg:
-    dropout_rate: 0.115
-    l2_penalty_weight: 4.9e-09
+    dropout_rate: 0.123
+    l2_penalty_weight: 1.92e-09
     label_smoothing: 0.1
-    orthogonality_penalty_weight: 0.000106
+    orthogonality_penalty_weight: 0.00137
 Train:
   batch_size: 12
   drop_remainder: false
@@ -72,11 +72,11 @@ Train:
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: metric
-    early_stop_patience: 6
+    early_stop_patience: 45
     early_stop_reset: false
-  epoch: 60
+  epoch: 45
   loss_type: null
-  lr: 8.01e-05
+  lr: 5.55e-05
   num_per_epoch: 2000
   print_freq: 200
   save:

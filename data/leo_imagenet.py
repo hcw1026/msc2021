@@ -211,7 +211,7 @@ class DataProvider():
             embedding_array = np.array([[embeddings[image_path] for image_path in class_paths] for class_paths in path_array]) #with shape num_classes*sample_count*NDIM
 
             # Normalise and split into inner training and validations datasets
-            #embedding_array /= np.linalg.norm(embedding_array, axis=-1,keepdims=True)
+            embedding_array /= np.linalg.norm(embedding_array, axis=-1,keepdims=True)
 
             tr_input, val_input = np.split(embedding_array, [self._tr_size], axis=1)
             tr_output, val_output = np.split(label_array, [self._tr_size], axis=1)

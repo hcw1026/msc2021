@@ -37,12 +37,12 @@ Model:
     embedding_layers: 1
     nn_layers: 3
     nn_size: 128
-    num_iters: 4
+    num_iters: 5
   comp:
     attention_type: dot_product
     deterministic_decoder: false
     indp_iter: false
-    initial_state_type: parametric
+    initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
     kernel_type: deep_se
@@ -57,13 +57,13 @@ Model:
     stddev_init: 10
     use_ff: false
   other:
-    initial_inner_lr: 0.1
+    initial_inner_lr: 1.0
     repr_as_inputs: false
   reg:
-    dropout_rate: 0.148
-    l2_penalty_weight: 6.22e-09
-    label_smoothing: 0.1
-    orthogonality_penalty_weight: 0.00733
+    dropout_rate: 0.223
+    l2_penalty_weight: 1.63e-09
+    label_smoothing: 0.0
+    orthogonality_penalty_weight: 0.00258
 Train:
   batch_size: 12
   drop_remainder: false
@@ -72,11 +72,11 @@ Train:
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: metric
-    early_stop_patience: 10
+    early_stop_patience: 48
     early_stop_reset: false
-  epoch: 60
+  epoch: 48
   loss_type: null
-  lr: 4.5e-05
+  lr: 5.78e-05
   num_per_epoch: 2000
   print_freq: 200
   save:
