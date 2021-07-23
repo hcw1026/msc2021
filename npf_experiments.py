@@ -7,6 +7,9 @@ import torch
 npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
 is_retrain = True
 reval = True
+is_reuse_across_epoch = True
+starting_run = 1
+
 
 sys.path.remove(os.path.dirname(os.path.realpath(__file__)))
 if npf_path not in sys.path:
@@ -29,7 +32,7 @@ from utils.train import train_models
 
 
 
-gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=None)
+gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=None, is_reuse_across_epoch=is_reuse_across_epoch)
 get_cntxt_trgt_1d = cntxt_trgt_collate(
     CntxtTrgtGetter(
         contexts_getter=GetRandomIndcs(a=0.0, b=50), targets_getter=get_all_indcs,
@@ -85,6 +88,7 @@ def CNP_():
         iterator_train__collate_fn=get_cntxt_trgt_1d,
         iterator_valid__collate_fn=get_cntxt_trgt_1d,
         max_epochs=100,
+        starting_run=starting_run,
         **KWARGS
     )
     return trainers_1d
@@ -135,6 +139,7 @@ def AttnCNP_():
         iterator_train__collate_fn=get_cntxt_trgt_1d,
         iterator_valid__collate_fn=get_cntxt_trgt_1d,
         max_epochs=100,
+        starting_run=starting_run,
         **KWARGS
     )
 
@@ -194,6 +199,7 @@ def ConvCNP_():
         iterator_train__collate_fn=get_cntxt_trgt_1d,
         iterator_valid__collate_fn=get_cntxt_trgt_1d,
         max_epochs=100,
+        starting_run=starting_run,
         **KWARGS
     )
 
