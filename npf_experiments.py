@@ -7,7 +7,7 @@ import torch
 npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
 is_retrain = False
 reval = True
-is_reuse_across_epoch = True
+is_reuse_across_epochs = True
 starting_run = 1
 
 
@@ -32,7 +32,7 @@ from utils.train import train_models
 
 
 
-gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=None, is_reuse_across_epoch=is_reuse_across_epoch)
+gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=None, is_reuse_across_epochs=is_reuse_across_epochs)
 get_cntxt_trgt_1d = cntxt_trgt_collate(
     CntxtTrgtGetter(
         contexts_getter=GetRandomIndcs(a=0.0, b=50), targets_getter=get_all_indcs,
