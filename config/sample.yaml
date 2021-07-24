@@ -49,6 +49,7 @@ Model:
     neural_updater_concat_x: true
     no_decoder: false
     reprs_as_inputs: false
+    stddev_const_scale: 0.1
     use_gradient: false
     use_kernel: false
   ff:
