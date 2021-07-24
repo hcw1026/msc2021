@@ -425,19 +425,19 @@ def Experiment_9diii():
     output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 5 and stddev 10 non-trainable"
     return output_dict
 
-def Experiment_9a():
+def Experiment_9e():
     output_dict = Experiment_5a()
     output_dict["config_name"] = "config9e"
     output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 50 and stddev 10 non-trainable"
     return output_dict
 
-def Experiment_9aii():
+def Experiment_9eii():
     output_dict = Experiment_5b()
     output_dict["config_name"] = "config9e"
     output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 50 and stddev 10 non-trainable"
     return output_dict
 
-def Experiment_9aiii():
+def Experiment_9eiii():
     output_dict = Experiment_5d()
     output_dict["config_name"] = "config9e"
     output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, attention, logprob, with fourier features size 50 and stddev 10 non-trainable"
