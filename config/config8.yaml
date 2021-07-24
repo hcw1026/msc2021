@@ -49,7 +49,7 @@ Model:
     neural_updater_concat_x: true
     no_decoder: false
     repr_as_inputs: false
-    stddev_const_scale: 0.1
+    stddev_const_scale: 0.01
     use_gradient: false
     use_kernel: true
   ff:
@@ -69,7 +69,7 @@ Train:
   batch_size: 32
   drop_remainder: false
   early_stop:
-    early_stop: false
+    early_stop: true
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob

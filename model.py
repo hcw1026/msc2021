@@ -59,6 +59,7 @@ class MetaFunBase(snt.Module):
         self._num_classes = num_classes
         self._repr_as_inputs = config["Model"]["comp"]["repr_as_inputs"]
         self._neural_updater_concat_x = config["Model"]["comp"]["neural_updater_concat_x"]
+        self._stddev_const_scale = config["Model"]["comp"]["stddev_const_scale"]
 
         # Define metric
         self._metric_names = []
@@ -893,7 +894,7 @@ class MetaFunRegressor(MetaFunBase):
         
         def _split(preds):
             mu, log_sigma = tf.split(preds, 2, axis=-1)
-            sigma = 0.1 + 0.9 * tf.nn.softplus(log_sigma)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
             return mu, sigma
 
         if self._no_decoder:

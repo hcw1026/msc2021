@@ -5,7 +5,7 @@ import sys
 import torch
 
 npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
-is_retrain = True
+is_retrain = False
 reval = True
 is_reuse_across_epochs = True
 starting_run = 1
@@ -255,7 +255,7 @@ getter = CntxtTrgtGetter(
 
 batch_size = 32
 n_points = 128
-save_dir = os.path.join(os.path.dirname(os.path.dirname(npf_path)), "Training/NP_experiments")
+save_dir = os.path.join(os.path.dirname(os.path.dirname(npf_path)), "Training/NP_experiments{}".format(starting_run))
 
 all_trainers = {"CNP":CNP_(), "AttnCNP":AttnCNP_(), "ConvCNP":ConvCNP_()}
 
