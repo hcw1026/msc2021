@@ -9,6 +9,7 @@ is_retrain = True
 reval = True
 is_reuse_across_epochs = True
 starting_run = 1
+is_valid = True
 
 
 sys.path.remove(os.path.dirname(os.path.realpath(__file__)))
@@ -84,9 +85,11 @@ def CNP_():
         gp_datasets,
         {"CNP": model_1d},
         test_datasets=gp_test_datasets,
+        valid_datasets=gp_valid_datasets if is_valid else None,
         train_split=None,  # No need of validation as the training data is generated on the fly
         iterator_train__collate_fn=get_cntxt_trgt_1d,
-        iterator_valid__collate_fn=get_cntxt_trgt_1d,
+        iterator_valid__collate_fn=get_cntxt_trgt_1d if is_valid else get_cntxt_trgt_1d_test,
+        patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
         **KWARGS
@@ -135,9 +138,11 @@ def AttnCNP_():
         gp_datasets,
         {"AttnCNP": model_1d},
         test_datasets=gp_test_datasets,
+        valid_datasets=gp_valid_datasets if is_valid else None,
         train_split=None,  # No need for validation as the training data is generated on the fly
         iterator_train__collate_fn=get_cntxt_trgt_1d,
-        iterator_valid__collate_fn=get_cntxt_trgt_1d,
+        iterator_valid__collate_fn=get_cntxt_trgt_1d if is_valid else get_cntxt_trgt_1d_test,
+        patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
         **KWARGS
@@ -196,8 +201,10 @@ def ConvCNP_():
         gp_datasets,
         {"ConvCNP": model_1d},
         test_datasets=gp_test_datasets,
+        valid_datasets=gp_valid_datasets if is_valid else None,
         iterator_train__collate_fn=get_cntxt_trgt_1d,
-        iterator_valid__collate_fn=get_cntxt_trgt_1d,
+        iterator_valid__collate_fn=get_cntxt_trgt_1d if is_valid else get_cntxt_trgt_1d_test,
+        patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
         **KWARGS
