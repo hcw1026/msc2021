@@ -725,7 +725,7 @@ class MetaFunRegressor(MetaFunBase):
             initialiser=self.initialiser, 
             nonlinearity=self._nonlinearity,
             no_batch=self._no_batch,
-            xNone=self._neural_updater_concat_x,
+            xNone=not self._neural_updater_concat_x,
             num_iters=self._num_iters,
             indp_iter=self._indp_iter)
 
@@ -1117,9 +1117,11 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
             values=None,
             iteration=0)
 
+        print("here", self._neural_updater_concat_x)
         # Iterative functional updating
         for k in range(self._num_iters):
             updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input, iteration=k)
+            print("updates", tf.reduce_mean(updates))
 
             # Fourier features
             tr_input_ff = self.fourier_features(
@@ -1142,6 +1144,8 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
                 values=None,
                 iteration=k)
 
+            print("precomputed", tf.reduce_mean(precomputed))
+
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
                     querys=None,
@@ -1151,6 +1155,8 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
                 num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]],
                 axis=-2
                 )
+
+            print("tr_updates", tf.reduce_mean(tr_updates))
             tr_reprs += tr_updates
             val_reprs += val_updates
             all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
