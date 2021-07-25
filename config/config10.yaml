@@ -69,7 +69,7 @@ Train:
   batch_size: 32
   drop_remainder: false
   early_stop:
-    early_stop: false
+    early_stop: true
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob

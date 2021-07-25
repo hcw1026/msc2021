@@ -10,6 +10,7 @@ from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, Image
 ############################################################################################################################
 
 #### Experiment 1 ##########################################################################################################
+#original model with deep-se
 
 def Experiment_1a():
 
@@ -84,6 +85,7 @@ def Experiment_1e():
 
 
 #### Experiment 2 ##########################################################################################################
+#original model with attention
 
 def Experiment_2a():
     output_dict = Experiment_1a()
@@ -118,6 +120,7 @@ def Experiment_2e():
 
 
 #### Experiment 3 ##########################################################################################################
+#original model + independent update + deep-se
 
 def Experiment_3a():
     output_dict = Experiment_1a()
@@ -152,6 +155,7 @@ def Experiment_3e():
 
 
 #### Experiment 4 ##########################################################################################################
+#original model + independent update + attention
 
 def Experiment_4a():
     output_dict = Experiment_3a()
@@ -186,6 +190,7 @@ def Experiment_4e():
 
 
 #### Experiment 5 ##########################################################################################################
+#original model + independent update + ff + deep-se
 
 def Experiment_5a():
     output_dict = Experiment_1a()
@@ -250,6 +255,7 @@ def Experiment_5e():
 
 
 #### Experiment 6 ##########################################################################################################
+#original model + independent update + ff + attention
 
 def Experiment_6a():
     output_dict = Experiment_5a()
@@ -284,6 +290,7 @@ def Experiment_6e():
 
 
 #### Experiment 7 ##########################################################################################################
+#original model + independent update + ff + deep-se + reuse data across epochs
 
 def Experiment_7a():
     output_dict = Experiment_5a()
@@ -318,6 +325,7 @@ def Experiment_7e():
 
 
 #### Experiment 8 ##########################################################################################################
+#original model + independent update + ff + deep-se + lower stddev initial constant to 0.01
 
 def Experiment_8a():
     output_dict = Experiment_5a()
@@ -351,6 +359,7 @@ def Experiment_8e():
 
 
 #### Experiment 9 ##########################################################################################################
+#original model + independent update + ff + deep-se + testing different ff parameters
 
 def Experiment_9a():
     output_dict = Experiment_5a()
@@ -445,40 +454,43 @@ def Experiment_9eiii():
 
 
 #### Experiment 10 ##########################################################################################################
+#original model + independent update + ff + deep-se + lower stddev initial constant to 0.01 + concat x in neural-local updater
+#from now on this is Model-A
 
 def Experiment_10a():
-    output_dict = Experiment_8a()
+    output_dict = Experiment_5a()
     output_dict["config_name"] = "config10"
-    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
     return output_dict
 
 def Experiment_10b():
-    output_dict = Experiment_8b()
+    output_dict = Experiment_5b()
     output_dict["config_name"] = "config10"
-    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
     return output_dict
 
 def Experiment_10c():
-    output_dict = Experiment_8c()
+    output_dict = Experiment_5c()
     output_dict["config_name"] = "config10"
-    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
     return output_dict
 
 def Experiment_10d():
-    output_dict = Experiment_8d()
+    output_dict = Experiment_5d()
     output_dict["config_name"] = "config10"
-    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
     return output_dict
 
 def Experiment_10e():
-    output_dict = Experiment_8e()
+    output_dict = Experiment_5e()
     output_dict["config_name"] = "config10"
-    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
     return output_dict
 
 
 
 #### Experiment 11 ##########################################################################################################
+#Simple Model + ff + se kernel + no x concatenation in neural updater + constant intialiser + repr_as_input for prediction
 
 def Experiment_11a():
     output_dict = Experiment_8a()
@@ -528,6 +540,41 @@ def Experiment_11e():
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
     output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero,  with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+
+
+#### Experiment 12 ##########################################################################################################
+#Model-A without early stopping
+
+def Experiment_12a():
+    output_dict = Experiment_8a()
+    output_dict["config_name"] = "config12"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    return output_dict
+
+def Experiment_12b():
+    output_dict = Experiment_8b()
+    output_dict["config_name"] = "config12"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    return output_dict
+
+def Experiment_12c():
+    output_dict = Experiment_8c()
+    output_dict["config_name"] = "config12"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    return output_dict
+
+def Experiment_12d():
+    output_dict = Experiment_8d()
+    output_dict["config_name"] = "config12"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
+    return output_dict
+
+def Experiment_12e():
+    output_dict = Experiment_8e()
+    output_dict["config_name"] = "config12"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with 100 epochs without early stopping"
     return output_dict
 
 

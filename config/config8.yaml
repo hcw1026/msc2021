@@ -46,7 +46,7 @@ Model:
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
     kernel_type: deep_se
-    neural_updater_concat_x: true
+    neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: false
     stddev_const_scale: 0.01

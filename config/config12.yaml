@@ -46,17 +46,17 @@ Model:
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
     kernel_type: deep_se
-    neural_updater_concat_x: false
+    neural_updater_concat_x: true
     no_decoder: false
     repr_as_inputs: false
-    stddev_const_scale: 0.1
+    stddev_const_scale: 0.01
     use_gradient: false
-    use_kernel: false
+    use_kernel: true
   ff:
     learnable: false
     num_freq: 10
     stddev_init: 10
-    use_ff: false
+    use_ff: true
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false
@@ -69,7 +69,7 @@ Train:
   batch_size: 32
   drop_remainder: false
   early_stop:
-    early_stop: true
+    early_stop: false
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob
