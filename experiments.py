@@ -483,7 +483,7 @@ def Experiment_10e():
 def Experiment_11a():
     output_dict = Experiment_8a()
     output_dict["learner"]["model"] = MetaFunRegressorV3
-    output_dict["Learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
     output_dict["data"]["load_fn"] = GPDataLoadTE
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
@@ -493,7 +493,7 @@ def Experiment_11a():
 def Experiment_11b():
     output_dict = Experiment_8b()
     output_dict["learner"]["model"] = MetaFunRegressorV3
-    output_dict["Learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
     output_dict["data"]["load_fn"] = GPDataLoadTE
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
@@ -503,7 +503,7 @@ def Experiment_11b():
 def Experiment_11c():
     output_dict = Experiment_8c()
     output_dict["learner"]["model"] = MetaFunRegressorV3
-    output_dict["Learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
     output_dict["data"]["load_fn"] = GPDataLoadTE
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
@@ -513,7 +513,7 @@ def Experiment_11c():
 def Experiment_11d():
     output_dict = Experiment_8d()
     output_dict["learner"]["model"] = MetaFunRegressorV3
-    output_dict["Learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
     output_dict["data"]["load_fn"] = GPDataLoadTE
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
@@ -523,7 +523,7 @@ def Experiment_11d():
 def Experiment_11e():
     output_dict = Experiment_8e()
     output_dict["learner"]["model"] = MetaFunRegressorV3
-    output_dict["Learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
     output_dict["data"]["load_fn"] = GPDataLoadTE
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
