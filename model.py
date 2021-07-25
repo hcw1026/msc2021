@@ -1191,8 +1191,52 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
 
         return val_loss, additional_loss, tr_metric, val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
 
+class MetaFunRegressorV3(MetaFunRegressorV2):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3"):
+        super(MetaFunRegressorV3, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
 
+    @snt.once
+    def predict_init(self):
+        """ backend of decoder to produce mean and variance of predictions"""
+        def predict_no_decoder1(inputs, weights):
+            return weights, tf.ones_like(weights) * 0.5
 
+        def predict_no_decoder2(inputs, weights):
+            return tf.split(weights, 2, axis=-1)
+
+        def predict_repr_as_inputs(inputs, weights):
+            preds = self._predict_repr_as_inputs(inputs=tf.zeros_like(inputs), weights=weights)
+            return _split(preds)
+
+        def predict_not_repr_as_inputs(inputs, weights):
+            preds = self.custom_MLP(inputs=tf.zeros_like(inputs), weights=weights)
+            return _split(preds)
+        
+        def _split(preds):
+            mu, log_sigma = tf.split(preds, 2, axis=-1)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
+            return mu, sigma
+
+        if self._no_decoder:
+            if self._dim_reprs == 1:
+                self._predict = predict_no_decoder1
+            elif self._dim_reprs == 2:
+                self._predict = predict_no_decoder2
+            else:
+                raise Exception("num_reprs must <=2 if no_decoder")
+        elif self._repr_as_inputs:
+            self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
+                output_sizes=self._decoder_output_sizes,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity
+            )
+            self._predict =  predict_repr_as_inputs
+        else:
+            self.custom_MLP = submodules.custom_MLP(
+                output_sizes=self._decoder_output_sizes,
+                embedding_dim=self.embedding_dim,
+                nonlinearity=self._nonlinearity)
+            self._predict =  predict_not_repr_as_inputs
 
 if __name__ == "__main__":
     from utils import parse_config

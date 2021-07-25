@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from time import time
 from utils import parse_config, copytree, remove_checkpoints
+from data.tools import dataset_translation
 
 import experiments
 
@@ -24,6 +25,11 @@ def GPDataLoad(dataprovider, config, load_type, custom_kernels, custom_kernels_m
     dataloader = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
     train_data, val_data, test_data = dataloader.generate(return_valid=True, return_test=True, val_is_reuse_across_epochs=False, test_is_reuse_across_epochs=True) # is_reuse_across_epochs follows the convention of the NP processes experiments used
     return list(train_data.values())[0], list(val_data.values())[0], list(test_data.values())[0]
+
+def GPDataLoadTE(dataprovider, config, load_type, custom_kernels, custom_kernels_merge, offsets, **kwargs): #offsets must be a list
+    train_df, val_df, test_df = GPDataLoad(dataprovider=dataprovider, config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge, **kwargs)
+    test_df = dataset_translation(test_df, offsets=offsets)
+    return train_df, val_df, test_df
 
 def ImageNetTrain(learner, train_data, val_data, test_data, train=True, **kwargs):
     """perform imagenet classification experiment"""

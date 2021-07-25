@@ -273,3 +273,27 @@ def convert_indices(indices):
     batch_size, num_points = indices.shape
     dim_indices =  tf.tile(tf.expand_dims(tf.range(batch_size),-1), (1,num_points))
     return tf.stack([dim_indices, indices],axis=-1)
+
+
+#### merge test datasets
+def dataset_translation(dataset, offsets):
+    def fn(data, offset):
+        tr_input = data.tr_input + offset
+        val_input = data.val_input + offset
+        tr_output = data.tr_output
+        val_output =data.val_output
+        return RegressionDescription(tr_input=tr_input, tr_output=tr_output, val_input=val_input, val_output=val_output)
+
+    def concat(*inputs):
+        dataset = tf.data.Dataset.from_tensors(inputs[0])
+        for idx in range(1,len(inputs)):
+            dataset = dataset.concatenate(tf.data.Dataset.from_tensors(inputs[idx]))
+        return dataset
+
+    output_datasets = tuple([dataset]+[dataset.map(lambda data: fn(data, offset)) for offset in offsets])
+
+    output_dataset = tf.data.Dataset.zip(output_datasets).flat_map(concat)
+    return output_dataset
+
+def dataset_repeat(dataset, repeats):
+    return dataset.interleave(lambda x: tf.data.Dataset.from_tensors(x).repeat(repeats), block_length=repeats, cycle_length=tf.data.AUTOTUNE, num_parallel_calls=tf.data.AUTOTUNE)
