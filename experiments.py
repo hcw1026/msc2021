@@ -502,6 +502,12 @@ def Experiment_11a():
     output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero, with fourier features size 10 and stddev 10 non-trainable"
     return output_dict
 
+def Experiment_11aii():
+    output_dict = Experiment_11a()
+    output_dict["config_name"] = "config11b"
+    output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero, with fourier features size 10 and stddev 10 non-trainable, without repr_as_input"
+    return output_dict
+
 def Experiment_11b():
     output_dict = Experiment_8b()
     output_dict["learner"]["model"] = MetaFunRegressorV3
@@ -510,6 +516,12 @@ def Experiment_11b():
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
     output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with Periodic Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero,  with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_11bii():
+    output_dict = Experiment_11b()
+    output_dict["config_name"] = "config11b"
+    output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero, with fourier features size 10 and stddev 10 non-trainable, without repr_as_input"
     return output_dict
 
 def Experiment_11c():
@@ -522,6 +534,12 @@ def Experiment_11c():
     output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with Noisy Matern Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero,  with fourier features size 10 and stddev 10 non-trainable"
     return output_dict
 
+def Experiment_11cii():
+    output_dict = Experiment_11c()
+    output_dict["config_name"] = "config11b"
+    output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero, with fourier features size 10 and stddev 10 non-trainable, without repr_as_input"
+    return output_dict
+
 def Experiment_11d():
     output_dict = Experiment_8d()
     output_dict["learner"]["model"] = MetaFunRegressorV3
@@ -532,6 +550,12 @@ def Experiment_11d():
     output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with Variable Matern Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero,  with fourier features size 10 and stddev 10 non-trainable"
     return output_dict
 
+def Experiment_11dii():
+    output_dict = Experiment_11d()
+    output_dict["config_name"] = "config11b"
+    output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero, with fourier features size 10 and stddev 10 non-trainable, without repr_as_input"
+    return output_dict
+
 def Experiment_11e():
     output_dict = Experiment_8e()
     output_dict["learner"]["model"] = MetaFunRegressorV3
@@ -540,6 +564,12 @@ def Experiment_11e():
     output_dict["data"]["offsets"] = [0.1]
     output_dict["config_name"] = "config11"
     output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero,  with fourier features size 10 and stddev 10 non-trainable"
+    return output_dict
+
+def Experiment_11eii():
+    output_dict = Experiment_11e()
+    output_dict["config_name"] = "config11b"
+    output_dict["other"]["info"] = "Simple translation equivariant experiment - MetaFunRegressor with RBF Kernel, with decoder, independent neural iteration, constant init, se kernel, logprob, nueral local updater without x appending, prediction with x masked as zero, with fourier features size 10 and stddev 10 non-trainable, without repr_as_input"
     return output_dict
 
 
