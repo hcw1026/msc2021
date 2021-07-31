@@ -499,3 +499,117 @@ class FourierFeatures(snt.Module):
             return tf.concat([cos_tr, sin_tr], axis=-1)
         else:
             return precomputed
+
+
+
+#################################################################################
+# Deep sets
+#################################################################################
+
+class PermEqui(snt.Module): #not support batch
+    def __init__(self, dim_out, initialiser, pool_fn="sum", name="perm_equi"):
+        super(PermEqui, self).__init__(name=name)
+        self._dim_init = dim_out
+
+        self.Gamma = snt.Linear(output_size=dim_out)
+        self.Lambda = snt.Linear(output_size=dim_out, with_bias=False, w_init=initialiser)
+
+        if pool_fn == "sum":
+            self.pool_fn = tf.math.reduce_max
+        elif pool_fn == "mean":
+            self.pool_fn = tf.math.reduce_mean
+        else:
+            raise NameError("pool_fn must be one of 'sum' and 'mean' ")
+
+    def __call__(self, x):
+        xm = self.pool_fn(x, axis=0, keepdims=True)
+        xm = self.Lambda(xm)
+        x = self.Gamma(x)
+        x = x - xm
+        return x
+
+class DeepSet(snt.Module):
+    def __init__(self, dim_out, n_layers, pool_fn, initialiser, nonlinearity, name="deep_set"):
+        super(DeepSet, self).__init__(name=name)
+
+        self.permequi = [
+            PermEqui(dim_out=dim_out, initialiser=initialiser, pool_fn=pool_fn, name="perm_equi_{}".format(i)) 
+            for i in range(n_layers)]
+
+        self._n_layers = n_layers
+        self._nonlinearity = nonlinearity
+
+    def __call__(self, x):
+        for i in range(self._n_layers - 1):
+            x = self.permequi[i](x)
+            x = self._nonlinearity(x)
+        
+        x = self.permequi[-1](x)
+        return x
+        #x = tf.reduce_mean(x, axis=0)
+        #x = tf.reduce_mean(self.permequi[-1](x),axis=-1)
+        #return self.decoder(x)
+        
+
+def rff_kernel_frontend_fn(w, keys, querys):
+    keys_tr = tf.linalg.matmul(tf.expand_dims(keys, -3), w, transpose_b=True)
+    querys_tr = tf.linalg.matmul(tf.expand_dims(querys, -2), w, transpose_b=True)
+    output = tf.concat([tf.math.sin(keys_tr), tf.math.cos(keys_tr)], axis=-1) * tf.concat([tf.math.sin(querys_tr), tf.math.cos(querys_tr)], axis=-1)
+    output = tf.reduce_mean(output, axis=-1)
+    return output
+    #diff = tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2)
+    #prod = tf.linalg.matmul(diff, w, transpose_b=True)
+    #tf.print(prod.shape)
+    #return tf.reduce_mean(tf.math.square(tf.concat([tf.math.sin(prod), tf.math.cos(prod)], axis=-1)),axis=-1)
+
+def rff_kernel_backend_fn(query_key, values):
+    return tf.linalg.matmul(query_key, values)
+
+class rff_kernel(snt.Module):
+    def __init__(self, dim_init, mapping, embedding_dim, float_dtype, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
+        """
+        mapping: None or DeepSet etc.
+        """
+        super(rff_kernel, self).__init__(name=name)
+
+        self._num_iters = num_iters if indp_iter else 1
+
+        if mapping is None:
+            self.module_list = [lambda x: x] * self._num_iters
+        else:
+            self.module_list = [mapping(name="mapping_{}".format(i)) for i in range(self._num_iters)]
+
+        self.rff_init_list = [
+            tf.Variable(
+                initial_value=tf.random_normal_initializer(mean=0., stddev=1.)(
+                    shape=(dim_init, embedding_dim),
+                    dtype=float_dtype),
+                trainable=True,
+                name="rff_init_{}".format(i)
+                ) for i in range(self._num_iters)]
+
+        self.call_fn_frontend = lambda querys, keys, iteration: rff_kernel_frontend_fn(
+            w=self.module_list[iteration](self.rff_init_list[iteration]), querys=querys, keys=keys)
+
+        if complete_return:
+            self.call_fn_backend = lambda query_key, values: rff_kernel_backend_fn(query_key=query_key, values=values)
+        else:
+            self.call_fn_backend = lambda query_key, values: query_key
+
+    def __call__(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+        if recompute:
+            query_key = self.call_fn_frontend(querys=querys, keys=keys, iteration=min(self._num_iters-1, iteration))
+        else:
+            query_key = precomputed
+        return self.call_fn_backend(query_key=query_key, values=values)
+
+    def backend(self, query_key, values):
+        return rff_kernel_backend_fn(query_key=query_key, values=values)
+
+
+
+
+
+
+
+

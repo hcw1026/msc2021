@@ -17,7 +17,7 @@ Data:
     train_indp_target: false
     val_n_samples: 0.1
   leo_imagenet:
-    data_path: /data/ziz/not-backed-up/chho/embeddings
+    data_path: D://embeddings/embeddings
     dataset_name: tieredImageNet
     embedding_crop: center
     model_cls: metafun_classifier
@@ -26,27 +26,27 @@ Data:
     num_val_examples_per_class: 2
     shuffle: false
 Eval:
-  batch_size: 2
+  batch_size: 32
   drop_remainder: false
-  num_per_epoch: 2
+  num_per_epoch: 5000
   validation: true
 GPU: 0
 Model:
   arch:
-    dim_reprs: 64
+    dim_reprs: 128
     embedding_layers: 1
     nn_layers: 3
-    nn_size: 64
-    num_iters: 2
+    nn_size: 128
+    num_iters: 5
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    indp_iter: false
-    initial_state_type: parametric
+    indp_iter: true
+    initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
-    kernel_type: deep_se
-    neural_updater_concat_x: true
+    kernel_type: se
+    neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: false
     stddev_const_scale: 0.1
@@ -56,14 +56,14 @@ Model:
     learnable: false
     num_freq: 10
     stddev_init: 10
-    use_ff: false
+    use_ff: true
   rff:
-    dim_init: 100
+    dim_init: 500
     n_layers: 3
     perm_equi_pool_fn: "mean"
-    mapping: "deepset1"
+    mapping: null
   other:
-    initial_inner_lr: 1.0
+    initial_inner_lr: 0.1
     repr_as_inputs: false
   reg:
     dropout_rate: 0.0
@@ -71,23 +71,23 @@ Model:
     label_smoothing: 0.0
     orthogonality_penalty_weight: 0.001
 Train:
-  batch_size: 2
+  batch_size: 32
   drop_remainder: false
   early_stop:
-    early_stop: false
-    early_stop_if_increase: true
+    early_stop: true
+    early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: metric
-    early_stop_patience: 100
+    early_stop_monitor: logprob
+    early_stop_patience: 10
     early_stop_reset: false
-  epoch: 5
+  epoch: 100
   loss_type: logprob
-  lr: 0.001
-  num_per_epoch: 3
-  print_freq: 1
+  lr: 0.0001
+  num_per_epoch: 50000
+  print_freq: 100
   save:
-    ckpt_restore_path: /data/ziz/chho/msc2021/debug
-    ckpt_save_dir: /data/ziz/chho/msc2021/debug
+    ckpt_restore_path: /data/ziz/chho/msc2021/Training
+    ckpt_save_dir: /data/ziz/chho/msc2021/Training
     ckpt_save_prefix: null
     restore_from_ckpt: false
     save_final_model: false
