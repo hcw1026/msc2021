@@ -1106,16 +1106,16 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
-
-        all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+    
+        # all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        # all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
 
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
         
-        all_tr_reprs = all_tr_reprs.write(0, tr_reprs)
-        all_val_reprs = all_val_reprs.write(0, val_reprs)
+        # all_tr_reprs = all_tr_reprs.write(0, tr_reprs)
+        # all_val_reprs = all_val_reprs.write(0, val_reprs)
 
         # Fourier features
         tr_input_ff = self.fourier_features(
@@ -1176,24 +1176,29 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
 
             tr_reprs += tr_updates
             val_reprs += val_updates
-            all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
-            all_val_reprs = all_val_reprs.write(1+k, val_reprs)
+            #all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
+            #all_val_reprs = all_val_reprs.write(1+k, val_reprs)
 
         # Decode functional representation and compute loss and metric
-        all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        all_tr_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        all_tr_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        # all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        # all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        # all_tr_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        # all_tr_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
 
-        for k in range(self._num_iters+1): # store intermediate predictions
-            weights = self.forward_decoder(all_tr_reprs.read(k))
-            tr_mu, tr_sigma = self.predict(inputs=tr_input_ff, weights=weights)
-            weights = self.forward_decoder(all_val_reprs.read(k))
-            val_mu, val_sigma = self.predict(inputs=val_input_ff, weights=weights)
-            all_val_mu = all_val_mu.write(k, val_mu)
-            all_val_sigma = all_val_sigma.write(k, val_sigma)
-            all_tr_mu = all_tr_mu.write(k, tr_mu)
-            all_tr_sigma = all_tr_sigma.write(k, tr_sigma)
+        # for k in range(self._num_iters+1): # store intermediate predictions
+        #     weights = self.forward_decoder(all_tr_reprs.read(k))
+        #     tr_mu, tr_sigma = self.predict(inputs=tr_input_ff, weights=weights)
+        #     weights = self.forward_decoder(all_val_reprs.read(k))
+        #     val_mu, val_sigma = self.predict(inputs=val_input_ff, weights=weights)
+        #     all_val_mu = all_val_mu.write(k, val_mu)
+        #     all_val_sigma = all_val_sigma.write(k, val_sigma)
+        #     all_tr_mu = all_tr_mu.write(k, tr_mu)
+        #     all_tr_sigma = all_tr_sigma.write(k, tr_sigma)
+
+        weights = self.forward_decoder(tr_reprs)
+        tr_mu, tr_sigma = self.predict(inputs=tr_input_ff, weights=weights)
+        weights = self.forward_decoder(val_reprs)
+        val_mu, val_sigma = self.predict(inputs=val_input_ff, weights=weights)
 
         tr_loss, tr_metric = self.calculate_loss_and_metrics(
             target_y=data.tr_output,
@@ -1205,14 +1210,14 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
             sigmas=val_sigma
         )
 
-        all_val_mu = all_val_mu.stack()
-        all_val_sigma = all_val_sigma.stack()
-        all_tr_mu = all_tr_mu.stack()
-        all_tr_sigma = all_tr_sigma.stack()
+        # all_val_mu = all_val_mu.stack()
+        # all_val_sigma = all_val_sigma.stack()
+        # all_tr_mu = all_tr_mu.stack()
+        # all_tr_sigma = all_tr_sigma.stack()
 
         additional_loss = tf.constant(0., dtype=self._float_dtype)
 
-        return val_loss, additional_loss, tr_metric, val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
+        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma #all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
 
 class MetaFunRegressorV3(MetaFunRegressorV2):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3"):
@@ -1448,6 +1453,8 @@ if __name__ == "__main__":
     # print(module2(data_reg, is_training=False)[0])
 
     # ###V3
+    import time
+
     print("Regression")
     module2 = MetaFunRegressorV3(config=config)
     ClassificationDescription = collections.namedtuple(
@@ -1473,7 +1480,9 @@ if __name__ == "__main__":
 
     print("DEBUGGGGGGGGGGGGGGG")
  
-    print(trial(data_reg, is_training=False))
+    #print(trial(data_reg, is_training=False))
+    t1 = time.time()
     print(module2(data_reg, is_training=False)[0])
+    print("time consumed", time.time()-t1)
 
 

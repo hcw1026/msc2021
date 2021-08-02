@@ -1,6 +1,7 @@
 import math
 import sonnet as snt
 import tensorflow as tf
+import time
 
 
 #################################################################################
