@@ -1,5 +1,6 @@
 import copy
 import tensorflow as tf
+import time
 import collections
 import enum
 from functools import partial
@@ -165,6 +166,25 @@ def load_chunk(keys, save_file, idx_chunk, n_samples=None):
     except KeyError:
         raise NotLoadedError()
 
+    except:
+        time.sleep(120)
+        try:
+            with h5py.File(save_file, "a") as hf:
+                for k in keys:
+                    data = hf["{}{}{}".format(save_group, k, chunk_suffix)]
+                    data_len = len(data)
+                    if n_samples is None:
+                        items[k] = tf.constant(data[:])
+                    elif n_samples <= data_len:
+                        items[k] = tf.constant(data[:n_samples])
+                    else: #TODO: only append instead of delete
+                        for k2 in keys:
+                            del hf["{}{}{}".format(save_group, k2, chunk_suffix)]
+                        raise NotLoadedError()
+
+        except KeyError:
+            raise NotLoadedError()
+
     return items
 
 def save_chunk(to_save, save_file, idx_chunk):
@@ -175,11 +195,19 @@ def save_chunk(to_save, save_file, idx_chunk):
 
     print("Saving group {} chunk {} for future use ...".format(save_group, idx_chunk))
 
-    with h5py.File(save_file, "a") as hf:
-        for k, v in to_save.items():
-            hf.create_dataset(
-                "{}{}{}".format(save_group, k, chunk_suffix), data=v.numpy()
-            )
+    try:
+        with h5py.File(save_file, "a") as hf:
+            for k, v in to_save.items():
+                hf.create_dataset(
+                    "{}{}{}".format(save_group, k, chunk_suffix), data=v.numpy()
+                )
+    except:
+        time.sleep(120)
+        with h5py.File(save_file, "a") as hf:
+            for k, v in to_save.items():
+                hf.create_dataset(
+                    "{}{}{}".format(save_group, k, chunk_suffix), data=v.numpy()
+                )
 
 def generate_save_signature(kernel_name, min_max, n_points, is_vary_kernel_hyp, n_same_samples, rounding=5):
     output = ""
