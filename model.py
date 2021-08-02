@@ -1222,6 +1222,10 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_n_layers = _config["n_layers"]
         self._rff_perm_equi_pool_fn = _config["perm_equi_pool_fn"]
         self._rff_mapping = _config["mapping"]
+        self._rff_sab_dim_pre_tr = _config["sab_dim_pre_tr"]
+        self._rff_sab_nn_layers = _config["sab_nn_layers"]
+        self._rff_sab_num_heads = _config["sab_num_heads"]
+        self._rff_isab_n_induce_points = _config["isab_n_induce_points"]
 
     @snt.once
     def predict_init(self):
@@ -1271,13 +1275,36 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
 
         if self._rff_mapping == "deepset1":
             mapping = partial(submodules.DeepSet,
-                dim_out=self.embedding_dim,
+                dim_out=self.embedding_dim, #dimension of each random feature w
                 n_layers=self._rff_n_layers,
                 pool_fn=self._rff_perm_equi_pool_fn,
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity)
         elif self._rff_mapping == None:
             mapping = None
+        elif self._rff_mapping == "SAB":
+            mapping = partial(submodules.SAB,
+                dim_out=self.embedding_dim,
+                n_layers=self._rff_n_layers,
+                dim_pre_tr=self._rff_sab_dim_pre_tr,
+                nn_layers=self._rff_sab_nn_layers,
+                num_heads=self._rff_sab_num_heads,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity,
+                float_dtype=self._float_dtype
+                )
+        elif self._rff_mapping == "ISAB":
+            mapping = partial(submodules.ISAB,
+                dim_out=self.embedding_dim,
+                n_layers=self._rff_n_layers,
+                dim_pre_tr=self._rff_sab_dim_pre_tr,
+                n_induce_points=self._rff_isab_n_induce_points,
+                nn_layers=self._rff_sab_nn_layers,
+                num_heads=self._rff_sab_num_heads,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity,
+                float_dtype=self._float_dtype
+                )
         else:
             raise NameError("unknown rff mapping")
         self._rff_kernel = submodules.rff_kernel(

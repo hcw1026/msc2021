@@ -45,7 +45,7 @@ Model:
     initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
-    kernel_type: se
+    kernel_type: rff
     neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: false
@@ -60,8 +60,12 @@ Model:
   rff:
     dim_init: 500
     n_layers: 3
-    perm_equi_pool_fn: "mean"
+    perm_equi_pool_fn: mean
     mapping: "deepset1"
+    sab_dim_pre_tr: 128
+    sab_nn_layers: 3
+    sab_num_heads: 4
+    isab_n_induce_points: 50
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false

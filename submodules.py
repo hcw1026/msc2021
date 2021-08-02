@@ -508,8 +508,11 @@ class FourierFeatures(snt.Module):
 
 class PermEqui(snt.Module): #not support batch
     def __init__(self, dim_out, initialiser, pool_fn="sum", name="perm_equi"):
+        """
+        dim_out: int
+            - dimension of each output vector
+        """
         super(PermEqui, self).__init__(name=name)
-        self._dim_init = dim_out
 
         self.Gamma = snt.Linear(output_size=dim_out)
         self.Lambda = snt.Linear(output_size=dim_out, with_bias=False, w_init=initialiser)
@@ -522,7 +525,7 @@ class PermEqui(snt.Module): #not support batch
             raise NameError("pool_fn must be one of 'sum' and 'mean' ")
 
     def __call__(self, x):
-        xm = self.pool_fn(x, axis=0, keepdims=True)
+        xm = self.pool_fn(x, axis=-2, keepdims=True)
         xm = self.Lambda(xm)
         x = self.Gamma(x)
         x = x - xm
@@ -549,13 +552,12 @@ class DeepSet(snt.Module):
         #x = tf.reduce_mean(x, axis=0)
         #x = tf.reduce_mean(self.permequi[-1](x),axis=-1)
         #return self.decoder(x)
-        
 
 def rff_kernel_frontend_fn(w, keys, querys):
-    keys_tr = tf.linalg.matmul(tf.expand_dims(keys, -3), w, transpose_b=True)
-    querys_tr = tf.linalg.matmul(tf.expand_dims(querys, -2), w, transpose_b=True)
-    output = tf.concat([tf.math.sin(keys_tr), tf.math.cos(keys_tr)], axis=-1) * tf.concat([tf.math.sin(querys_tr), tf.math.cos(querys_tr)], axis=-1)
-    output = tf.reduce_mean(output, axis=-1)
+    keys_tr = tf.linalg.matmul(tf.expand_dims(keys, -3), w, transpose_b=True) #(batch, 1, num_keys, num_w)
+    querys_tr = tf.linalg.matmul(tf.expand_dims(querys, -2), w, transpose_b=True) #(batch, num_querys, 1, num_w)
+    output = tf.concat([tf.math.sin(keys_tr), tf.math.cos(keys_tr)], axis=-1) * tf.concat([tf.math.sin(querys_tr), tf.math.cos(querys_tr)], axis=-1) #(batch, num_querys, num_keys, num_w)
+    output = tf.reduce_mean(output, axis=-1) #(batch, num_querys, num_keys)
     return output
     #diff = tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2)
     #prod = tf.linalg.matmul(diff, w, transpose_b=True)
@@ -563,7 +565,7 @@ def rff_kernel_frontend_fn(w, keys, querys):
     #return tf.reduce_mean(tf.math.square(tf.concat([tf.math.sin(prod), tf.math.cos(prod)], axis=-1)),axis=-1)
 
 def rff_kernel_backend_fn(query_key, values):
-    return tf.linalg.matmul(query_key, values)
+    return tf.linalg.matmul(query_key, values) #(batch, num_querys, dim_values)
 
 class rff_kernel(snt.Module):
     def __init__(self, dim_init, mapping, embedding_dim, float_dtype, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
@@ -606,10 +608,159 @@ class rff_kernel(snt.Module):
     def backend(self, query_key, values):
         return rff_kernel_backend_fn(query_key=query_key, values=values)
 
+class MultiHeadAttention(snt.Module):
+    def __init__(self, dim_out, num_heads, initialiser, name="multi_head_attention"):
+        super(MultiHeadAttention, self).__init__(name=name)
+        self._num_heads = num_heads
+        self._dim_out = dim_out
+        self._dim_splits = self._dim_out // self._num_heads
+
+        assert self._dim_out % self._num_heads == 0, "dim_out must be a multiple of num_heads"
+
+        self.Wq = snt.Linear(
+            output_size=dim_out,
+            with_bias=True,
+            w_init=initialiser,
+            name="linear_Wq"
+            )
+
+        self.Wk = snt.Linear(
+            output_size=dim_out,
+            with_bias=True,
+            w_init=initialiser,
+            name="linear_Wk"
+            )
+
+        self.Wv = snt.Linear(
+            output_size=dim_out,
+            with_bias=True,
+            w_init=initialiser,
+            name="linear_Wv"
+            )
+
+        self.Wo = snt.Linear(
+            output_size=dim_out,
+            with_bias=True,
+            w_init=initialiser,
+            name="linear_Wo"
+        )
+
+    def __call__(self, querys, keys, values):
+
+        querys = self.Wq(querys) #(num_querys, dim_out)
+        keys = self.Wk(keys) #(num_keys, dim_out)
+        values = self.Wv(values) #(num_keys, dim_out)
+
+        querys = self.split(value=querys, size=self._num_heads) #(num_heads, num_querys, dim_out//num_heads)
+        keys = self.split(value=keys, size=self._num_heads) #(num_heads, num_keys, dim_out//num_heads)
+        values = self.split(value=values, size=self._num_heads) #(num_heads, num_keys, dim_out//num_heads)
+
+        query_key = tf.linalg.matmul(querys, keys, transpose_b=True) / tf.math.sqrt(tf.cast(self._dim_out, dtype=tf.float32)) #(num_heads, num_querys, num_keys)
+        query_key = tf.math.softmax(logits=query_key, axis=-1)
+        output = tf.linalg.matmul(query_key, values) #(num_heads, num_querys, dim_out//num_heads)
+        output =  tf.concat(tf.unstack(value=output, axis=0), axis=-1) #(num_querys, dim_out)
+        return self.Wo(output)
+
+    def split(self, value, size):
+        return tf.stack(values=tf.split(value=value, num_or_size_splits=size, axis=-1), axis=0)
+
+class MAB(snt.Module):
+    def __init__(self, dim_out, dim_pre_tr, nn_layers, num_heads, initialiser, nonlinearity, float_dtype, name="MAB"):
+        super(MAB, self).__init__(name=name)
+
+        dim_embed = dim_pre_tr if dim_pre_tr is not None else dim_out
+        self.multihead = MultiHeadAttention(dim_out=dim_embed, num_heads=num_heads, initialiser=initialiser)
+
+        self.rFF = snt.nets.MLP(
+            output_sizes=[dim_embed] * nn_layers, #set as the same size as dim_out
+            w_init = initialiser,
+            with_bias=True,
+            activation=nonlinearity,
+            activate_final=nonlinearity,
+            name="MAB_rFF"
+        )
+        self.ln1 = tf.keras.layers.LayerNormalization(epsilon=1.e-5, dtype=float_dtype, name="ln1")
+        self.ln2 = tf.keras.layers.LayerNormalization(epsilon=1.e-5, dtype=float_dtype, name="ln2")
+
+        if dim_pre_tr is not None:
+            self.pre_transform = snt.Linear(
+                output_size=dim_pre_tr,
+                with_bias=True,
+                w_init=initialiser,
+                name="linear_pre_tr"
+                )
+
+            self.pro_transform = snt.Linear(
+                output_size=dim_out,
+                with_bias=True,
+                w_init=initialiser,
+                name="linear_pro_tr"
+                )
+
+            self.frontend_fn = lambda x: self.pre_transform(x)
+            self.backend_fn = lambda x: self.pro_transform(x)
+        else:
+            self.frontend_fn = lambda x: x
+            self.backend_fn = lambda x: x
 
 
+    def __call__(self, x, y):
+        x = self.frontend_fn(x)
+        H = self.ln1(x + self.multihead(querys=x, keys=y, values=y))
+        output =  self.ln2(H + self.rFF(H))
+        return self.backend_fn(output)
 
+class SAB(snt.Module):
+    def __init__(self, dim_out, dim_pre_tr, n_layers, nn_layers, num_heads, initialiser, nonlinearity, float_dtype, name="SAB"):
+        """
+        dim_pre_tr: int or None
+             - If not None, pretransform to dimension dim_pre_tr (useful for multihead attention to make divisible number of heads)
+        n_layers: int
+            - number of stacked SAB
+        nn_layers: int
+            - number of feedforward layers inside a MAB rFF
+        """
+        super(SAB, self).__init__(name=name)
+        self._n_layers = n_layers
+        self.MAB_list = [
+            MAB(
+                dim_out=dim_out, dim_pre_tr=dim_pre_tr, nn_layers=nn_layers, num_heads=num_heads, initialiser=initialiser, nonlinearity=nonlinearity, float_dtype=float_dtype, name="MAB_{}".format(i)
+            ) for i in range(n_layers)
+            ]
 
+    def __call__(self, x):
+        for i in range(self._n_layers):
+            x = self.MAB_list[i](x=x, y=x)
+        return x
 
+class ISAB(snt.Module):
+    def __init__(self, dim_out, dim_pre_tr, n_layers, n_induce_points, nn_layers, num_heads, initialiser, nonlinearity, float_dtype, name="SAB"):
+        super(ISAB, self).__init__(name=name)
+        self._n_layers = n_layers
+        self._n_induce_points = n_induce_points
+        
+        self.inducing_points = tf.Variable(
+            tf.keras.initializers.GlorotNormal()(
+                dtype=float_dtype,
+                shape=[n_induce_points, dim_out]),
+            trainable=True,
+            name="inducing_points")
 
+        self.MAB1_list = [
+            MAB(
+                dim_out=dim_out, dim_pre_tr=dim_pre_tr, nn_layers=nn_layers, num_heads=num_heads, initialiser=initialiser, nonlinearity=nonlinearity, float_dtype=float_dtype, name="MAB1_{}".format(i)
+            ) for i in range(n_layers)
+            ]
+
+        self.MAB2_list = [
+            MAB(
+                dim_out=dim_out, dim_pre_tr=dim_pre_tr, nn_layers=nn_layers, num_heads=num_heads, initialiser=initialiser, nonlinearity=nonlinearity, float_dtype=float_dtype, name="MAB2_{}".format(i)
+            ) for i in range(n_layers)
+            ]
+
+    def __call__(self, x):
+        for i in range(self._n_layers):
+            H = self.MAB1_list[i](x=self.inducing_points, y=x)
+            x = self.MAB2_list[i](x=x, y=H)
+        return x
 

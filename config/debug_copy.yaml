@@ -60,8 +60,12 @@ Model:
   rff:
     dim_init: 100
     n_layers: 3
-    perm_equi_pool_fn: "mean"
+    perm_equi_pool_fn: mean
     mapping: "deepset1"
+    sab_dim_pre_tr: 128
+    sab_nn_layers: 3
+    sab_num_heads: 4
+    isab_n_induce_points: 50
   other:
     initial_inner_lr: 1.0
     repr_as_inputs: false

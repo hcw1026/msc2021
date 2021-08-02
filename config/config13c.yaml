@@ -59,9 +59,9 @@ Model:
     use_ff: true
   rff:
     dim_init: 500
-    n_layers: 3
+    n_layers: 2
     perm_equi_pool_fn: mean
-    mapping: null
+    mapping: SAB
     sab_dim_pre_tr: 128
     sab_nn_layers: 3
     sab_num_heads: 4
