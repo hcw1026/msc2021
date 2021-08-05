@@ -558,7 +558,7 @@ def rff_kernel_frontend_fn(w, keys, querys):
     keys_tr = tf.linalg.matmul(tf.expand_dims(keys, -3), w, transpose_b=True) #(batch, 1, num_keys, num_w)
     querys_tr = tf.linalg.matmul(tf.expand_dims(querys, -2), w, transpose_b=True) #(batch, num_querys, 1, num_w)
     output = tf.concat([tf.math.sin(keys_tr), tf.math.cos(keys_tr)], axis=-1) * tf.concat([tf.math.sin(querys_tr), tf.math.cos(querys_tr)], axis=-1) #(batch, num_querys, num_keys, num_w)
-    output = tf.reduce_mean(output, axis=-1) #(batch, num_querys, num_keys)
+    output = tf.reduce_mean(output, axis=-1) * 2. #(batch, num_querys, num_keys)
     return output
     #diff = tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2)
     #prod = tf.linalg.matmul(diff, w, transpose_b=True)
