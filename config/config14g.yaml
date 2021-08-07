@@ -62,7 +62,7 @@ Model:
     n_layers: 3
     perm_equi_pool_fn: mean
     mapping: SAB
-    sab_dim_pre_tr: 128
+    dim_pre_tr: 128
     sab_nn_layers: 3
     sab_num_heads: 4
     isab_n_induce_points: 50

@@ -533,22 +533,45 @@ class PermEqui(snt.Module): #not support batch
         return x
 
 class DeepSet(snt.Module):
-    def __init__(self, dim_out, n_layers, pool_fn, initialiser, nonlinearity, name="deep_set"):
+    def __init__(self, dim_out, n_layers, pool_fn, dim_pre_tr, initialiser, name="deep_set"):
         super(DeepSet, self).__init__(name=name)
 
         self.permequi = [
             PermEqui(dim_out=dim_out, initialiser=initialiser, pool_fn=pool_fn, name="perm_equi_{}".format(i)) 
             for i in range(n_layers)]
 
+        self._nonlinearity = tf.nn.elu
         self._n_layers = n_layers
-        self._nonlinearity = nonlinearity
+
+        if dim_pre_tr is not None:
+            self.pre_transform = snt.Linear(
+                output_size=dim_pre_tr,
+                with_bias=True,
+                w_init=initialiser,
+                name="linear_pre_tr"
+                )
+
+            self.pro_transform = snt.Linear(
+                output_size=dim_out,
+                with_bias=True,
+                w_init=initialiser,
+                name="linear_pro_tr"
+                )
+
+            self.frontend_fn = lambda x: self.pre_transform(x)
+            self.backend_fn = lambda x: self.pro_transform(x)
+        else:
+            self.frontend_fn = lambda x: x
+            self.backend_fn = lambda x: x
 
     def __call__(self, x):
+        x = self.frontend_fn(x)
         for i in range(self._n_layers - 1):
             x = self.permequi[i](x)
             x = self._nonlinearity(x)
         
         x = self.permequi[-1](x)
+        x = self.backend_fn(x)
         return x
         #x = tf.reduce_mean(x, axis=0)
         #x = tf.reduce_mean(self.permequi[-1](x),axis=-1)

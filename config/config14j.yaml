@@ -34,7 +34,7 @@ GPU: 0
 Model:
   arch:
     dim_reprs: 128
-    embedding_layers: 1
+    embedding_layers: 3
     nn_layers: 3
     nn_size: 128
     num_iters: 5
@@ -45,7 +45,7 @@ Model:
     initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_sigma_init: 1.0
-    kernel_type: rff
+    kernel_type: deep_se
     neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: false
@@ -61,7 +61,7 @@ Model:
     dim_init: 500
     n_layers: 3
     perm_equi_pool_fn: mean
-    mapping: SAB
+    mapping: deepset1
     dim_pre_tr: 128
     sab_nn_layers: 3
     sab_num_heads: 4

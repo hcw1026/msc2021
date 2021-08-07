@@ -58,10 +58,10 @@ Model:
     stddev_init: 10
     use_ff: false
   rff:
-    dim_init: 500
+    dim_init: 50
     n_layers: 3
     perm_equi_pool_fn: mean
-    mapping: SAB
+    mapping: null
     dim_pre_tr: 128
     sab_nn_layers: 3
     sab_num_heads: 4
