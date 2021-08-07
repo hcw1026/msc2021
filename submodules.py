@@ -536,8 +536,9 @@ class DeepSet(snt.Module):
     def __init__(self, dim_out, n_layers, pool_fn, dim_pre_tr, initialiser, name="deep_set"):
         super(DeepSet, self).__init__(name=name)
 
+        dim_embed = dim_pre_tr if dim_pre_tr is not None else dim_out
         self.permequi = [
-            PermEqui(dim_out=dim_out, initialiser=initialiser, pool_fn=pool_fn, name="perm_equi_{}".format(i)) 
+            PermEqui(dim_out=dim_embed, initialiser=initialiser, pool_fn=pool_fn, name="perm_equi_{}".format(i)) 
             for i in range(n_layers)]
 
         self._nonlinearity = tf.nn.elu
