@@ -32,8 +32,11 @@ def save_as_yaml(config, path):
     with open(path, "w") as f:
         yaml.dump(config, f)
 
-def add_to_yaml(dir, levels, new_level, value):
-    paths = glob.glob(os.path.join(dir, "*"))
+def add_to_yaml(dir, levels, new_level, value, manual_glob=False):
+    if not manual_glob:
+        paths = glob.glob(os.path.join(dir, "*"))
+    else:
+        paths = glob.glob(dir)
 
     for path in paths:
         config = parse_config(path)

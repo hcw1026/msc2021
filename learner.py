@@ -38,7 +38,7 @@ class BaseLearner():
         self._train_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._train_drop_remainder = _config["drop_remainder"]
         self._print_freq = _config["print_freq"]
-
+        self._tb_add_log = _config["tb_add_log"]
 
         # Early Stopping Configurations
         _config = config["Train"]["early_stop"]
@@ -424,10 +424,14 @@ class BaseLearner():
         with self.train_summary_writer.as_default():
             tf.summary.scalar("Train Target loss (step)", loss, step=iteration)
             tf.summary.scalar("Mean Train Target loss (step)", self.metric_train_target_loss.result(), step=iteration)
+            self._write_additional_tensorboard_step(iteration=iteration)
             for idx, metric in enumerate(self.metric_names):
                 tf.summary.scalar("Train Target {} (step)".format(metric), self.metric_tr_target[idx].result(), step=iteration)
                 tf.summary.scalar("Train Context {} (step)".format(metric), self.metric_tr_context[idx].result(), step=iteration)
             tf.summary.flush()
+
+    def _write_additional_tensorboard_step(self, iteration):
+        pass
 
     def _early_stopping_init(self):
         # Early stopping output
@@ -528,6 +532,13 @@ class ImageNetLearner(BaseLearner):
 
         super(ImageNetLearner, self).__init__(config=config, model=model, model_name=model_name, name=name)
         self.data_source = data_source
+
+    def _write_additional_tensorboard_step(self, iteration):
+        if self._tb_add_log and self.model.config["Model"]["comp"]["kernel_type"] == "rff":
+            for i in range(len(self.model._rff_kernel.rff_init_list)):
+                weight = self.model._rff_kernel.rff_init_list[i]
+                tf.summary.histogram("rff initial {}".format(i), weight, step=iteration)
+                tf.summary.histogram("rff transformed {}".format(i), self.model._rff_kernel.module_list[i](weight), step=iteration)
 
     def load_data_from_provider(self, dataprovider=imagenet_provider):
         """load data from dataprovider"""
@@ -664,6 +675,14 @@ class GPLearner(BaseLearner):
     def _initialise_model(self, model):
         return model(config=self.config, name=self.model_name)
 
+    def _write_additional_tensorboard_step(self, iteration):
+        if self._tb_add_log and self.model.config["Model"]["comp"]["kernel_type"] == "rff":
+            for i in range(len(self.model._rff_kernel.rff_init_list)):
+                weight = self.model._rff_kernel.rff_init_list[i]
+                tf.summary.histogram("rff initial {}".format(i), weight, step=iteration)
+                tf.summary.histogram("rff transformed {}".format(i), self.model._rff_kernel.module_list[i](weight), step=iteration)
+
+
     def _testloop(self, model_instance, test_data, test_size, save_pred=False, save_data=False):
         print()
         print("Testing>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -798,9 +817,9 @@ if __name__ == "__main__":
     # mylearner.train()
     # mylearner.test(20)
 
-
+    from model import MetaFunRegressorV3
     from data.gp_regression import DataProvider as gp_provider
-    mylearn2 = GPLearner(config, MetaFunRegressor)
+    mylearn2 = GPLearner(config, MetaFunRegressorV3)
     gp_dataloader = gp_provider(config=config)
     gp_data = gp_dataloader.generate()
     gp_train_data = gp_data[0]["RBF_Kernel"]

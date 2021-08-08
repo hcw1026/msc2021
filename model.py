@@ -12,6 +12,7 @@ class MetaFunBase(snt.Module):
 
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
+        self.config = config
 
         # Parse configurations
         ## Components configurations
@@ -1231,7 +1232,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_sab_nn_layers = _config["sab_nn_layers"]
         self._rff_sab_num_heads = _config["sab_num_heads"]
         self._rff_isab_n_induce_points = _config["isab_n_induce_points"]
-
+        self._rff_init_trainable=config["init_trainable"]
     @snt.once
     def predict_init(self):
         """ backend of decoder to produce mean and variance of predictions"""
@@ -1308,7 +1309,8 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
                 num_heads=self._rff_sab_num_heads,
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity,
-                float_dtype=self._float_dtype
+                float_dtype=self._float_dtype,
+                rff_init_trainable=self._rff_init_trainable
                 )
         else:
             raise NameError("unknown rff mapping")

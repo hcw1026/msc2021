@@ -593,7 +593,7 @@ def rff_kernel_backend_fn(query_key, values):
     return tf.linalg.matmul(query_key, values) #(batch, num_querys, dim_values)
 
 class rff_kernel(snt.Module):
-    def __init__(self, dim_init, mapping, embedding_dim, float_dtype, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
+    def __init__(self, dim_init, mapping, embedding_dim, float_dtype, rff_init_trainable=True, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
         """
         mapping: None or DeepSet etc.
         """
@@ -611,7 +611,7 @@ class rff_kernel(snt.Module):
                 initial_value=tf.random_normal_initializer(mean=0., stddev=1.)(
                     shape=(dim_init, embedding_dim),
                     dtype=float_dtype),
-                trainable=True,
+                trainable=rff_init_trainable,
                 name="rff_init_{}".format(i)
                 ) for i in range(self._num_iters)]
 
