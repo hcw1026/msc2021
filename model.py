@@ -1233,7 +1233,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_sab_nn_layers = _config["sab_nn_layers"]
         self._rff_sab_num_heads = _config["sab_num_heads"]
         self._rff_isab_n_induce_points = _config["isab_n_induce_points"]
-        self._rff_init_trainable=config["init_trainable"]
+        self._rff_init_trainable = _config["init_trainable"]
     @snt.once
     def predict_init(self):
         """ backend of decoder to produce mean and variance of predictions"""
