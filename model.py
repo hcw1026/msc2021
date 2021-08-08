@@ -26,6 +26,7 @@ class MetaFunBase(snt.Module):
         self._deterministic_decoder = tf.constant(_config["deterministic_decoder"], dtype=tf.bool)
         self._kernel_sigma_init = _config["kernel_sigma_init"]
         self._kernel_lengthscale_init = _config["kernel_lengthscale_init"]
+        self._kernel_lengthscale_trainable = _config["kernel_lengthscale_trainable"]
         self._indp_iter = tf.constant(_config["indp_iter"], dtype=tf.bool)
 
         ## Architecture configurations
@@ -372,7 +373,7 @@ class MetaFunClassifier(MetaFunBase):
                 shape=(),
                 dtype=self._float_dtype
             ),
-            trainable=True,
+            trainable=self._kernel_lengthscale_trainable,
             name="kernel_lengthscale"
         )
 
@@ -756,7 +757,7 @@ class MetaFunRegressor(MetaFunBase):
                 shape=(),
                 dtype=self._float_dtype
             ),
-            trainable=True,
+            trainable=self._kernel_lengthscale_trainable,
             name="kernel_lengthscale"
         )
 

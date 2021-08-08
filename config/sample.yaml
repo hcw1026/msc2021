@@ -44,6 +44,7 @@ Model:
     indp_iter: false
     initial_state_type: zero
     kernel_lengthscale_init: 1.0
+    kernel_lengthscale_trainable: true
     kernel_sigma_init: 1.0
     kernel_type: se
     neural_updater_concat_x: true

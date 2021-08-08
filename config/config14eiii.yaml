@@ -41,23 +41,23 @@ Model:
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    indp_iter: true
+    indp_iter: false
     initial_state_type: constant
-    kernel_lengthscale_init: 1.0
-    kernel_lengthscale_trainable: true
+    kernel_lengthscale_init: 0.2
+    kernel_lengthscale_trainable: false
     kernel_sigma_init: 1.0
-    kernel_type: rff
+    kernel_type: se
     neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: false
-    stddev_const_scale: 0.1
+    stddev_const_scale: 0.01
     use_gradient: false
     use_kernel: true
   ff:
     learnable: false
     num_freq: 10
     stddev_init: 10
-    use_ff: true
+    use_ff: false
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false
@@ -68,11 +68,12 @@ Model:
     orthogonality_penalty_weight: 0.001
   rff:
     dim_init: 500
+    dim_pre_tr: 128
+    init_trainable: true
     isab_n_induce_points: 50
     mapping: deepset1
     n_layers: 3
     perm_equi_pool_fn: mean
-    sab_dim_pre_tr: 128
     sab_nn_layers: 3
     sab_num_heads: 4
 Train:

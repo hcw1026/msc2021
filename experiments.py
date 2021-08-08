@@ -815,8 +815,8 @@ def Experiment_14as():
 
 def Experiment_14as2():
     output_dict = Experiment_14a()
-    output_dict["config_name"] = "config14eii"
-    output_dict["other"]["info"] = "(not in code) MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, se kernel with correct initial lengthscale that is untrainable, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    output_dict["config_name"] = "config14eiii"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, se kernel with correct initial lengthscale that is untrainable, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 def Experiment_14avi():
