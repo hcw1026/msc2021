@@ -1310,8 +1310,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
                 num_heads=self._rff_sab_num_heads,
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity,
-                float_dtype=self._float_dtype,
-                rff_init_trainable=self._rff_init_trainable
+                float_dtype=self._float_dtype
                 )
         else:
             raise NameError("unknown rff mapping")
@@ -1320,6 +1319,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             mapping=mapping,
             embedding_dim=self.embedding_dim,
             float_dtype=self._float_dtype,
+            rff_init_trainable=self._rff_init_trainable,
             num_iters=self._num_iters,
             indp_iter=self._indp_iter,
             complete_return=False
