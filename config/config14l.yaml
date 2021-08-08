@@ -66,11 +66,11 @@ Model:
     label_smoothing: 0.0
     orthogonality_penalty_weight: 0.001
   rff:
-    dim_init: 1500
+    dim_init: 500
     dim_pre_tr: 128
-    init_trainable: true
+    init_trainable: false
     isab_n_induce_points: 50
-    mapping: null
+    mapping: deepset1
     n_layers: 3
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
@@ -96,5 +96,5 @@ Train:
     ckpt_save_prefix: null
     restore_from_ckpt: false
     save_final_model: false
-  tb_add_log: false
+  tb_add_log: true
   train_on_val: false
