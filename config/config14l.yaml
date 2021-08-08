@@ -71,7 +71,7 @@ Model:
     dim_pre_tr: 128
     init_trainable: false
     isab_n_induce_points: 50
-    mapping: deepset1
+    mapping: SAB
     n_layers: 3
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
