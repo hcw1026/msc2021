@@ -610,6 +610,7 @@ def Experiment_12e():
 
 
 #### Experiment 13 ##########################################################################################################
+#Translation equivariant trials
 
 def Experiment_13a():
     output_dict = Experiment_11a()
@@ -775,6 +776,7 @@ def Experiment_13ev():
 
 
 #### Experiment 14 ##########################################################################################################
+#Translatin equivariant
 
 def Experiment_14a():
     output_dict = Experiment_11a()
@@ -1017,6 +1019,40 @@ def Experiment_14cxii():
     output_dict = Experiment_14c()
     output_dict["config_name"] = "config14l"
     output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+
+#### Experiment 15 ##########################################################################################################
+#Model-A with n_same_samples=20 instead
+
+def Experiment_15a():
+    output_dict = Experiment_5a()
+    output_dict["config_name"] = "config15"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with RBF Kernel, with n_same_samples=20, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
+    return output_dict
+
+def Experiment_15b():
+    output_dict = Experiment_5b()
+    output_dict["config_name"] = "config15"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Periodic Kernel, with n_same_samples=20, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
+    return output_dict
+
+def Experiment_15c():
+    output_dict = Experiment_5c()
+    output_dict["config_name"] = "config15"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Noisy Matern Kernel, with n_same_samples=20, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
+    return output_dict
+
+def Experiment_15d():
+    output_dict = Experiment_5d()
+    output_dict["config_name"] = "config15"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with Variable Matern Kernel, with n_same_samples=20, with decoder, independent neural iteration, parametric init, deep se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
+    return output_dict
+
+def Experiment_15e():
+    output_dict = Experiment_5e()
+    output_dict["config_name"] = "config15"
+    output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with n_same_samples=20, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
     return output_dict
 
 
