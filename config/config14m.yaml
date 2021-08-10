@@ -42,12 +42,12 @@ Model:
     attention_type: dot_product
     deterministic_decoder: true
     indp_iter: false
-    initial_state_type: parametric
+    initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_lengthscale_trainable: true
     kernel_sigma_init: 1.0
     kernel_type: rff
-    neural_updater_concat_x: true
+    neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: false
     stddev_const_scale: 0.01
@@ -69,11 +69,11 @@ Model:
   rff:
     dim_init: 500
     dim_pre_tr: 128
-    init_distr: normal
+    init_distr: uniform
     init_distr_param: {}
     init_trainable: true
     isab_n_induce_points: 50
-    mapping: SAB
+    mapping: null
     n_layers: 3
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
@@ -99,5 +99,5 @@ Train:
     ckpt_save_prefix: null
     restore_from_ckpt: false
     save_final_model: false
-  tb_add_log: false
+  tb_add_log: true
   train_on_val: false

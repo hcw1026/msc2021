@@ -68,6 +68,8 @@ Model:
     orthogonality_penalty_weight: 0.001
   rff:
     dim_init: 500
+    init_distr: normal
+    init_distr_param: {}
     isab_n_induce_points: 50
     mapping: null
     n_layers: 3

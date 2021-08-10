@@ -69,6 +69,8 @@ Model:
   rff:
     dim_init: 50
     dim_pre_tr: 128
+    init_distr: normal
+    init_distr_param: {}
     init_trainable: true
     isab_n_induce_points: 50
     mapping: null
