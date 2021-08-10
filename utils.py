@@ -20,7 +20,6 @@ def parse_config(yaml_path):
     
     with open(yaml_path) as f:
         config = yaml.load(f, Loader=loader)
-
     return config
 
 def save_as_yaml(config, path):

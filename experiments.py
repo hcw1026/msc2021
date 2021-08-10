@@ -867,6 +867,42 @@ def Experiment_14axii():
     output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
+def Experiment_14axiii():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config14m"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with None mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14axiv():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config14n"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14axv():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config14o"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14axvi():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config14p"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with None mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14axvii():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config14q"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14axviii():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config14r"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
 def Experiment_14b():
     output_dict = Experiment_11b()
     output_dict["data"]["offsets"] = [100]
@@ -935,13 +971,49 @@ def Experiment_14bx():
 def Experiment_14bxi():
     output_dict = Experiment_14b()
     output_dict["config_name"] = "config14k"
-    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 def Experiment_14bxii():
     output_dict = Experiment_14b()
     output_dict["config_name"] = "config14l"
-    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14bxiii():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config14m"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with None mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14bxiv():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config14n"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14bxv():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config14o"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14bxvi():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config14p"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with None mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14bxvii():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config14q"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14bxviii():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config14r"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 def Experiment_14c():
@@ -1019,6 +1091,42 @@ def Experiment_14cxii():
     output_dict = Experiment_14c()
     output_dict["config_name"] = "config14l"
     output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping with nontrainable init, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14cxiii():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config14m"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with None mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14cxiv():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config14n"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14cxv():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config14o"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping (init Uniform(-1,1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14cxvi():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config14p"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with None mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14cxvii():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config14q"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_14cxviii():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config14r"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with SAB mapping (init Normal(0,0.1)), logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 

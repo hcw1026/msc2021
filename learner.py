@@ -136,7 +136,6 @@ class BaseLearner():
         model = self._initialise_model(model)
         self.optimiser = tf.keras.optimizers.Adam(learning_rate=self._outer_lr)
         self.regulariser = snt.regularizers.L2(self._l2_penalty_weight)
-
         # Initialise model
         model.initialise(next(iter(data)))
         self.metric_names = model._metric_names

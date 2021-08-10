@@ -4,16 +4,15 @@ import tensorflow_probability as tfp
 import sonnet as snt
 import submodules as submodules
 import utils
+import copy
 
 
 class MetaFunBase(snt.Module):
     def __init__(self, config, no_batch, num_classes=1, name="MetaFun"):
         super(MetaFunBase, self).__init__(name=name)
-
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
-        self.config = config
-
+        self.config = copy.deepcopy(config)
         # Parse configurations
         ## Components configurations
         _config = config["Model"]["comp"]
@@ -68,7 +67,6 @@ class MetaFunBase(snt.Module):
 
         if self._no_decoder:
             self._dim_reprs = 1
-
     @snt.once
     def additional_initialise_after(self): # for extra initialisation steps
         pass
@@ -1234,6 +1232,8 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_sab_num_heads = _config["sab_num_heads"]
         self._rff_isab_n_induce_points = _config["isab_n_induce_points"]
         self._rff_init_trainable = _config["init_trainable"]
+        self._rff_init_distr = _config["init_distr"]
+        self._rff_init_distr_param = _config["init_distr_param"]
     @snt.once
     def predict_init(self):
         """ backend of decoder to produce mean and variance of predictions"""
@@ -1318,6 +1318,8 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             dim_init=self._rff_dim_init,
             mapping=mapping,
             embedding_dim=self.embedding_dim,
+            init_distr=self._rff_init_distr, 
+            init_distr_param=self._rff_init_distr_param,
             float_dtype=self._float_dtype,
             rff_init_trainable=self._rff_init_trainable,
             num_iters=self._num_iters,
