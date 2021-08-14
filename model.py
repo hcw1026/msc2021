@@ -1467,8 +1467,12 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
 
             loss = loss_fn(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples)
             mse = mse_loss(target_y=target_y, mus=mus, sigmas=sigmas)
-            logprob_VI = log_prob_VI_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
-            logprob_ML = log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
+            if tf.shape(target_y)[-2] != tf.constant(0, dtype=tf.int32): # to avoid nan when computing metrics
+                logprob_VI = - log_prob_VI_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
+                logprob_ML = - log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
+            else:
+                logprob_VI = target_y[...,0] #empty shape
+                logprob_ML = target_y[...,0] #empty shape
             return loss, [mse, logprob_VI, logprob_ML]
 
         if self._loss_type == "mse":
