@@ -58,6 +58,9 @@ Model:
     num_freq: 10
     stddev_init: 1
     use_ff: true
+  latent:
+    dim_latent: 64
+    num_z_samples: 10
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false

@@ -208,6 +208,10 @@ class MetaFunClassifier(MetaFunBase):
         self.is_training.assign(is_training)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
+        tr_reprs, val_reprs = self.Encoder(data=data)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=data.tr_input, val_input=data.val_input)
+
+    def Encoder(self, data):
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
@@ -244,11 +248,14 @@ class MetaFunClassifier(MetaFunBase):
             tr_reprs += tr_updates
             val_reprs += val_updates
 
+        return tr_reprs, val_reprs
+
+    def Decoder(self, data, tr_reprs, val_reprs, tr_input, val_input):
         # Decode functional representation and compute loss and metric
         classifier_weights, tr_orth = self.forward_decoder(tr_reprs)
-        tr_loss, batch_tr_metric = self.predict_and_calculate_loss_and_acc(data.tr_input, data.tr_output, classifier_weights)
+        tr_loss, batch_tr_metric = self.predict_and_calculate_loss_and_acc(tr_input, data.tr_output, classifier_weights)
         classifier_weights, val_orth = self.forward_decoder(val_reprs)
-        val_loss, batch_val_metric = self.predict_and_calculate_loss_and_acc(data.val_input, data.val_output, classifier_weights)
+        val_loss, batch_val_metric = self.predict_and_calculate_loss_and_acc(val_input, data.val_output, classifier_weights)
 
 
         # # Aggregate loss in a batch
@@ -568,6 +575,10 @@ class MetaFunRegressor(MetaFunBase):
         self.is_training.assign(is_training)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
+        all_tr_reprs, all_val_reprs = self.Encoder(data=data)
+        return self.Decoder(data=data, all_tr_reprs=all_tr_reprs, all_val_reprs=all_val_reprs)
+
+    def Encoder(self, data):
         all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
         all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
 
@@ -612,7 +623,9 @@ class MetaFunRegressor(MetaFunBase):
             val_reprs += val_updates
             all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
             all_val_reprs = all_val_reprs.write(1+k, val_reprs)
+            return all_tr_reprs, all_val_reprs
 
+    def Decoder(self, data, all_tr_reprs, all_val_reprs):
         # Decode functional representation and compute loss and metric
         all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
         all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
@@ -953,7 +966,7 @@ class MetaFunBaseV2(MetaFunBase):
         self.sample_val_data = self.fourier_features(X=self.sample_val_data, recompute=True, precomputed=None, iteration=0)
 
     @snt.once
-    def additional_initialse_after(self):
+    def additional_initialise_after(self):
         # Deduce precompute shape of forward_kernel_or_attention_precompute
         self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
             querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
@@ -998,7 +1011,7 @@ class MetaFunBaseV2(MetaFunBase):
 
 
 class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
-    def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifierV2"):
+    def __init__(self, config, data_source="leo_imagenet", no_batch=False, name="MetaFunClassifierV2", **kwargs):
         self._num_classes = config["Data"][data_source]["num_classes"]
         super(MetaFunClassifierV2, self).__init__(config=config, data_source=data_source, num_classes=self._num_classes, no_batch=no_batch, name=name)
 
@@ -1013,6 +1026,10 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
         self.is_training.assign(is_training)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
+        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(data=data)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
+
+    def Encoder(self, data):
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
@@ -1074,26 +1091,12 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
                 axis=-2)
             tr_reprs += tr_updates
             val_reprs += val_updates
-
-        # Decode functional representation and compute loss and metric
-        classifier_weights, tr_orth = self.forward_decoder(tr_reprs)
-        tr_loss, batch_tr_metric = self.predict_and_calculate_loss_and_acc(tr_input_ff, data.tr_output, classifier_weights)
-        classifier_weights, val_orth = self.forward_decoder(val_reprs)
-        val_loss, batch_val_metric = self.predict_and_calculate_loss_and_acc(val_input_ff, data.val_output, classifier_weights)
-
-
-        # # Aggregate loss in a batch
-        # batch_tr_loss = tf.math.reduce_mean(tr_loss)
-        # batch_val_loss = tf.math.reduce_mean(val_loss)
-
-        #Additional regularisation penalty
-        #return batch_val_loss + self._decoder_orthogonality_reg, batch_tr_metric, batch_val_metric  #TODO:? need weights for l2
-
-        return val_loss, tr_orth, batch_tr_metric, batch_val_metric
+        
+        return tr_reprs, val_reprs, tr_input_ff, val_input_ff
     
 
 class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
-    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV2"):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV2", **kwargs):
         super(MetaFunRegressorV2, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
@@ -1107,16 +1110,15 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
         self.is_training.assign(is_training)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
     
-        # all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        # all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(data=data)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
+
+    def Encoder(self, data):
 
         # Initialise r
         tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
         val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
         
-        # all_tr_reprs = all_tr_reprs.write(0, tr_reprs)
-        # all_val_reprs = all_val_reprs.write(0, val_reprs)
-
         # Fourier features
         tr_input_ff = self.fourier_features(
             X=data.tr_input, 
@@ -1176,29 +1178,14 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
 
             tr_reprs += tr_updates
             val_reprs += val_updates
-            #all_tr_reprs = all_tr_reprs.write(1+k, tr_reprs)
-            #all_val_reprs = all_val_reprs.write(1+k, val_reprs)
 
-        # Decode functional representation and compute loss and metric
-        # all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        # all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        # all_tr_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
-        # all_tr_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
+        return tr_reprs, val_reprs, tr_input_ff, val_input_ff
 
-        # for k in range(self._num_iters+1): # store intermediate predictions
-        #     weights = self.forward_decoder(all_tr_reprs.read(k))
-        #     tr_mu, tr_sigma = self.predict(inputs=tr_input_ff, weights=weights)
-        #     weights = self.forward_decoder(all_val_reprs.read(k))
-        #     val_mu, val_sigma = self.predict(inputs=val_input_ff, weights=weights)
-        #     all_val_mu = all_val_mu.write(k, val_mu)
-        #     all_val_sigma = all_val_sigma.write(k, val_sigma)
-        #     all_tr_mu = all_tr_mu.write(k, tr_mu)
-        #     all_tr_sigma = all_tr_sigma.write(k, tr_sigma)
-
+    def Decoder(self, data, tr_reprs, val_reprs, tr_input, val_input):
         weights = self.forward_decoder(tr_reprs)
-        tr_mu, tr_sigma = self.predict(inputs=tr_input_ff, weights=weights)
+        tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
         weights = self.forward_decoder(val_reprs)
-        val_mu, val_sigma = self.predict(inputs=val_input_ff, weights=weights)
+        val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
 
         tr_loss, tr_metric = self.calculate_loss_and_metrics(
             target_y=data.tr_output,
@@ -1210,17 +1197,11 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
             sigmas=val_sigma
         )
 
-        # all_val_mu = all_val_mu.stack()
-        # all_val_sigma = all_val_sigma.stack()
-        # all_tr_mu = all_tr_mu.stack()
-        # all_tr_sigma = all_tr_sigma.stack()
-
         additional_loss = tf.constant(0., dtype=self._float_dtype)
-
-        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma #all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma
+        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
 
 class MetaFunRegressorV3(MetaFunRegressorV2):
-    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3"):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3", **kwargs):
         super(MetaFunRegressorV3, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
         _config = config["Model"]["rff"]
         self._rff_dim_init = _config["dim_init"]
@@ -1335,7 +1316,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
 
 
 class MetaFunRegressorV3b(MetaFunRegressorV3):
-    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3b"):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3b", **kwargs):
         super(MetaFunRegressorV3b, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
 
     @snt.once
@@ -1380,6 +1361,131 @@ class MetaFunRegressorV3b(MetaFunRegressorV3):
                 embedding_dim=self.embedding_dim,
                 nonlinearity=self._nonlinearity)
             self._predict =  predict_not_repr_as_inputs
+
+
+class MetaFunBaseGLV2(MetaFunBaseV2):
+    def __init__(self, config, no_batch, num_classes=1, name="MetaFunGLV2", **kwargs):
+        super(MetaFunBaseGLV2, self).__init__(config=config, no_batch=no_batch, num_classes=num_classes, name=name)
+
+    @snt.once
+    def additional_initialise_after(self):
+        # Deduce precompute shape of forward_kernel_or_attention_precompute
+        self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
+            keys=self.sample_tr_data,
+            values=None,
+            recompute=True,
+            precomputed=None,
+            iteration=0
+        ))
+
+        self.sample_latent_init()
+        self.latent_decoder_init()
+
+class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV3", **kwargs):
+        super(MetaFunRegressorGLV3, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
+        _config = config["Model"]["latent"]
+        self._num_z_samples = _config["num_z_samples"]
+        self._dim_latent = _config["dim_latent"]
+
+        self._metric_names = ["mse", "logprob_VI", "logprob_ML"]
+
+    def sample_latent_init(self):
+        self._sample_latent = submodules.sample_latent(
+            num_z_samples=self._num_z_samples,
+            nn_layers=self._nn_layers,
+            nn_size=self._nn_size,
+            dim_latent=self._dim_latent,
+            stddev_const_scale=self._stddev_const_scale,
+            initialiser=self.initialiser,
+            nonlinearity=self._nonlinearity)
+
+    def sample_latent(self, repr):
+        return self._sample_latent(repr=repr)
+
+    def latent_decoder_init(self):
+        self._latent_decoder = submodules.latent_decoder(
+            initialiser=self.initialiser,
+            dim_reprs=self._dim_reprs,
+            nonlinearity=self._nonlinearity,
+            no_decoder=self._no_decoder)
+
+    def latent_decoder(self, R, z_samples):
+        return self._latent_decoder(R=R, z_samples=z_samples)
+
+    def Decoder(self, data, tr_reprs, val_reprs, tr_input, val_input):
+        q_c = self.sample_latent(tr_reprs)
+        q_t = self.sample_latent(val_reprs)
+        z_samples = q_t.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+
+        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=self._num_z_samples)
+        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=self._num_z_samples)
+        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=self._num_z_samples)
+        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=self._num_z_samples)
+
+        tr_reprs_tr = self.latent_decoder(R=tr_reprs, z_samples=z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
+        weights = self.forward_decoder(tr_reprs_tr) #(num_z_samples, batch_size, num_target, dim_weights)
+        tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
+
+        val_reprs_tr = self.latent_decoder(R=val_reprs, z_samples=z_samples)
+        weights = self.forward_decoder(val_reprs_tr)
+        val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
+
+        tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus=tr_mu, sigmas=tr_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
+        val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus=val_mu, sigmas=val_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
+
+        additional_loss = tf.constant(0., dtype=self._float_dtype)
+        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
+
+    @snt.once
+    def calculate_loss_and_metrics_init(self):
+
+        def mse_loss(target_y, mus, sigmas, q_c=None, q_t=None, z_samples=None):
+            mu, sigma = mus, sigmas
+            tf.print("mu",mu)
+            tf.print("target_y",target_y)
+            mse = self.loss_fn(mu, target_y)
+            return mse
+
+        def log_prob_VI_loss(target_y, mus, sigmas, q_c, q_t, z_samples=None):
+            p_y = tfp.distributions.MultivariateNormalDiag(loc=mus, scale_diag=sigmas)
+            E_p_y = tf.math.reduce_sum(tf.math.reduce_mean(p_y.log_prob(target_y), axis=0),axis=-1) #(batch_size)
+            kl = tf.squeeze(tfp.distributions.kl_divergence(q_t, q_c)) #(batch_size)
+            loss = - (E_p_y - kl)
+            return loss
+
+        def log_prob_ML_loss(target_y, mus, sigmas, z_samples, q_c, q_t):
+            num_z_samples = tf.shape(z_samples)[0]
+            p_y = tfp.distributions.MultivariateNormalDiag(loc=mus, scale_diag=sigmas)
+            sum_p_y = tf.math.reduce_sum(p_y.log_prob(target_y),axis=-1) #(num_z_samples, batch_size)
+            loss = sum_p_y + tf.squeeze(q_c.log_prob(z_samples)) - tf.squeeze(q_t.log_prob(z_samples)) #importance sampling
+            loss = tf.math.reduce_logsumexp(loss, axis=0) #(batch_size)
+            loss = - (loss - tf.math.log(tf.cast(num_z_samples, dtype=tf.float32)))
+            return loss
+
+        def loss_and_metric(loss_fn, target_y, mus, sigmas, q_c, q_t, z_samples=None):
+            n_points = tf.cast(tf.shape(target_y)[-2], dtype=tf.float32)
+
+            loss = loss_fn(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples)
+            mse = mse_loss(target_y=target_y, mus=mus, sigmas=sigmas)
+            logprob_VI = log_prob_VI_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
+            logprob_ML = log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
+            return loss, [mse, logprob_VI, logprob_ML]
+
+        if self._loss_type == "mse":
+            self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=mse_loss)
+        elif self._loss_type == "logprob_VI" or self._loss_type == "logprob":
+            self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_VI_loss)
+        elif self._loss_type == "logprob_ML":
+            self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_ML_loss)
+        else:
+            raise NameError("unknown loss type")
+
+    def calculate_loss_and_metrics(self, target_y, mus, sigmas, q_c, q_t, z_samples):
+        return self._calculate_loss_and_metrics(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples)
+        
+        
 
 if __name__ == "__main__":
     from utils import parse_config
@@ -1454,7 +1560,7 @@ if __name__ == "__main__":
     # print(trial(data_reg, is_training=False))
     # print(module2(data_reg, is_training=False)[0])
 
-    ####V2
+    # ####V2
     # print("Classification")
     # from data.leo_imagenet import DataProvider
     # module = MetaFunClassifierV2(config=config)
@@ -1506,10 +1612,43 @@ if __name__ == "__main__":
     # print(module2(data_reg, is_training=False)[0])
 
     # ###V3
+    # import time
+
+    # print("Regression")
+    # module2 = MetaFunRegressorV3(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
+    
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+
+    # module2.initialise(data_reg)
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # @tf.function
+    # def trial(x, is_training=True):
+    #     l,*_ = module2(x, is_training=is_training)
+    #     return l
+
+    # print("DEBUGGGGGGGGGGGGGGG")
+ 
+    # #print(trial(data_reg, is_training=False))
+    # t1 = time.time()
+    # print(module2(data_reg, is_training=False)[0])
+    # print("time consumed", time.time()-t1)
+
+    ####GLV3
     import time
 
     print("Regression")
-    module2 = MetaFunRegressorV3(config=config)
+    module2 = MetaFunRegressorGLV3(config=config)
     ClassificationDescription = collections.namedtuple(
     "ClassificationDescription",
     ["tr_input", "tr_output", "val_input", "val_output"])
@@ -1532,10 +1671,13 @@ if __name__ == "__main__":
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")
- 
+    print("-----tffunction")
     #print(trial(data_reg, is_training=False))
+
     t1 = time.time()
+    print("-----normal")
     print(module2(data_reg, is_training=False)[0])
+    print(module2(data_reg, is_training=False)[3][1:])
     print("time consumed", time.time()-t1)
 
 

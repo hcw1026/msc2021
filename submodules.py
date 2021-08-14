@@ -1,6 +1,7 @@
 import math
 import sonnet as snt
 import tensorflow as tf
+import tensorflow_probability as tfp
 import time
 
 
@@ -797,4 +798,56 @@ class ISAB(snt.Module):
             H = self.MAB1_list[i](x=self.inducing_points, y=x)
             x = self.MAB2_list[i](x=x, y=H)
         return x
+
+
+
+
+#################################################################################
+# Global latents
+#################################################################################
+
+class sample_latent(snt.Module):
+    def __init__(self, num_z_samples, nn_layers, nn_size, dim_latent, stddev_const_scale, initialiser, nonlinearity, name="sample_latent"):
+        super(sample_latent, self).__init__(name=name)
+
+        self.latent_encoder = snt.nets.MLP(
+            output_sizes=[nn_size] * nn_layers + [2 * dim_latent], #for mean and variance
+            w_init=initialiser,
+            with_bias=True,
+            activation=nonlinearity,
+            name="latent_encoder")
+
+        self._stddev_const_scale = stddev_const_scale
+        self._num_z_samples = num_z_samples
+
+    def __call__(self, repr):
+        repr_sum = tf.math.reduce_sum(repr, axis=-2, keepdims=True) #(batch_size, 1, dim_repr)
+        repr_sum = self.latent_encoder(repr_sum) #(batch_size, 1, 2*dim_latent)
+        mu, sigma = tf.split(repr_sum, 2, axis=-1) #(batch_size, 1, dim_latent)
+        sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(sigma)
+        return tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
+
+class latent_decoder(snt.Module):
+    def __init__(self, initialiser, dim_reprs, nonlinearity, no_decoder, name="latent_decoder"):
+        super(latent_decoder, self).__init__(name=name)
+        self.merge_r_z = snt.Linear(
+                output_size=dim_reprs,
+                with_bias=True,
+                w_init=initialiser,
+                name="linear_merge_r_z"
+                )
+
+        if no_decoder:
+            self._nonlinearity = lambda x:x
+        else:
+            self._nonlinearity = nonlinearity
+
+    def __call__(self, R, z_samples):
+        num_z_samples = tf.shape(z_samples)[0]
+        R = tf.repeat(tf.expand_dims(R,axis=0), axis=0, repeats=num_z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
+        z_samples = tf.repeat(z_samples, axis=-2, repeats=tf.shape(R)[-2]) #(num_z_samples, batch_size, num_target, dim_latent)
+        output = tf.concat([R, z_samples], axis=-1) #(num_z_samples, batch_size, num_target, dim_latent+dim_reprs)
+        return self._nonlinearity(self.merge_r_z(output))  #(num_z_samples, batch_size, num_target, dim_reprs)
+
+
 

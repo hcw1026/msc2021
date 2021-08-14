@@ -58,6 +58,9 @@ Model:
     num_freq: 10
     stddev_init: 10
     use_ff: false
+  latent:
+    dim_latent: 64
+    num_z_samples: 10
   other:
     initial_inner_lr: 0.1
     repr_as_inputs: false
@@ -70,7 +73,8 @@ Model:
     dim_init: 500
     dim_pre_tr: 128
     init_distr: normal
-    init_distr_param: {"stddev":0.1}
+    init_distr_param:
+      stddev: 0.1
     init_trainable: true
     isab_n_induce_points: 50
     mapping: SAB
