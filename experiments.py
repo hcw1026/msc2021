@@ -1,7 +1,7 @@
 from data.gp_regression import DataProvider as gp_provider
 from data.leo_imagenet import DataProvider as imagenet_provider
 from learner import ImageNetLearner, GPLearner
-from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b
+from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b, MetaFunRegressorGLV3
 from sklearn.gaussian_process import kernels
 from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad, GPDataLoadTE
 
@@ -1215,6 +1215,19 @@ def Experiment_15e():
     output_dict = Experiment_5e()
     output_dict["config_name"] = "config15"
     output_dict["other"]["info"] = "Simple MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with n_same_samples=20, with decoder, independent neural iteration, parametric init, deep-se kernel, logprob, with fourier features size 10 and stddev 10 non-trainable, with stddev scaling 0.01, and concatenate x to neural-local-updater"
+    return output_dict
+
+
+
+
+#### Experiment 16 ##########################################################################################################
+# global latent
+def Experiment_16a():
+    output_dict = Experiment_1a()
+    output_dict["config_name"] = "config16"
+    output_dict["learner"]["model"] = MetaFunRegressorGLV3
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["other"]["info"] = ""
     return output_dict
 
 
