@@ -1443,8 +1443,6 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
 
         def mse_loss(target_y, mus, sigmas, q_c=None, q_t=None, z_samples=None):
             mu, sigma = mus, sigmas
-            tf.print("mu",mu)
-            tf.print("target_y",target_y)
             mse = self.loss_fn(mu, target_y)
             return mse
 
