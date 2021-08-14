@@ -35,7 +35,7 @@ Model:
   arch:
     dim_reprs: 128
     embedding_layers: 1
-    nn_layers: 3
+    nn_layers: 2
     nn_size: 128
     num_iters: 5
   comp:
