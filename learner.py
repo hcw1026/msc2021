@@ -816,9 +816,20 @@ if __name__ == "__main__":
     # mylearner.train()
     # mylearner.test(20)
 
-    from model import MetaFunRegressorV3
+    # from model import MetaFunRegressorV3
+    # from data.gp_regression import DataProvider as gp_provider
+    # mylearn2 = GPLearner(config, MetaFunRegressorV3)
+    # gp_dataloader = gp_provider(config=config)
+    # gp_data = gp_dataloader.generate()
+    # gp_train_data = gp_data[0]["RBF_Kernel"]
+    # gp_test_data = gp_data[1]["RBF_Kernel"]
+    # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
+    # mylearn2.train()
+    # mylearn2.test(20)
+
+    from model import MetaFunRegressorV3, MetaFunRegressorGLV3
     from data.gp_regression import DataProvider as gp_provider
-    mylearn2 = GPLearner(config, MetaFunRegressorV3)
+    mylearn2 = GPLearner(config, MetaFunRegressorGLV3)
     gp_dataloader = gp_provider(config=config)
     gp_data = gp_dataloader.generate()
     gp_train_data = gp_data[0]["RBF_Kernel"]
