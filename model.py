@@ -1471,8 +1471,8 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
                 logprob_VI = - log_prob_VI_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
                 logprob_ML = - log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
             else:
-                logprob_VI = target_y[...,0] #empty shape
-                logprob_ML = target_y[...,0] #empty shape
+                logprob_VI = tf.zeros(tf.shape(mus)[:2])[0,:] #empty shape
+                logprob_ML = tf.zeros(tf.shape(mus)[:2])[0,:] #empty shape
             return loss, [mse, logprob_VI, logprob_ML]
 
         if self._loss_type == "mse":
@@ -1674,7 +1674,7 @@ if __name__ == "__main__":
 
     print("DEBUGGGGGGGGGGGGGGG")
     print("-----tffunction")
-    #print(trial(data_reg, is_training=False))
+    print(trial(data_reg, is_training=False))
 
     t1 = time.time()
     print("-----normal")
