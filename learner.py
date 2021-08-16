@@ -448,7 +448,7 @@ class BaseLearner():
         self.stop = False
         self.early_stop_map = {"loss":self.metric_val_target_loss}
         for idx, metric in enumerate(self.metric_names):
-            self.early_stop_map[metric] = self.metric_val_target[idx]
+            self.early_stop_map[metric.lower()] = self.metric_val_target[idx]
 
     def _early_stopping(self):
         curr_metric = self.early_stop_map[self._early_stop_monitor].result()

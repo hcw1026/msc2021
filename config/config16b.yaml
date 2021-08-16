@@ -89,11 +89,11 @@ Train:
     early_stop: true
     early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: logprob_VI
+    early_stop_monitor: logprob_ML
     early_stop_patience: 10
     early_stop_reset: false
   epoch: 100
-  loss_type: logprob_VI
+  loss_type: logprob_ML
   lr: 0.0005
   num_per_epoch: 50000
   print_freq: 100
