@@ -1259,7 +1259,7 @@ def Experiment_16c():
     output_dict["config_name"] = "config16"
     output_dict["learner"]["model"] = MetaFunRegressorGLV3
     output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
-    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_VI, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    output_dict["other"]["info"] = "MetaFunRegressor with Noisy Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_VI, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 def Experiment_16cii():
@@ -1267,9 +1267,61 @@ def Experiment_16cii():
     output_dict["config_name"] = "config16b"
     output_dict["learner"]["model"] = MetaFunRegressorGLV3
     output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["other"]["info"] = "MetaFunRegressor with Noisy Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_ML, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_16d():
+    output_dict = Experiment_1d()
+    output_dict["config_name"] = "config16"
+    output_dict["learner"]["model"] = MetaFunRegressorGLV3
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_VI, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_16dii():
+    output_dict = Experiment_1d()
+    output_dict["config_name"] = "config16b"
+    output_dict["learner"]["model"] = MetaFunRegressorGLV3
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
     output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_ML, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
+def Experiment_16e():
+    output_dict = Experiment_1e()
+    output_dict["config_name"] = "config16"
+    output_dict["learner"]["model"] = MetaFunRegressorGLV3
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["other"]["info"] = "MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_VI, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_16eii():
+    output_dict = Experiment_1e()
+    output_dict["config_name"] = "config16b"
+    output_dict["learner"]["model"] = MetaFunRegressorGLV3
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3"
+    output_dict["other"]["info"] = "MetaFunRegressor with a combination of RBF, Periodic and Noisy Matern, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)), logprob_ML, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+
+
+#### Experiment 17 ##########################################################################################################
+def Experiment_17a():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config17"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_17b():
+    output_dict = Experiment_14b()
+    output_dict["config_name"] = "config17"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_17c():
+    output_dict = Experiment_14c()
+    output_dict["config_name"] = "config17"
+    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
 
 ############################################################################################################################
 # Classification
