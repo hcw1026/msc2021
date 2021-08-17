@@ -579,10 +579,10 @@ class DeepSet(snt.Module):
         #x = tf.reduce_mean(self.permequi[-1](x),axis=-1)
         #return self.decoder(x)
 
-def rff_kernel_frontend_fn(w, keys, querys):
+def rff_kernel_frontend_fn(w, keys, querys, weights=1.):
     keys_tr = tf.linalg.matmul(tf.expand_dims(keys, -3), w, transpose_b=True) #(batch, 1, num_keys, num_w)
     querys_tr = tf.linalg.matmul(tf.expand_dims(querys, -2), w, transpose_b=True) #(batch, num_querys, 1, num_w)
-    output = tf.concat([tf.math.sin(keys_tr), tf.math.cos(keys_tr)], axis=-1) * tf.concat([tf.math.sin(querys_tr), tf.math.cos(querys_tr)], axis=-1) #(batch, num_querys, num_keys, num_w)
+    output = tf.concat([tf.math.sin(keys_tr) * weights, tf.math.cos(keys_tr) * weights], axis=-1) * tf.concat([tf.math.sin(querys_tr) * weights, tf.math.cos(querys_tr) * weights], axis=-1) #(batch, num_querys, num_keys, num_w)
     output = tf.reduce_mean(output, axis=-1) * 2. #(batch, num_querys, num_keys)
     return output
     #diff = tf.expand_dims(keys, -3) - tf.expand_dims(querys, -2)
@@ -594,7 +594,7 @@ def rff_kernel_backend_fn(query_key, values):
     return tf.linalg.matmul(query_key, values) #(batch, num_querys, dim_values)
 
 class rff_kernel(snt.Module):
-    def __init__(self, dim_init, mapping, embedding_dim, float_dtype, init_distr="normal", init_distr_param=dict(), rff_init_trainable=True, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
+    def __init__(self, dim_init, mapping, embedding_dim, float_dtype, init_distr="normal", init_distr_param=dict(), rff_init_trainable=True, rff_weight_trainable=False, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
         """
         mapping: None or DeepSet etc.
         """
@@ -625,8 +625,17 @@ class rff_kernel(snt.Module):
                 name="rff_init_{}".format(i)
                 ) for i in range(self._num_iters)]
 
+        self.rff_weights = [
+            tf.Variable(
+                initial_value=tf.constant_initializer(value=1.)(
+                shape=[dim_init],
+                dtype=float_dtype), 
+            trainable=rff_weight_trainable,
+            name="rff_weights".format(i)
+            ) for i in range(self._num_iters)]
+
         self.call_fn_frontend = lambda querys, keys, iteration: rff_kernel_frontend_fn(
-            w=self.module_list[iteration](self.rff_init_list[iteration]), querys=querys, keys=keys)
+            w=self.module_list[iteration](self.rff_init_list[iteration]), querys=querys, keys=keys, weights=self.rff_weights[iteration])
 
         if complete_return:
             self.call_fn_backend = lambda query_key, values: rff_kernel_backend_fn(query_key=query_key, values=values)

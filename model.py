@@ -518,7 +518,6 @@ class MetaFunRegressor(MetaFunBase):
         super(MetaFunRegressor, self).__init__(config, no_batch, num_classes=1, name=name)
 
         # Decoder neural network size of last layers
-        self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) + [2]
         self._loss_type = config["Train"]["loss_type"]
 
         self._metric_names = ["mse", "logprob"] # must be in the order of metric output
@@ -530,6 +529,8 @@ class MetaFunRegressor(MetaFunBase):
         self.embedding_dim = data_instance.tr_input.get_shape()[-1]
         self.sample_tr_data = data_instance.tr_input
         self.sample_val_data = data_instance.val_input
+        self.output_dim = data_instance.tr_output.get_shape()[-1]
+        self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) + [self.output_dim*2]
         self.additional_initialise_pre()
 
         self.forward_initialiser = self.forward_initialiser_base()
@@ -1215,6 +1216,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_init_trainable = _config["init_trainable"]
         self._rff_init_distr = _config["init_distr"]
         self._rff_init_distr_param = _config["init_distr_param"]
+        self._rff_weight_trainable = _config["weight_trainable"]
     @snt.once
     def predict_init(self):
         """ backend of decoder to produce mean and variance of predictions"""
@@ -1303,6 +1305,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             init_distr_param=self._rff_init_distr_param,
             float_dtype=self._float_dtype,
             rff_init_trainable=self._rff_init_trainable,
+            rff_weight_trainable=self._rff_weight_trainable,
             num_iters=self._num_iters,
             indp_iter=self._indp_iter,
             complete_return=False
@@ -1613,44 +1616,11 @@ if __name__ == "__main__":
     # print(trial(data_reg, is_training=False))
     # print(module2(data_reg, is_training=False)[0])
 
-    # ###V3
-    # import time
-
-    # print("Regression")
-    # module2 = MetaFunRegressorV3(config=config)
-    # ClassificationDescription = collections.namedtuple(
-    # "ClassificationDescription",
-    # ["tr_input", "tr_output", "val_input", "val_output"])
-    
-    # data_reg = ClassificationDescription(
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
-
-    # module2.initialise(data_reg)
-    # data_reg = ClassificationDescription(
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
-    # @tf.function
-    # def trial(x, is_training=True):
-    #     l,*_ = module2(x, is_training=is_training)
-    #     return l
-
-    # print("DEBUGGGGGGGGGGGGGGG")
- 
-    # #print(trial(data_reg, is_training=False))
-    # t1 = time.time()
-    # print(module2(data_reg, is_training=False)[0])
-    # print("time consumed", time.time()-t1)
-
-    ####GLV3
+    ###V3
     import time
 
     print("Regression")
-    module2 = MetaFunRegressorGLV3(config=config)
+    module2 = MetaFunRegressorV3(config=config)
     ClassificationDescription = collections.namedtuple(
     "ClassificationDescription",
     ["tr_input", "tr_output", "val_input", "val_output"])
@@ -1673,13 +1643,46 @@ if __name__ == "__main__":
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")
-    print("-----tffunction")
-    print(trial(data_reg, is_training=False))
-
+ 
+    #print(trial(data_reg, is_training=False))
     t1 = time.time()
-    print("-----normal")
     print(module2(data_reg, is_training=False)[0])
-    print(module2(data_reg, is_training=False)[3][1:])
     print("time consumed", time.time()-t1)
+
+    # ####GLV3
+    # import time
+
+    # print("Regression")
+    # module2 = MetaFunRegressorGLV3(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
+    
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+
+    # module2.initialise(data_reg)
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # @tf.function
+    # def trial(x, is_training=True):
+    #     l,*_ = module2(x, is_training=is_training)
+    #     return l
+
+    # print("DEBUGGGGGGGGGGGGGGG")
+    # print("-----tffunction")
+    # print(trial(data_reg, is_training=False))
+
+    # t1 = time.time()
+    # print("-----normal")
+    # print(module2(data_reg, is_training=False)[0])
+    # print(module2(data_reg, is_training=False)[3][1:])
+    # print("time consumed", time.time()-t1)
 
 
