@@ -594,9 +594,13 @@ def rff_kernel_backend_fn(query_key, values):
     return tf.linalg.matmul(query_key, values) #(batch, num_querys, dim_values)
 
 class rff_kernel(snt.Module):
-    def __init__(self, dim_init, mapping, embedding_dim, float_dtype, init_distr="normal", init_distr_param=dict(), rff_init_trainable=True, rff_weight_trainable=False, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
+    def __init__(self, dim_init, mapping, initialiser, embedding_dim=None, transform_dim=None, float_dtype=tf.float32, init_distr="normal", init_distr_param=dict(), rff_init_trainable=True, rff_weight_trainable=False, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
         """
         mapping: None or DeepSet etc.
+        embedding_dim: int or None
+            - original embedding dim of features. If None, features are transformed to transform_dim (transform_dim must be provided)
+        transform_dim: int or None
+            - the features linear transformation dimension if not None. If None, no transformation is performed
         """
         super(rff_kernel, self).__init__(name=name)
 
@@ -610,15 +614,30 @@ class rff_kernel(snt.Module):
         if init_distr.lower() == "normal":
             param = {"mean":0., "stddev":1.}
             param.update(init_distr_param)
-            initialiser = tf.random_normal_initializer(**param)
+            random_initialiser = tf.random_normal_initializer(**param)
         elif init_distr.lower() == "uniform":
             param = {"minval":-1, "maxval":1}
             param.update(init_distr_param)
-            initialiser = tf.random_uniform_initializer(**param)
+            random_initialiser = tf.random_uniform_initializer(**param)
+
+        assert (transform_dim is not None) or (embedding_dim is not None), "at least one of transform_dim or embedding_dim must not be None"
+
+        if transform_dim is not None:
+            self.features_transform_list = [
+                snt.Linear(
+                    output_size=transform_dim,
+                    with_bias=True,
+                    w_init=initialiser,
+                    name="linear_feature_transform_{}".format(i)
+                ) for i in range(self._num_iters)
+            ]
+            embedding_dim = transform_dim
+        else:
+            self.features_transform_list = [lambda x: x] * self._num_iters
 
         self.rff_init_list = [
             tf.Variable(
-                initial_value=initialiser(
+                initial_value=random_initialiser(
                     shape=(dim_init, embedding_dim),
                     dtype=float_dtype),
                 trainable=rff_init_trainable,
@@ -635,7 +654,7 @@ class rff_kernel(snt.Module):
             ) for i in range(self._num_iters)]
 
         self.call_fn_frontend = lambda querys, keys, iteration: rff_kernel_frontend_fn(
-            w=self.module_list[iteration](self.rff_init_list[iteration]), querys=querys, keys=keys, weights=self.rff_weights[iteration])
+            w=self.module_list[iteration](self.rff_init_list[iteration]), querys=self.features_transform_list[iteration](querys), keys=self.features_transform_list[iteration](keys), weights=self.rff_weights[iteration])
 
         if complete_return:
             self.call_fn_backend = lambda query_key, values: rff_kernel_backend_fn(query_key=query_key, values=values)

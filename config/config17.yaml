@@ -82,6 +82,7 @@ Model:
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
     sab_num_heads: 4
+    transform_dim: null
     weight_trainable: true
 Train:
   batch_size: 32

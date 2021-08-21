@@ -1217,6 +1217,8 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_init_distr = _config["init_distr"]
         self._rff_init_distr_param = _config["init_distr_param"]
         self._rff_weight_trainable = _config["weight_trainable"]
+        self._rff_transform_dim = _config["transform_dim"]
+
     @snt.once
     def predict_init(self):
         """ backend of decoder to produce mean and variance of predictions"""
@@ -1265,7 +1267,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
 
         if self._rff_mapping == "deepset1":
             mapping = partial(submodules.DeepSet,
-                dim_out=self.embedding_dim, #dimension of each random feature w
+                dim_out=self.embedding_dim if self._rff_transform_dim is None else self._rff_transform_dim, #dimension of each random feature w
                 n_layers=self._rff_n_layers,
                 dim_pre_tr=self._rff_dim_pre_tr,
                 pool_fn=self._rff_perm_equi_pool_fn,
@@ -1274,7 +1276,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             mapping = None
         elif self._rff_mapping == "SAB":
             mapping = partial(submodules.SAB,
-                dim_out=self.embedding_dim,
+                dim_out=self.embedding_dim if self._rff_transform_dim is None else self._rff_transform_dim,
                 n_layers=self._rff_n_layers,
                 dim_pre_tr=self._rff_dim_pre_tr,
                 nn_layers=self._rff_sab_nn_layers,
@@ -1285,7 +1287,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
                 )
         elif self._rff_mapping == "ISAB":
             mapping = partial(submodules.ISAB,
-                dim_out=self.embedding_dim,
+                dim_out=self.embedding_dim if self._rff_transform_dim is None else self._rff_transform_dim,
                 n_layers=self._rff_n_layers,
                 dim_pre_tr=self._rff_dim_pre_tr,
                 n_induce_points=self._rff_isab_n_induce_points,
@@ -1301,6 +1303,8 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             dim_init=self._rff_dim_init,
             mapping=mapping,
             embedding_dim=self.embedding_dim,
+            transform_dim=self._rff_transform_dim,
+            initialiser=self.initialiser,
             init_distr=self._rff_init_distr, 
             init_distr_param=self._rff_init_distr_param,
             float_dtype=self._float_dtype,
@@ -1494,7 +1498,68 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
     def calculate_loss_and_metrics(self, target_y, mus, sigmas, q_c, q_t, z_samples):
         return self._calculate_loss_and_metrics(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples)
         
+
+class MetaFunRegressorV4(MetaFunRegressorV3):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV4", **kwargs):
+        super(MetaFunRegressorV4, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
+
+    @snt.once
+    def predict_init(self):
+        """ backend of decoder to produce mean and variance of predictions"""
+        def predict_no_decoder1(inputs, weights):
+            return weights, tf.ones_like(weights) * 0.5
+
+        def predict_no_decoder2(inputs, weights):
+            return tf.split(weights, 2, axis=-1)
+
+        def predict_repr_as_inputs(inputs, weights):
+            preds_input = tf.broadcast_to(self.pseudo_input, shape=tf.concat([tf.shape(inputs)[:-1], tf.constant([self._decoder_output_sizes[0]], dtype=tf.int32)], axis=0))
+            preds = self._predict_repr_as_inputs(inputs=preds_input, weights=weights)
+            return _split(preds)
+
+        def predict_not_repr_as_inputs(inputs, weights):
+            preds_input = tf.broadcast_to(self.pseudo_input, shape=tf.concat([tf.shape(inputs)[:-1], tf.constant([self._decoder_output_sizes[0]], dtype=tf.int32)], axis=0))
+            preds = self.custom_MLP(inputs=preds_input, weights=weights)
+            return _split(preds)
         
+        def _split(preds):
+            mu, log_sigma = tf.split(preds, 2, axis=-1)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
+            return mu, sigma
+
+        if self._no_decoder:
+            if self._dim_reprs == 1:
+                self._predict = predict_no_decoder1
+            elif self._dim_reprs == 2:
+                self._predict = predict_no_decoder2
+            else:
+                raise Exception("num_reprs must <=2 if no_decoder")
+        else:
+            self.pseudo_input = tf.Variable(
+                    tf.constant_initializer(0.)(
+                        shape=[self._decoder_output_sizes[0]],
+                        dtype = self._float_dtype),
+                    trainable=True,
+                    name="predict_pseudo_input")
+            
+            if self._repr_as_inputs:
+                self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
+                    output_sizes=self._decoder_output_sizes[1:],
+                    initialiser=self.initialiser,
+                    nonlinearity=self._nonlinearity
+                )
+                self._predict =  predict_repr_as_inputs
+            else:
+                self.custom_MLP = submodules.custom_MLP(
+                    output_sizes=self._decoder_output_sizes[1:],
+                    embedding_dim=self._decoder_output_sizes[0],
+                    nonlinearity=self._nonlinearity)
+                self._predict =  predict_not_repr_as_inputs
+
+class MetaFunRegressorGLV4(MetaFunBaseGLV2, MetaFunRegressorV4):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV4", **kwargs):
+        super(MetaFunRegressorGLV4, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
+
 
 if __name__ == "__main__":
     from utils import parse_config
@@ -1620,38 +1685,38 @@ if __name__ == "__main__":
     # print(trial(data_reg, is_training=False))
     # print(module2(data_reg, is_training=False)[0])
 
-    ###V3
-    import time
+    # ###V3
+    # import time
 
-    print("Regression")
-    module2 = MetaFunRegressorV3(config=config)
-    ClassificationDescription = collections.namedtuple(
-    "ClassificationDescription",
-    ["tr_input", "tr_output", "val_input", "val_output"])
+    # print("Regression")
+    # module2 = MetaFunRegressorV3(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
     
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
 
-    module2.initialise(data_reg)
-    data_reg = ClassificationDescription(
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
-    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
-    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
-    @tf.function
-    def trial(x, is_training=True):
-        l,*_ = module2(x, is_training=is_training)
-        return l
+    # module2.initialise(data_reg)
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # @tf.function
+    # def trial(x, is_training=True):
+    #     l,*_ = module2(x, is_training=is_training)
+    #     return l
 
-    print("DEBUGGGGGGGGGGGGGGG")
+    # print("DEBUGGGGGGGGGGGGGGG")
  
-    #print(trial(data_reg, is_training=False))
-    t1 = time.time()
-    print(module2(data_reg, is_training=False)[0])
-    print("time consumed", time.time()-t1)
+    # #print(trial(data_reg, is_training=False))
+    # t1 = time.time()
+    # print(module2(data_reg, is_training=False)[0])
+    # print("time consumed", time.time()-t1)
 
     # ####GLV3
     # import time
@@ -1689,4 +1754,37 @@ if __name__ == "__main__":
     # print(module2(data_reg, is_training=False)[3][1:])
     # print("time consumed", time.time()-t1)
 
+
+    ####V4
+    import time
+
+    print("Regression")
+    module2 = MetaFunRegressorV4(config=config)
+    ClassificationDescription = collections.namedtuple(
+    "ClassificationDescription",
+    ["tr_input", "tr_output", "val_input", "val_output"])
+    
+    data_reg = ClassificationDescription(
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+
+    module2.initialise(data_reg)
+    data_reg = ClassificationDescription(
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    @tf.function
+    def trial(x, is_training=True):
+        l,*_ = module2(x, is_training=is_training)
+        return l
+
+    print("DEBUGGGGGGGGGGGGGGG")
+ 
+    #print(trial(data_reg, is_training=False))
+    t1 = time.time()
+    print(module2(data_reg, is_training=False)[0])
+    print("time consumed", time.time()-t1)
 
