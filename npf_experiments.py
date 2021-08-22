@@ -17,7 +17,7 @@ if npf_path not in sys.path:
     sys.path.append(npf_path)
 
 
-from npf import AttnCNP, CNP, ConvCNP, CNPFLoss
+from npf import AttnCNP, CNP, ConvCNP, CNPFLoss, LNP, LatentNeuralProcessFamily, ELBOLossLNPF, AttnLNP, ConvLNP, NLLLossLNPF
 from npf.architectures import MLP, merge_flat_input, CNN, MLP, ResConvBlock, SetConv, discard_ith_arg
 from npf.utils.datasplit import (
     CntxtTrgtGetter,
@@ -30,6 +30,7 @@ from utils.data.helpers import DatasetMerger
 from utils.helpers import count_parameters
 from utils.ntbks_helpers import get_all_gp_datasets
 from utils.train import train_models
+from skorch.callbacks import GradientNormClipping
 
 
 
@@ -96,6 +97,58 @@ def CNP_():
     )
     return trainers_1d
 
+def LNP_():
+    R_DIM = 128
+    KWARGS = dict(
+        is_q_zCct=True,  # will use NPVI => posterior sampling
+        n_z_samples_train=1,
+        n_z_samples_test=32,  # number of samples when eval
+        XEncoder=partial(MLP, n_hidden_layers=1, hidden_size=R_DIM),
+        Decoder=merge_flat_input(  # MLP takes single input but we give x and R so merge them
+            partial(MLP, n_hidden_layers=4, hidden_size=R_DIM), is_sum_merge=True,
+        ),
+        r_dim=R_DIM,
+    )
+
+    model_1d = partial(
+        LNP,
+        x_dim=1,
+        y_dim=1,
+        XYEncoder=merge_flat_input(  # MLP takes single input but we give x and y so merge them
+            partial(MLP, n_hidden_layers=2, hidden_size=R_DIM * 2), is_sum_merge=True,
+    ),
+    **KWARGS,
+    )
+
+    n_params_1d = count_parameters(model_1d())
+
+    KWARGS = dict(
+        is_retrain=False,  # whether to load precomputed model or retrain
+        criterion=ELBOLossLNPF,  # NPVI
+        chckpnt_dirname=os.path.join(npf_path, "results/pretrained/"),
+        device=None,  # use GPU if available
+        batch_size=32,
+        lr=1e-3,
+        decay_lr=10,  # decrease learning rate by 10 during training
+        seed=123,
+    )
+
+    trainers_1d = train_models(
+        gp_datasets,
+        {"LNP": model_1d},
+        test_datasets=gp_test_datasets,
+        valid_datasets=gp_valid_datasets if is_valid else None,
+        iterator_train__collate_fn=get_cntxt_trgt_1d,
+        iterator_valid__collate_fn=get_cntxt_trgt_1d if is_valid else get_cntxt_trgt_1d_test,
+        patience=10 if is_valid else None,
+        max_epochs=100,
+        starting_run=starting_run,
+        **KWARGS
+    )
+
+    return trainers_1d
+
+
 
 def AttnCNP_():
     R_DIM = 128
@@ -149,6 +202,54 @@ def AttnCNP_():
     )
 
     return trainers_1d
+
+
+def AttnLNP_():
+    R_DIM = 128
+    KWARGS = dict(
+        is_q_zCct=True,  # will use NPVI => posterior sampling
+        n_z_samples_train=1,
+        n_z_samples_test=8,  # small number of sampled because Attn is memory intensive
+        r_dim=R_DIM,
+        attention="transformer",  # multi headed attention with normalization and skip connections
+    )
+    model_1d = partial(
+        AttnLNP,
+        x_dim=1,
+        y_dim=1,
+        XYEncoder=merge_flat_input(  # MLP takes single input but we give x and y so merge them
+            partial(MLP, n_hidden_layers=2, hidden_size=R_DIM), is_sum_merge=True,
+        ),
+        is_self_attn=False,
+        **KWARGS,
+    )
+
+    KWARGS = dict(
+        is_retrain=False,  # whether to load precomputed model or retrain
+        criterion=ELBOLossLNPF,  # NPVI
+        chckpnt_dirname=os.path.join(npf_path, "results/pretrained/"),
+        device=None,  # use GPU if available
+        batch_size=32,
+        lr=1e-3,
+        decay_lr=10,  # decrease learning rate by 10 during training
+        seed=123,
+    )
+
+    trainers_1d = train_models(
+        gp_datasets,
+        {"AttnLNP": model_1d},
+        test_datasets=gp_test_datasets,
+        valid_datasets=gp_valid_datasets if is_valid else None,
+        iterator_train__collate_fn=get_cntxt_trgt_1d,
+        iterator_valid__collate_fn=get_cntxt_trgt_1d if is_valid else get_cntxt_trgt_1d_test,
+        patience=10 if is_valid else None,
+        max_epochs=100,
+        starting_run=starting_run,
+        **KWARGS
+    )
+
+    return trainers_1d
+
 
 def ConvCNP_():
     R_DIM = 128
@@ -211,6 +312,74 @@ def ConvCNP_():
     )
 
     return trainers_1d
+
+def ConvLNP_():
+    R_DIM = 128
+    KWARGS = dict(
+        is_q_zCct=False,  # use NPML instead of NPVI => don't use posterior sampling
+        n_z_samples_train=16,  # going to be more expensive
+        n_z_samples_test=32,
+        r_dim=R_DIM,
+        Decoder=discard_ith_arg(
+            torch.nn.Linear, i=0
+        ),  # use small decoder because already went through CNN
+    )
+
+    CNN_KWARGS = dict(
+        ConvBlock=ResConvBlock,
+        is_chan_last=True,  # all computations are done with channel last in our code
+        n_conv_layers=2,
+        n_blocks=4,
+    )
+
+    model_1d = partial(
+        ConvLNP,
+        x_dim=1,
+        y_dim=1,
+        Interpolator=SetConv,
+        CNN=partial(
+            CNN,
+            Conv=torch.nn.Conv1d,
+            Normalization=torch.nn.BatchNorm1d,
+            kernel_size=19,
+            **CNN_KWARGS,
+        ),
+        density_induced=64,  # density of discretization
+        is_global=True,  # use some global representation in addition to local
+        **KWARGS,
+    )
+
+    n_params_1d = count_parameters(model_1d())
+
+    KWARGS = dict(
+        is_retrain=False,  # whether to load precomputed model or retrain
+        criterion=NLLLossLNPF, # NPML
+        chckpnt_dirname=os.path.join(npf_path, "results/pretrained/"),
+        device=None,
+        lr=1e-3,
+        decay_lr=10,
+        seed=123,
+        batch_size=16,  # smaller batch because multiple samples
+        callbacks=[
+            GradientNormClipping(gradient_clip_value=1)
+        ],  # clipping gradients can stabilize training
+    )
+
+
+    # 1D
+    trainers_1d = train_models(
+        gp_datasets,
+        {"ConvLNP": model_1d},
+        test_datasets=gp_test_datasets,
+        valid_datasets=gp_valid_datasets if is_valid else None,
+        iterator_train__collate_fn=get_cntxt_trgt_1d,
+        iterator_valid__collate_fn=get_cntxt_trgt_1d if is_valid else get_cntxt_trgt_1d_test,
+        patience=10 if is_valid else None,
+        max_epochs=100,
+        starting_run=starting_run,
+        **KWARGS
+    )
+
 
 def gen_p_y_pred(model, X_cntxt, Y_cntxt, X_trgt, n_samples):
     """Get the estimated (conditional) posterior predictive from a model."""
