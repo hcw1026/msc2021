@@ -39,7 +39,7 @@ DIR_DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Oth
 # DataProvider
 ###########################################################################################
 class DataProvider():
-    def __init__(self, config, load_type="all", custom_kernels=None, custom_kernels_merge=False, train_datasets=None, train_batch_size=None, eval_batch_size=None, train_indp_target=None, eval_indp_target=None, **kwargs):
+    def __init__(self, config, load_type="all", custom_kernels=None, custom_kernels_merge=False, train_datasets=None, train_batch_size=None, eval_batch_size=None, train_indp_target=None, eval_indp_target=None, custom_cntxt_getter=None, custom_trgt_getter=None, **kwargs):
         """data loader for GP 1D regression training
         config: dict
             - configuration file - the same format as a parsed yaml in the config/sample.yaml
@@ -90,6 +90,7 @@ class DataProvider():
         self._range_indcs = read_kwargs(kwargs=kwargs, config=_config, config_name="range_indcs", kwargs_name="range_indcs", delete=True)
         self._is_beta_binomial = read_kwargs(kwargs=kwargs, config=_config, config_name="is_beta_binomial", kwargs_name="is_beta_binomial", delete=True)
         self._proba_uniform = read_kwargs(kwargs=kwargs, config=_config, config_name="proba_uniform", kwargs_name="proba_uniform", delete=True)
+        self._random_targets = read_kwargs(kwargs=kwargs, config=_config, config_name="random_targets", kwargs_name="random_targets", delete=True)
 
         self._train_indp_target = train_indp_target if train_indp_target is not None else _config["train_indp_target"]
         self._eval_indp_target = eval_indp_target if eval_indp_target is not None else _config["eval_indp_target"]
@@ -98,14 +99,31 @@ class DataProvider():
         self.kwargs = kwargs
 
         # Other initialisation
-        contexts_getter = GetRandomIndcs(
-            a=self._min_context, 
-            b=self._max_context, 
-            is_batch_share=self._is_batch_share, 
-            range_indcs=self._range_indcs,
-            is_beta_binomial=self._is_beta_binomial, 
-            proba_uniform=self._proba_uniform)
-        self.splitter = CntxtTrgtGetter(contexts_getter=contexts_getter)
+        if custom_cntxt_getter is None:
+            contexts_getter = GetRandomIndcs(
+                a=self._min_context, 
+                b=self._max_context, 
+                is_batch_share=self._is_batch_share, 
+                range_indcs=self._range_indcs,
+                is_beta_binomial=self._is_beta_binomial, 
+                proba_uniform=self._proba_uniform)
+        else:
+            contexts_getter = custom_cntxt_getter
+
+        if custom_trgt_getter is None:
+            if self._random_targets:
+                targets_getter = GetRandomIndcs(
+                    a=self._min_context, 
+                    b=self._max_context, 
+                    is_batch_share=self._is_batch_share, 
+                    range_indcs=self._range_indcs,
+                    is_beta_binomial=self._is_beta_binomial, 
+                    proba_uniform=self._proba_uniform)
+            else:
+                targets_getter = get_all_indcs
+        else:
+            targets_getter = custom_trgt_getter
+        self.splitter = CntxtTrgtGetter(contexts_getter=contexts_getter, targets_getter=targets_getter)
         self._float_dtype = tf.float32
 
         # Load data
@@ -551,12 +569,15 @@ class GPDataset():
 ###########################################################################################
 # Dataset splitter
 ###########################################################################################
-def get_all_indcs(batch_size, n_possible_points):
+def get_all_indcs(batch_size, n_possible_points, available_indcs=None):
     """
     Return all possible indices.
     """
     #torch.arange(n_possible_points).expand(batch_size, n_possible_points)
-    return tf.tile(tf.expand_dims(tf.range(n_possible_points),0),(batch_size,1))
+    if available_indcs is None:
+        return tf.tile(tf.expand_dims(tf.range(n_possible_points),0),(batch_size,1))
+    else:
+        return available_indcs
 
 class GetRandomIndcs:
     """
@@ -607,7 +628,7 @@ class GetRandomIndcs:
         self.proba_uniform = proba_uniform
         self._int_dtype = tf.int32
 
-    def __call__(self, batch_size, n_possible_points):
+    def __call__(self, batch_size, n_possible_points, available_indcs=None):
         if self.range_indcs is not None:
             n_possible_points = self.range_indcs[1] - self.range_indcs[0]
 
@@ -634,11 +655,14 @@ class GetRandomIndcs:
             indcs = tf.random.shuffle(tf.range(n_possible_points))[:n_indcs]
             indcs = tf.tile(tf.expand_dims(indcs, 0),(batch_size,1))
         else:
-            indcs = (
-                np.arange(n_possible_points)
-                .reshape(1, n_possible_points)
-                .repeat(batch_size, axis=0)
-            )
+            if available_indcs is not None:
+                indcs = available_indcs.numpy()
+            else:
+                indcs = (
+                    np.arange(n_possible_points)
+                    .reshape(1, n_possible_points)
+                    .repeat(batch_size, axis=0)
+                )
             indep_shuffle_(indcs, -1)
             #indcs = torch.from_numpy(indcs[:, :n_indcs])
             indcs = tf.constant(indcs[:,:n_indcs], dtype=self._int_dtype)
@@ -706,10 +730,13 @@ class CntxtTrgtGetter:
 
         if context_indcs is None:
             context_indcs = self.contexts_getter(batch_size, num_points)
+
         if target_indcs is None:
-            target_indcs = self.targets_getter(batch_size, num_points)
             if indp_target:
-                target_indcs = setdiff(target_indcs, context_indcs)
+                available_indcs = setdiff(get_all_indcs(batch_size, num_points), context_indcs)
+                target_indcs = self.targets_getter(batch_size, num_points, available_indcs=available_indcs)
+            else:
+                target_indcs = self.targets_getter(batch_size, num_points)
 
         if self.is_add_cntxts_to_trgts:
             target_indcs = self.add_cntxts_to_trgts(

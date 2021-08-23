@@ -10,6 +10,7 @@ Data:
     n_same_samples: 10
     n_samples: 50000
     proba_uniform: 0
+    random_targets: false
     range_indcs: null
     save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
     shuffle: false

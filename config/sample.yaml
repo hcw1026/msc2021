@@ -10,6 +10,7 @@ Data:
     n_same_samples: 10
     n_samples: 50000
     proba_uniform: 0
+    random_targets: false
     range_indcs: null
     save_path: ''
     shuffle: false
@@ -49,7 +50,7 @@ Model:
     kernel_type: rff
     neural_updater_concat_x: false
     no_decoder: false
-    repr_as_inputs: false
+    repr_as_inputs: true
     stddev_const_scale: 0.01
     use_gradient: false
     use_kernel: true
@@ -71,7 +72,7 @@ Model:
     orthogonality_penalty_weight: 0.001
   rff:
     dim_init: 500
-    dim_pre_tr: 128
+    dim_pre_tr: 32
     init_distr: normal
     init_distr_param: {}
     init_trainable: true
@@ -81,7 +82,7 @@ Model:
     perm_equi_pool_fn: mean
     sab_nn_layers: 2
     sab_num_heads: 4
-    transform_dim: 128
+    transform_dim: 16
     weight_trainable: true
 Train:
   batch_size: 32
