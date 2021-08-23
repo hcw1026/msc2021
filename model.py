@@ -1201,6 +1201,7 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
         additional_loss = tf.constant(0., dtype=self._float_dtype)
         return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
 
+
 class MetaFunRegressorV3(MetaFunRegressorV2):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV3", **kwargs):
         super(MetaFunRegressorV3, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
@@ -1389,6 +1390,7 @@ class MetaFunBaseGLV2(MetaFunBaseV2):
         self.sample_latent_init()
         self.latent_decoder_init()
 
+
 class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV3", **kwargs):
         super(MetaFunRegressorGLV3, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
@@ -1555,6 +1557,7 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
                     embedding_dim=self._decoder_output_sizes[0],
                     nonlinearity=self._nonlinearity)
                 self._predict =  predict_not_repr_as_inputs
+
 
 class MetaFunRegressorGLV4(MetaFunBaseGLV2, MetaFunRegressorV4):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV4", **kwargs):
