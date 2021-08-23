@@ -1348,6 +1348,18 @@ def Experiment_18aiv():
     output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, 0,7 inner lr, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
+def Experiment_18av():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config18d"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, 10 iters, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_18av():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config18d"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel,  0.4 inner lr, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################

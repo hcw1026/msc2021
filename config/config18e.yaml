@@ -37,7 +37,7 @@ Model:
     embedding_layers: 1
     nn_layers: 3
     nn_size: 128
-    num_iters: 5
+    num_iters: 10
   comp:
     attention_type: dot_product
     deterministic_decoder: true

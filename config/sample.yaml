@@ -26,43 +26,43 @@ Data:
     num_val_examples_per_class: 15
     shuffle: false
 Eval:
-  batch_size: 16
+  batch_size: 32
   drop_remainder: false
-  num_per_epoch: 2
+  num_per_epoch: 5000
   validation: false
-GPU: null
+GPU: 0
 Model:
   arch:
-    dim_reprs: 64
+    dim_reprs: 128
     embedding_layers: 1
-    nn_layers: 3
-    nn_size: 64
-    num_iters: 1
+    nn_layers: 2
+    nn_size: 128
+    num_iters: 5
   comp:
     attention_type: dot_product
     deterministic_decoder: true
     indp_iter: false
-    initial_state_type: zero
+    initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_lengthscale_trainable: true
     kernel_sigma_init: 1.0
-    kernel_type: se
-    neural_updater_concat_x: true
+    kernel_type: rff
+    neural_updater_concat_x: false
     no_decoder: false
-    reprs_as_inputs: false
-    stddev_const_scale: 0.1
+    repr_as_inputs: false
+    stddev_const_scale: 0.01
     use_gradient: false
-    use_kernel: false
+    use_kernel: true
   ff:
     learnable: false
     num_freq: 10
     stddev_init: 10
     use_ff: false
   latent:
-    dim_latent: 64
+    dim_latent: 128
     num_z_samples: 10
   other:
-    initial_inner_lr: 1.0
+    initial_inner_lr: 0.1
     repr_as_inputs: false
   reg:
     dropout_rate: 0.0
@@ -70,33 +70,34 @@ Model:
     label_smoothing: 0.0
     orthogonality_penalty_weight: 0.001
   rff:
-    dim_init: 100
+    dim_init: 500
     dim_pre_tr: 128
     init_distr: normal
     init_distr_param: {}
+    init_trainable: true
     isab_n_induce_points: 50
-    mapping: SAB
+    mapping: deepset1
     n_layers: 3
     perm_equi_pool_fn: mean
-    sab_nn_layers: 3
+    sab_nn_layers: 2
     sab_num_heads: 4
-    transform_dim: null
-    weight_trainable: false
+    transform_dim: 128
+    weight_trainable: true
 Train:
-  batch_size: 16
+  batch_size: 32
   drop_remainder: false
   early_stop:
     early_stop: false
     early_stop_if_increase: true
     early_stop_min_delta: 0
     early_stop_monitor: acc
-    early_stop_patience: 100
+    early_stop_patience: 10
     early_stop_reset: false
-  epoch: 2
+  epoch: 100
   loss_type: logprob
-  lr: 0.001
-  num_per_epoch: 3
-  print_freq: 1
+  lr: 0.0005
+  num_per_epoch: 50000
+  print_freq: 100
   save:
     ckpt_restore_path: ./checkpoint
     ckpt_save_dir: null

@@ -62,7 +62,7 @@ Model:
     dim_latent: 64
     num_z_samples: 10
   other:
-    initial_inner_lr: 0.7
+    initial_inner_lr: 0.4
     repr_as_inputs: false
   reg:
     dropout_rate: 0.0
