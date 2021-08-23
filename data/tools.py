@@ -209,13 +209,15 @@ def save_chunk(to_save, save_file, idx_chunk):
                     "{}{}{}".format(save_group, k, chunk_suffix), data=v.numpy()
                 )
 
-def generate_save_signature(kernel_name, min_max, n_points, is_vary_kernel_hyp, n_same_samples, rounding=5):
+def generate_save_signature(kernel_name, min_max, n_points, is_vary_kernel_hyp, n_same_samples, rounding=5, rescale=True):
     output = ""
     output += kernel_name
     output += str(np.round(min_max[0], rounding)) + str(np.round(min_max[1], rounding)) + "-"
     output += str(int(n_points)) + "-"
     output += str(int(is_vary_kernel_hyp)) + "-"
     output += str(int(n_same_samples))
+    if rescale is False: #TODO: rewrite this
+        output += "-0"
     return output
 
 def get_save_file(name, save_file):

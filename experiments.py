@@ -1,7 +1,7 @@
 from data.gp_regression import DataProvider as gp_provider
 from data.leo_imagenet import DataProvider as imagenet_provider
 from learner import ImageNetLearner, GPLearner
-from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b, MetaFunRegressorGLV3
+from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4
 from sklearn.gaussian_process import kernels
 from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad, GPDataLoadTE
 
@@ -1359,6 +1359,34 @@ def Experiment_18avi():
     output_dict["config_name"] = "config18d"
     output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel,  0.4 inner lr, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
+
+
+
+#### Experiment 19 ##########################################################################################################
+def Experiment_19a():
+    return dict(
+        config_name = "config19",
+        learner = dict(
+            learner = GPLearner,
+            model = MetaFunRegressorV4,
+            load_fn = GPLearnerLoad,
+            model_name = "MetaFunRegressorV4",
+        ),
+        train_fn = GPTrain,
+        test_fn = GPTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = GPDataLoadTE,
+            offsets = 100,
+            dataprovider = gp_provider,
+            load_type = "single",
+            custom_kernels = {"RBF_Kernel2":kernels.RBF(length_scale=(0.25))}, 
+            custom_kernels_merge = False, 
+        ),
+        other = dict( # for saving
+            info = "New rff trial with params matched with ConvCNP paper",
+        )
+        )
+
 
 ############################################################################################################################
 # Classification

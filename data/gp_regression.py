@@ -91,6 +91,7 @@ class DataProvider():
         self._is_beta_binomial = read_kwargs(kwargs=kwargs, config=_config, config_name="is_beta_binomial", kwargs_name="is_beta_binomial", delete=True)
         self._proba_uniform = read_kwargs(kwargs=kwargs, config=_config, config_name="proba_uniform", kwargs_name="proba_uniform", delete=True)
         self._random_targets = read_kwargs(kwargs=kwargs, config=_config, config_name="random_targets", kwargs_name="random_targets", delete=True)
+        self._rescale = read_kwargs(kwargs=kwargs, config=_config, config_name="rescale", kwargs_name="rescale", delete=True)
 
         self._train_indp_target = train_indp_target if train_indp_target is not None else _config["train_indp_target"]
         self._eval_indp_target = eval_indp_target if eval_indp_target is not None else _config["eval_indp_target"]
@@ -136,19 +137,19 @@ class DataProvider():
 
     def _load(self, dataset_split="train", train_datasets=None, n_samples=50000, n_points=128, is_reuse_across_epochs=False):
         if self._load_type.lower() == "all":
-            return get_all_gp_datasets(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_all_gp_datasets(dataset_split=dataset_split, train_datasets=train_datasets, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
         elif self._load_type.lower() == "single":
-            return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
         elif self._load_type.lower() == "var_hyp":
-            return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
         elif self._load_type.lower() == "var_kernel":
-            return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+            return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
         elif self._load_type.lower() == "custom":
             if self._custom_kernels is not None:
                 if self._custom_kernels_merge:
-                    return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+                    return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
                 else:
-                    return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, **self.kwargs)
+                    return get_datasets_single_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
             else:
                 raise ValueError("custom_kernels must be provided when load_type == 'custom'")
         else:
@@ -384,6 +385,7 @@ class GPDataset():
         is_vary_kernel_hyp=False,
         save_file=None,
         n_same_samples=20,
+        rescale=True,
         is_reuse_across_epochs=True,
         generated_from=None,
         kernel_name=None,
@@ -395,6 +397,7 @@ class GPDataset():
         self.min_max = min_max
         self.is_vary_kernel_hyp = is_vary_kernel_hyp
         self.save_file = save_file
+        self.rescale = rescale
         self.n_same_samples = n_same_samples
         self.is_reuse_across_epochs = is_reuse_across_epochs
 
@@ -476,7 +479,7 @@ class GPDataset():
         n_points = n_points if n_points is not None else self.n_points
         n_samples = n_samples if n_samples is not None else self.n_samples
 
-        save_signature = generate_save_signature(kernel_name=self.kernel_name, min_max=test_min_max, n_points=self.n_points, is_vary_kernel_hyp=self.is_vary_kernel_hyp, n_same_samples=self.n_same_samples, rounding=rounding)
+        save_signature = generate_save_signature(kernel_name=self.kernel_name, min_max=test_min_max, n_points=self.n_points, is_vary_kernel_hyp=self.is_vary_kernel_hyp, n_same_samples=self.n_same_samples, rounding=rounding, rescale=self.rescale)
 
         save_file = get_save_file(name=save_signature, save_file=save_file)
 
@@ -486,7 +489,7 @@ class GPDataset():
         except NotLoadedError:
             X = self._sample_features(test_min_max, n_points, n_samples)
             X, targets = self._sample_targets(X, n_samples)
-            data = self._postprocessing_features(X, n_samples)
+            data = self._postprocessing_features(X, n_samples, rescale=self.rescale)
             save_chunk(
                 {"data": data, "targets": targets},
                 save_file,
@@ -517,10 +520,11 @@ class GPDataset():
         X.sort(axis=-1)
         return X
 
-    def _postprocessing_features(self, X, n_samples):
+    def _postprocessing_features(self, X, n_samples, rescale=True):
         """Convert the features to a tensor, rescale them to [-1,1] and expand."""
         X = tf.expand_dims(tf.constant(X, dtype=self._float_dtype),-1)
-        X = rescale_range(X, self.min_max, (-1, 1))
+        if rescale:
+            X = rescale_range(X, self.min_max, (-1, 1))
         return X
 
     def _sample_targets(self, X, n_samples):

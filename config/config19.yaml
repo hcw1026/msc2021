@@ -5,18 +5,18 @@ Data:
     is_beta_binomial: false
     is_reuse_across_epochs: false
     max_context: 50
-    min_context: 0.0
-    n_points: 128
+    min_context: 3
+    n_points: 100
     n_same_samples: 10
-    n_samples: 50000
+    n_samples: 4096
     proba_uniform: 0
-    random_targets: false
+    random_targets: true
     range_indcs: null
-    rescale: true
+    rescale: false
     save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
     shuffle: false
     test_n_samples: 10000
-    train_indp_target: false
+    train_indp_target: true
     val_n_samples: 0.1
   leo_imagenet:
     data_path: D://embeddings/embeddings
@@ -28,7 +28,7 @@ Data:
     num_val_examples_per_class: 2
     shuffle: false
 Eval:
-  batch_size: 32
+  batch_size: 16
   drop_remainder: false
   num_per_epoch: 5000
   validation: true
@@ -51,8 +51,8 @@ Model:
     kernel_type: rff
     neural_updater_concat_x: false
     no_decoder: false
-    repr_as_inputs: false
-    stddev_const_scale: 0.01
+    repr_as_inputs: true
+    stddev_const_scale: 0
     use_gradient: false
     use_kernel: true
   ff:
@@ -61,7 +61,7 @@ Model:
     stddev_init: 10
     use_ff: false
   latent:
-    dim_latent: 64
+    dim_latent: 128
     num_z_samples: 10
   other:
     initial_inner_lr: 0.1
@@ -77,29 +77,29 @@ Model:
     init_distr: normal
     init_distr_param:
       stddev: 0.1
-    init_trainable: true
+    init_trainable: false
     isab_n_induce_points: 50
     mapping: deepset1
-    n_layers: 3
+    n_layers: 2
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
     sab_num_heads: 4
-    transform_dim: null
+    transform_dim: 128
     weight_trainable: false
 Train:
-  batch_size: 32
+  batch_size: 16
   drop_remainder: false
   early_stop:
     early_stop: true
     early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: logprob_ML
-    early_stop_patience: 10
+    early_stop_monitor: logprob
+    early_stop_patience: 20
     early_stop_reset: false
   epoch: 100
-  loss_type: logprob_ML
+  loss_type: logprob
   lr: 0.0005
-  num_per_epoch: 50000
+  num_per_epoch: 4096
   print_freq: 100
   save:
     ckpt_restore_path: /data/ziz/chho/msc2021/Training

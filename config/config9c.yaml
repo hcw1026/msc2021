@@ -12,6 +12,7 @@ Data:
     proba_uniform: 0
     random_targets: false
     range_indcs: null
+    rescale: true
     save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
     shuffle: false
     test_n_samples: 10000
