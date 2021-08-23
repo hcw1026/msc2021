@@ -1308,19 +1308,44 @@ def Experiment_16eii():
 def Experiment_17a():
     output_dict = Experiment_14a()
     output_dict["config_name"] = "config17"
-    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 def Experiment_17b():
     output_dict = Experiment_14b()
     output_dict["config_name"] = "config17"
-    output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    output_dict["other"]["info"] = "MetaFunRegressor with Periodic Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 def Experiment_17c():
     output_dict = Experiment_14c()
     output_dict["config_name"] = "config17"
     output_dict["other"]["info"] = "MetaFunRegressor with Variable Matern Kernel, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+#### Experiment 18 ##########################################################################################################
+def Experiment_18a():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config18"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, 3 iters, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_18aii():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config18b"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, 7 iters, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_18aiii():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config18c"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, 0.03 inner lr, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
+    return output_dict
+
+def Experiment_18aiv():
+    output_dict = Experiment_14a()
+    output_dict["config_name"] = "config18d"
+    output_dict["other"]["info"] = "MetaFunRegressor with RBF Kernel, 0,7 inner lr, with decoder, same neural iteration, constant init, rff kernel with deepset mapping (init Normal(0,0.1)) and trainable weight, logprob, nueral local updater without x appending, prediction with x masked as zero, without fourier features, without repr_as_input"
     return output_dict
 
 ############################################################################################################################
