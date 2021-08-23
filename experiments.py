@@ -1376,7 +1376,7 @@ def Experiment_19a():
         test_fn = GPTest,
         data = dict( # for data loading function parser in run.py
             load_fn = GPDataLoadTE,
-            offsets = 100,
+            offsets = [100.],
             dataprovider = gp_provider,
             load_type = "single",
             custom_kernels = {"RBF_Kernel2":kernels.RBF(length_scale=(0.25))}, 
