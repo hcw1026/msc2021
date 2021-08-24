@@ -98,9 +98,9 @@ Train:
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob
-    early_stop_patience: 20
+    early_stop_patience: 50
     early_stop_reset: false
-  epoch: 100
+  epoch: 1000
   loss_type: logprob
   lr: 0.0005
   num_per_epoch: 4096

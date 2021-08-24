@@ -1383,9 +1383,22 @@ def Experiment_19a():
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
-            info = "New rff trial with params matched with ConvCNP paper",
+            info = "New rff trial with params matched with ConvCNP paper with RBF kernel",
         )
         )
+
+def Experiment_19b():
+    output_dict = Experiment_19a()
+    output_dict["data"]["custom_kernels"] = {"Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.25)}
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel"
+    return output_dict
+
+def Experiment_19c():
+    output_dict = Experiment_19a()
+    output_dict["data"]["custom_kernels"] = {"Matern_Kernel": kernels.Matern(length_scale=0.25, nu=2.5)}
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel"
+    return output_dict
+
 
 
 ############################################################################################################################

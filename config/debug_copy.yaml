@@ -35,6 +35,7 @@ Eval:
 GPU: 0
 Model:
   arch:
+    decoder_output_sizes: null
     dim_reprs: 64
     embedding_layers: 1
     nn_layers: 3
