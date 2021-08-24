@@ -826,9 +826,9 @@ if __name__ == "__main__":
     # mylearn2.train()
     # mylearn2.test(20)
 
-    from model import MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorGLV3
+    from model import MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4
     from data.gp_regression import DataProvider as gp_provider
-    mylearn2 = GPLearner(config, MetaFunRegressorV3)
+    mylearn2 = GPLearner(config, MetaFunRegressorV4)
     gp_dataloader = gp_provider(config=config)
     gp_data = gp_dataloader.generate()
     gp_train_data = gp_data[0]["RBF_Kernel"]
