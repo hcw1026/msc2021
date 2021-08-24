@@ -1389,7 +1389,7 @@ def Experiment_19a():
 
 def Experiment_19b():
     output_dict = Experiment_19a()
-    output_dict["data"]["custom_kernels"] = {"Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.25)}
+    output_dict["data"]["custom_kernels"] = {"Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}
     output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel"
     return output_dict
 
