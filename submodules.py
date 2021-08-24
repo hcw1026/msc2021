@@ -388,8 +388,9 @@ class deep_se_kernel(snt.Module): #TODO: clarify whether nn_layer or embedding d
 
 def deterministic_sample(distribution_params, stddev_offset):
     """deterministic sampling by splitting parameteres into mean and stddev directly"""
-    means, unnormalised_stddev = tf.split(distribution_params, 2, axis=-1)
-    return means
+    #means, unnormalised_stddev = tf.split(distribution_params, 2, axis=-1)
+    #return means
+    return distribution_params
 
 def probabilistic_sample(distribution_params, stddev_offset, is_training=True):
     """probabilistic sampling"""

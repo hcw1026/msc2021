@@ -519,6 +519,7 @@ class MetaFunRegressor(MetaFunBase):
 
         # Decoder neural network size of last layers
         self._loss_type = config["Train"]["loss_type"]
+        self._decoder_output_sizes = config["Model"]["arch"]["decoder_output_sizes"]
 
         self._metric_names = ["mse", "logprob"] # must be in the order of metric output
 
@@ -530,7 +531,8 @@ class MetaFunRegressor(MetaFunBase):
         self.sample_tr_data = data_instance.tr_input
         self.sample_val_data = data_instance.val_input
         self.output_dim = data_instance.tr_output.get_shape()[-1]
-        self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) + [self.output_dim*2]
+        self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) if self._decoder_output_sizes is None else self._decoder_output_sizes
+        self._decoder_output_sizes += [self.output_dim*2]
         self.additional_initialise_pre()
 
         self.forward_initialiser = self.forward_initialiser_base()
