@@ -15,7 +15,7 @@ Data:
     rescale: false
     save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
     shuffle: false
-    test_n_samples: 10000
+    test_n_samples: 32768
     train_indp_target: true
     val_n_samples: 0.1
   leo_imagenet:
@@ -30,7 +30,7 @@ Data:
 Eval:
   batch_size: 16
   drop_remainder: false
-  num_per_epoch: 5000
+  num_per_epoch: 960
   validation: true
 GPU: 0
 Model:
@@ -100,7 +100,7 @@ Train:
     early_stop_monitor: logprob
     early_stop_patience: 50
     early_stop_reset: false
-  epoch: 1000
+  epoch: 400
   loss_type: logprob
   lr: 0.0005
   num_per_epoch: 4096
