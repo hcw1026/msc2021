@@ -102,7 +102,7 @@ Train:
     early_stop_reset: false
   epoch: 400
   loss_type: logprob
-  lr: 0.0005
+  lr: 0.0003
   num_per_epoch: 4096
   print_freq: 100
   save:
