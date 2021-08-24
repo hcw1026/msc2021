@@ -37,8 +37,8 @@ Model:
   arch:
     decoder_output_sizes:
     - 128
-    - 128
-    - 128
+    - 64
+    - 64
     dim_reprs: 128
     embedding_layers: 1
     nn_layers: 2
