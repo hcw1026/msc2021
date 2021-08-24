@@ -1402,37 +1402,127 @@ def Experiment_19c():
 def Experiment_19aii():
     output_dict = Experiment_19a()
     output_dict["config_name"] = "config19b"
-    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (1 stddev rff)"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (10 stddev rff)"
     return output_dict
 
 def Experiment_19bii():
     output_dict = Experiment_19b()
     output_dict["config_name"] = "config19b"
-    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (1 stddev rff)"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (10 stddev rff)"
     return output_dict
 
 def Experiment_19cii():
     output_dict = Experiment_19c()
     output_dict["config_name"] = "config19b"
-    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (1 stddev rff)"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (10 stddev rff)"
     return output_dict
 
 def Experiment_19aiii():
     output_dict = Experiment_19a()
     output_dict["config_name"] = "config19c"
-    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (1 stddev rff), n_samples=1"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (10 stddev rff), n_samples=1"
     return output_dict
 
 def Experiment_19biii():
     output_dict = Experiment_19b()
     output_dict["config_name"] = "config19c"
-    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (1 stddev rff), n_samples=1"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (10 stddev rff), n_samples=1"
     return output_dict
 
 def Experiment_19ciii():
     output_dict = Experiment_19c()
     output_dict["config_name"] = "config19c"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (10 stddev rff), n_samples=1"
+    return output_dict
+
+def Experiment_19aiv():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19d"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (1 stddev rff), n_samples=1"
+    return output_dict
+
+def Experiment_19biv():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19d"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (1 stddev rff), n_samples=1"
+    return output_dict
+
+def Experiment_19civ():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19d"
     output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (1 stddev rff), n_samples=1"
+    return output_dict
+
+def Experiment_19av():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19e"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1"
+    return output_dict
+
+def Experiment_19bv():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19e"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1"
+    return output_dict
+
+def Experiment_19cv():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19e"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1"
+    return output_dict
+
+def Experiment_19avi():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19f"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (10 stddev rff SAB), n_samples=1"
+    return output_dict
+
+def Experiment_19bvi():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19f"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (10 stddev rff SAB), n_samples=1"
+    return output_dict
+
+def Experiment_19cvi():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19f"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (10 stddev rff SAB), n_samples=1"
+    return output_dict
+
+def Experiment_19avii():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19g"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (1 stddev rff SAB), n_samples=1"
+    return output_dict
+
+def Experiment_19bvii():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19g"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (1 stddev rff SAB), n_samples=1"
+    return output_dict
+
+def Experiment_19cvii():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19g"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (1 stddev rff SAB), n_samples=1"
+    return output_dict
+
+def Experiment_19aviii():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19h"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1"
+    return output_dict
+
+def Experiment_19bviii():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19h"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1"
+    return output_dict
+
+def Experiment_19cviii():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19h"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1"
     return output_dict
 
 

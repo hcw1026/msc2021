@@ -78,9 +78,10 @@ Model:
   rff:
     dim_init: 500
     dim_pre_tr: 128
-    init_distr: normal
+    init_distr: uniform
     init_distr_param:
-      stddev: 10
+      minval: 1
+      maxval: 1
     init_trainable: false
     isab_n_induce_points: 50
     mapping: deepset1

@@ -80,7 +80,7 @@ Model:
     dim_pre_tr: 128
     init_distr: normal
     init_distr_param:
-      stddev: 10
+      stddev: 1
     init_trainable: false
     isab_n_induce_points: 50
     mapping: deepset1

@@ -77,18 +77,18 @@ Model:
     orthogonality_penalty_weight: 0.001
   rff:
     dim_init: 500
-    dim_pre_tr: 128
+    dim_pre_tr: 64
     init_distr: normal
     init_distr_param:
-      stddev: 10
+      stddev: 1
     init_trainable: false
     isab_n_induce_points: 50
-    mapping: deepset1
+    mapping: SAB
     n_layers: 2
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
     sab_num_heads: 4
-    transform_dim: 128
+    transform_dim: 64
     weight_trainable: true
 Train:
   batch_size: 16
