@@ -589,7 +589,7 @@ class SawtoothDataset(GPDataset):
         targets = X.copy()
         n_samples, n_points = X.shape
         for i in range(0, n_samples, self.n_same_samples):
-            n_same_samples = targets[i:i+self.n_samples, :].shape[0]
+            n_same_samples = targets[i:i+self.n_same_samples, :].shape[0]
             for j in range(n_same_samples):
                 targets[i+j, :] = self._sample_y(X=X[i,:])
             X[i:i+self.n_same_samples, :] = X[i, :]
@@ -1027,7 +1027,7 @@ def get_sawtooth_datasets(freq_range=(3,5), shift_range=(-5,5), trunc_range=(10,
 
     if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL or dataset_split == "any":
         datasets = dict() # store train datasets
-        datasets["sawtooth"] = SawtoothDataset(freq_range=freq_range, shift_range=shift_range, trunc_Range=trunc_range, n_samples=train_n_samples, name="sawtooth", **kwargs)
+        datasets["sawtooth"] = SawtoothDataset(freq_range=freq_range, shift_range=shift_range, trunc_Range=trunc_range, save_file=save_file, n_samples=train_n_samples, name="sawtooth", **kwargs)
 
     elif dataset_split == "test" or dataset_split == MetaSplit.TEST:
         # get validation and test datasets
@@ -1060,7 +1060,7 @@ if __name__ == "__main__":
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from utils import parse_config
     config = parse_config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config/debug.yaml"))
-    dataloader = DataProvider(config)
+    #dataloader = DataProvider(config)
 
     # dat_gen = dataloader.generate()
     # dat = dat_gen[0]["All_Kernels"]
@@ -1076,7 +1076,7 @@ if __name__ == "__main__":
     dataloader = DataProvider(config, load_type="sawtooth")
     dat_gen = dataloader.generate()
     dat = dat_gen[0]["sawtooth"]
-    dat_test = dataloader.generate_test()
+    dat_test = dataloader.generate_test(n_samples=10)
     dat_test = dat_test["sawtooth"]
 
     for i in dat.take(1):
