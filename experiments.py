@@ -1569,7 +1569,7 @@ def Experiment_19cviii():
     return output_dict
 
 def Experiment_19dviii():
-    output_dict = Experiment_19c()
+    output_dict = Experiment_19d()
     output_dict["config_name"] = "config19hii"
     output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1"
     return output_dict
