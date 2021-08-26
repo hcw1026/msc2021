@@ -14,6 +14,16 @@ Data:
     range_indcs: null
     rescale: false
     save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
+    sawtooth:
+      freq_range:
+      - 3
+      - 5
+      shift_range:
+      - -5
+      - 5
+      trunc_range:
+      - 10
+      - 20
     shuffle: false
     test_n_samples: 32768
     train_indp_target: true
@@ -80,8 +90,8 @@ Model:
     dim_pre_tr: 64
     init_distr: uniform
     init_distr_param:
-      minval: -1
       maxval: 1
+      minval: -1
     init_trainable: false
     isab_n_induce_points: 50
     mapping: SAB

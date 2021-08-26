@@ -96,6 +96,11 @@ class DataProvider():
         self._train_indp_target = train_indp_target if train_indp_target is not None else _config["train_indp_target"]
         self._eval_indp_target = eval_indp_target if eval_indp_target is not None else _config["eval_indp_target"]
 
+        _config = config["Data"]["gp_regression"]["sawtooth"]
+        self._freq_range = _config["freq_range"]
+        self._shift_range = _config["shift_range"]
+        self._trunc_range = _config["trunc_range"]
+
         kwargs.update(dict(n_same_samples=self._n_same_samples))
         self.kwargs = kwargs
 
@@ -144,6 +149,8 @@ class DataProvider():
             return get_datasets_variable_hyp_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
         elif self._load_type.lower() == "var_kernel":
             return get_datasets_variable_kernel_gp(dataset_split=dataset_split, train_datasets=train_datasets, kernels=self._custom_kernels, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
+        elif self._load_type.lower() == "sawtooth":
+            return get_datasets_sawtooth(dataset_split=dataset_split, train_datasets=train_datasets, freq_range=self._freq_range, shift_range=self._shift_range, trunc_range=self._trunc_range, n_samples=n_samples, n_points=n_points, is_reuse_across_epochs=is_reuse_across_epochs, save_file=self._save_path, rescale=self._rescale, **self.kwargs)
         elif self._load_type.lower() == "custom":
             if self._custom_kernels is not None:
                 if self._custom_kernels_merge:
@@ -409,17 +416,18 @@ class GPDataset():
         self._idx_precompute = 0  # current index of precomputed data
         self._idx_chunk = 0  # current chunk (i.e. epoch)
 
-        if not is_vary_kernel_hyp:
-            # only fit hyperparam when predicting if using various hyperparam
-            kwargs["optimizer"] = None
+        if kernel is not None: #for subclassing #TODO: make it nicer
+            if not is_vary_kernel_hyp:
+                # only fit hyperparam when predicting if using various hyperparam
+                kwargs["optimizer"] = None
 
-            # we also fix the bounds as these will not be needed
-            for hyperparam in kernel.hyperparameters:
-                kernel.set_params(**{f"{hyperparam.name}_bounds": "fixed"})
+                # we also fix the bounds as these will not be needed
+                for hyperparam in kernel.hyperparameters:
+                    kernel.set_params(**{f"{hyperparam.name}_bounds": "fixed"})
 
-        self.generator = GaussianProcessRegressor(
-            kernel=kernel, alpha=0.005, **kwargs  # numerical stability for preds
-        )
+            self.generator = GaussianProcessRegressor(
+                kernel=kernel, alpha=0.005, **kwargs  # numerical stability for preds
+            )
 
         self.precompute_chunk_()
 
@@ -568,6 +576,42 @@ class GPDataset():
             K.set_params(
                 **{hyperparam.name: np.random.uniform(*hyperparam.bounds.squeeze())}
             )
+
+#adapted from https://github.com/cambridge-mlg/convcnp/blob/3aa2d9c96ff42e55a3c0d8384d084459f19d00f5/convcnp/data.py#L156
+class SawtoothDataset(GPDataset):
+    def __init__(self, min_max=(-2, 2), freq_range=(3, 5), shift_range=(-5, 5), trunc_range=(10, 20), n_samples=1000, n_points=128, save_file=None, n_same_samples=20, rescale=True, is_reuse_across_epochs=True, generated_from=None, name="sawtooth", **kwargs):
+        self._freq_range = freq_range
+        self._shift_range = shift_range
+        self._trunc_range = trunc_range
+        super(SawtoothDataset, self).__init__(kernel=None, min_max=min_max, n_samples=n_samples, n_points=n_points, is_vary_kernel_hyp=False, save_file=save_file, n_same_samples=n_same_samples, rescale=rescale, is_reuse_across_epochs=is_reuse_across_epochs, generated_from=generated_from, kernel_name=name, **kwargs)
+
+    def _sample_targets(self, X, n_samples):
+        targets = X.copy()
+        n_samples, n_points = X.shape
+        for i in range(0, n_samples, self.n_same_samples):
+            n_same_samples = targets[i:i+self.n_samples, :].shape[0]
+            for j in range(n_same_samples):
+                targets[i+j, :] = self._sample_y(X=X[i,:])
+            X[i:i+self.n_same_samples, :] = X[i, :]
+
+        X, targets = sklearn.utils.shuffle(X, targets)
+        targets = tf.constant(targets, dtype=self._float_dtype)
+        targets = tf.reshape(targets, [n_samples, n_points, 1])
+        return X, targets
+
+    def _sample_y(self, X):
+        A = 1
+        freq = np.random.uniform(self._freq_range[0], self._freq_range[1])
+        shift = np.random.uniform(self._shift_range[0], self._shift_range[1])
+        trunc = np.random.randint(self._trunc_range[0], self._trunc_range[1] + 1)
+
+        X = X[:, np.newaxis] + shift
+        k = np.arange(1, trunc + 1)[np.newaxis, :]
+        return 0.5 * A - A / np.pi * np.sum((-1) ** k * np.sin(2 * np.pi * k * freq * X) / k, axis=1)
+
+        
+
+
 
 
 ###########################################################################################
@@ -891,6 +935,22 @@ def get_datasets_variable_kernel_gp(dataset_split="train", train_datasets=None, 
     all_kernels_datasets.generated_from = "variable_kernel_gp"
     return dict(All_Kernels=all_kernels_datasets) # combine all kernels
 
+def get_datasets_sawtooth(dataset_split="train", train_datasets=None, freq_range=(3,5), shift_range=(-5,5), trunc_range=(10,20), n_samples=50000, n_points=128, is_reuse_across_epochs=False, **kwargs):
+    return get_sawtooth_datasets(
+        freq_range=freq_range,
+        shift_range=shift_range,
+        trunc_range=trunc_range,
+        dataset_split=dataset_split, 
+        train_datasets=train_datasets,
+        train_n_samples=n_samples,  # number of different context-target sets
+        val_n_samples=n_samples,
+        test_n_samples=n_samples,
+        n_points=n_points,  # size of target U context set for each sample
+        is_reuse_across_epochs=is_reuse_across_epochs,  # never see the same example twice
+        generated_from = "sawtooth",
+        **kwargs,
+    )
+
 def sample_gp_dataset_like(dataset, **kwargs):
     """Wrap the output of `get_samples` in a gp dataset."""
     new_dataset = copy.deepcopy(dataset)
@@ -960,6 +1020,40 @@ def get_gp_datasets(
     return datasets
 
 
+def get_sawtooth_datasets(freq_range=(3,5), shift_range=(-5,5), trunc_range=(10,20), 
+    save_file=f"{os.path.join(DIR_DATA, 'gp_dataset.hdf5')}", dataset_split="train", 
+    train_datasets=None, train_n_samples=50000, val_n_samples=0.1, test_n_samples=10000, **kwargs
+):
+
+    if dataset_split == "train" or train_datasets is None or dataset_split == MetaSplit.TRAIN or dataset_split == MetaSplit.TRIAL or dataset_split == "any":
+        datasets = dict() # store train datasets
+        datasets["sawtooth"] = SawtoothDataset(freq_range=freq_range, shift_range=shift_range, trunc_Range=trunc_range, n_samples=train_n_samples, name="sawtooth", **kwargs)
+
+    elif dataset_split == "test" or dataset_split == MetaSplit.TEST:
+        # get validation and test datasets
+        datasets = { # store test datasets
+            k: sample_gp_dataset_like(
+                dataset, save_file=save_file, idx_chunk=-1, n_samples=ratio_to_int2(test_n_samples, dataset.n_samples)
+            )
+            for k, dataset in train_datasets.items()
+        }
+
+    elif dataset_split == "valid" or dataset_split == MetaSplit.VALID:
+        datasets = { # store val datasets
+            k: sample_gp_dataset_like(
+                dataset,
+                save_file=save_file,
+                idx_chunk=-2,
+                n_samples=ratio_to_int2(val_n_samples, dataset.n_samples),
+            )
+            for k, dataset in train_datasets.items()
+        }
+
+    else:
+        raise NameError("Unknown dataset_split")
+
+    return datasets
+
 
 if __name__ == "__main__":
     import sys
@@ -968,10 +1062,22 @@ if __name__ == "__main__":
     config = parse_config(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config/debug.yaml"))
     dataloader = DataProvider(config)
 
+    # dat_gen = dataloader.generate()
+    # dat = dat_gen[0]["All_Kernels"]
+    # dat_test = dataloader.generate_test()
+    # dat_test = dat_test["All_Kernels"]
+
+    # for i in dat.take(1):
+    #     pass
+
+    # for i in dat_test.take(1):
+    #     pass
+
+    dataloader = DataProvider(config, load_type="sawtooth")
     dat_gen = dataloader.generate()
-    dat = dat_gen[0]["All_Kernels"]
+    dat = dat_gen[0]["sawtooth"]
     dat_test = dataloader.generate_test()
-    dat_test = dat_test["All_Kernels"]
+    dat_test = dat_test["sawtooth"]
 
     for i in dat.take(1):
         pass
