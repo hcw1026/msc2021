@@ -162,7 +162,7 @@ class decoder(snt.Module):
                 with_bias=True,
                 w_init=initialiser
             )
-        elif not repr_as_inputs:
+        elif repr_as_inputs is False:
             num_layers = len(regression_output_sizes)
             output_sizes = [embedding_dim] + regression_output_sizes
             # Count number of parameters in the predictor
@@ -432,6 +432,20 @@ class predict_repr_as_inputs(snt.Module):
             outputs = self._nonlinearity(outputs)
         outputs = tf.concat([outputs, weights],axis=-1)
         return self.modules_list[idx+1](outputs)
+
+class predict_repr_as_inputs_simple(snt.Module):
+    def __init__(self, nn_size, nn_layers, output_dim, initialiser, nonlinearity, name="predict"):
+        super(predict_repr_as_inputs_simple, self).__init__(name=name)
+        self.module = snt.nets.MLP(
+                output_sizes=[nn_size] * nn_layers + [2 * output_dim],
+                activation=nonlinearity,
+                with_bias=True,
+                w_init=initialiser,
+                name="predict_simple"
+            )
+
+    def __call__(self, inputs, weights):
+        return self.module(weights)
 
 class custom_MLP(snt.Module):
     def __init__(self, output_sizes, embedding_dim, nonlinearity, name="custom_MLP"):

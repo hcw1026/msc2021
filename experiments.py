@@ -1574,6 +1574,150 @@ def Experiment_19dviii():
     output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1"
     return output_dict
 
+def Experiment_19aviv():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19i"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, Deepset 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bviv():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19i"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, Deepset 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cviv():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19i"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, Deepset 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dviv():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19iii"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, Deepset 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19ax():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19j"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, Deepset 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bx():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19j"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, Deepset 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cx():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19j"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, Deepset 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dx():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19jii"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, Deepset 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19axi():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19k"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, Deepset 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bxi():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19k"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, Deepset 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cvxi():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19k"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, Deepset 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dxi():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19kii"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, Deepset 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19axii():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19l"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, SAB 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bxii():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19l"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, SAB 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cxii():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19l"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, SAB 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dxii():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19lii"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, SAB 500 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19axiii():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19m"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, SAB 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bxiii():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19m"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, SAB 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cxiii():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19m"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, SAB 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dxiii():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19mii"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, SAB 300 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19axiv():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19n"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, SAB 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bxiv():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19n"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, SAB 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cxiv():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19n"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, SAB 100 simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dxiv():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19nii"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, SAB 100 simple decoder niter 7"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################

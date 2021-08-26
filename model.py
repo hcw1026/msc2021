@@ -909,6 +909,10 @@ class MetaFunRegressor(MetaFunBase):
             preds = self._predict_repr_as_inputs(inputs=inputs, weights=weights)
             return _split(preds)
 
+        def predict_repr_as_inputs_simple(inputs, weights):
+            preds = self._predict_repr_as_inputs_simple(inputs=inputs, weights=weights)
+            return _split(preds)
+
         def predict_not_repr_as_inputs(inputs, weights):
             preds = self.custom_MLP(inputs=inputs, weights=weights)
             return _split(preds)
@@ -925,13 +929,22 @@ class MetaFunRegressor(MetaFunBase):
                 self._predict = predict_no_decoder2
             else:
                 raise Exception("num_reprs must <=2 if no_decoder")
-        elif self._repr_as_inputs:
+        elif self._repr_as_inputs is True:
             self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
                 output_sizes=self._decoder_output_sizes,
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity
             )
             self._predict =  predict_repr_as_inputs
+        elif self._repr_as_inputs == "simple":
+            self._predict_repr_as_inputs_simple = submodules.predict_repr_as_inputs_simple(
+                nn_size=self._nn_size,
+                nn_layers=self._nn_layers, 
+                output_dim=self.output_dim,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity
+            )
+            self._predict =  predict_repr_as_inputs_simple
         else:
             self.custom_MLP = submodules.custom_MLP(
                 output_sizes=self._decoder_output_sizes,
@@ -1235,6 +1248,10 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             preds = self._predict_repr_as_inputs(inputs=tf.zeros_like(inputs), weights=weights)
             return _split(preds)
 
+        def predict_repr_as_inputs_simple(inputs, weights):
+            preds = self._predict_repr_as_inputs_simple(inputs=tf.zeros_like(inputs), weights=weights)
+            return _split(preds)
+
         def predict_not_repr_as_inputs(inputs, weights):
             preds = self.custom_MLP(inputs=tf.zeros_like(inputs), weights=weights)
             return _split(preds)
@@ -1251,13 +1268,22 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
                 self._predict = predict_no_decoder2
             else:
                 raise Exception("num_reprs must <=2 if no_decoder")
-        elif self._repr_as_inputs:
+        elif self._repr_as_inputs is True:
             self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
                 output_sizes=self._decoder_output_sizes,
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity
             )
             self._predict =  predict_repr_as_inputs
+        elif self._repr_as_inputs == "simple":
+            self._predict_repr_as_inputs_simple = submodules.predict_repr_as_inputs_simple(
+                nn_size=self._nn_size,
+                nn_layers=self._nn_layers, 
+                output_dim=self.output_dim,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity
+            )
+            self._predict =  predict_repr_as_inputs_simple
         else:
             self.custom_MLP = submodules.custom_MLP(
                 output_sizes=self._decoder_output_sizes,
@@ -1342,6 +1368,10 @@ class MetaFunRegressorV3b(MetaFunRegressorV3):
             preds = self._predict_repr_as_inputs(inputs=inputs, weights=weights)
             return _split(preds)
 
+        def predict_repr_as_inputs_simple(inputs, weights):
+            preds = self._predict_repr_as_inputs_simple(inputs=inputs, weights=weights)
+            return _split(preds)
+
         def predict_not_repr_as_inputs(inputs, weights):
             preds = self.custom_MLP(inputs=inputs, weights=weights)
             return _split(preds)
@@ -1358,13 +1388,22 @@ class MetaFunRegressorV3b(MetaFunRegressorV3):
                 self._predict = predict_no_decoder2
             else:
                 raise Exception("num_reprs must <=2 if no_decoder")
-        elif self._repr_as_inputs:
+        elif self._repr_as_inputs is True:
             self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
                 output_sizes=self._decoder_output_sizes,
                 initialiser=self.initialiser,
                 nonlinearity=self._nonlinearity
             )
             self._predict =  predict_repr_as_inputs
+        elif self._repr_as_inputs == "simple":
+            self._predict_repr_as_inputs_simple = submodules.predict_repr_as_inputs_simple(
+                nn_size=self._nn_size,
+                nn_layers=self._nn_layers, 
+                output_dim=self.output_dim,
+                initialiser=self.initialiser,
+                nonlinearity=self._nonlinearity
+            )
+            self._predict =  predict_repr_as_inputs_simple
         else:
             self.custom_MLP = submodules.custom_MLP(
                 output_sizes=self._decoder_output_sizes,
@@ -1521,6 +1560,10 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
             preds = self._predict_repr_as_inputs(inputs=preds_input, weights=weights)
             return _split(preds)
 
+        def predict_repr_as_inputs_simple(inputs, weights):
+            preds = self._predict_repr_as_inputs_simple(inputs=inputs, weights=weights)
+            return _split(preds)
+
         def predict_not_repr_as_inputs(inputs, weights):
             preds_input = tf.broadcast_to(self.pseudo_input, shape=tf.concat([tf.shape(inputs)[:-1], tf.constant([self._decoder_output_sizes[0]], dtype=tf.int32)], axis=0))
             preds = self.custom_MLP(inputs=preds_input, weights=weights)
@@ -1546,13 +1589,22 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
                     trainable=True,
                     name="predict_pseudo_input")
             
-            if self._repr_as_inputs:
+            if self._repr_as_inputs is True:
                 self._predict_repr_as_inputs = submodules.predict_repr_as_inputs(
                     output_sizes=self._decoder_output_sizes[1:],
                     initialiser=self.initialiser,
                     nonlinearity=self._nonlinearity
                 )
                 self._predict =  predict_repr_as_inputs
+            elif self._repr_as_inputs == "simple":
+                self._predict_repr_as_inputs_simple = submodules.predict_repr_as_inputs_simple(
+                    nn_size=self._nn_size,
+                    nn_layers=self._nn_layers, 
+                    output_dim=self.output_dim,
+                    initialiser=self.initialiser,
+                    nonlinearity=self._nonlinearity
+                )
+                self._predict =  predict_repr_as_inputs_simple
             else:
                 self.custom_MLP = submodules.custom_MLP(
                     output_sizes=self._decoder_output_sizes[1:],
