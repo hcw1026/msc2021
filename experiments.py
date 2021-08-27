@@ -1766,6 +1766,38 @@ def Experiment_19dxvi():
     output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, Deepset 1000 simple decoder niter 7"
     return output_dict
 
+def Experiment_19axvii():
+    output_dict = Experiment_19a()
+    output_dict["config_name"] = "config19q"
+    output_dict["learner"]["model"] = MetaFunRegressorV3b
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3b"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with RBF kernel (uniform rff), n_samples=1, deep-se simple decoder niter 7"
+    return output_dict
+
+def Experiment_19bxvii():
+    output_dict = Experiment_19b()
+    output_dict["config_name"] = "config19q"
+    output_dict["learner"]["model"] = MetaFunRegressorV3b
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3b"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Periodic Kernel (uniform rff), n_samples=1, deep-se simple decoder niter 7"
+    return output_dict
+
+def Experiment_19cxvii():
+    output_dict = Experiment_19c()
+    output_dict["config_name"] = "config19q"
+    output_dict["learner"]["model"] = MetaFunRegressorV3b
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3b"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with Weakly Matern Kernel (uniform rff), n_samples=1, deep-se simple decoder niter 7"
+    return output_dict
+
+def Experiment_19dxvii():
+    output_dict = Experiment_19d()
+    output_dict["config_name"] = "config19qii"
+    output_dict["learner"]["model"] = MetaFunRegressorV3b
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV3b"
+    output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (uniform rff), n_samples=1, deep-se simple decoder niter 7"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################

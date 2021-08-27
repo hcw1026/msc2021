@@ -1581,6 +1581,16 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
                 self._predict = predict_no_decoder2
             else:
                 raise Exception("num_reprs must <=2 if no_decoder")
+        elif self._repr_as_inputs == "simple":
+                self._predict_repr_as_inputs_simple = submodules.predict_repr_as_inputs_simple(
+                    nn_size=self._nn_size,
+                    nn_layers=self._nn_layers, 
+                    output_dim=self.output_dim,
+                    initialiser=self.initialiser,
+                    nonlinearity=self._nonlinearity
+                )
+                self._predict =  predict_repr_as_inputs_simple
+
         else:
             self.pseudo_input = tf.Variable(
                     tf.constant_initializer(0.)(
@@ -1596,15 +1606,6 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
                     nonlinearity=self._nonlinearity
                 )
                 self._predict =  predict_repr_as_inputs
-            elif self._repr_as_inputs == "simple":
-                self._predict_repr_as_inputs_simple = submodules.predict_repr_as_inputs_simple(
-                    nn_size=self._nn_size,
-                    nn_layers=self._nn_layers, 
-                    output_dim=self.output_dim,
-                    initialiser=self.initialiser,
-                    nonlinearity=self._nonlinearity
-                )
-                self._predict =  predict_repr_as_inputs_simple
             else:
                 self.custom_MLP = submodules.custom_MLP(
                     output_sizes=self._decoder_output_sizes[1:],
