@@ -88,6 +88,7 @@ Model:
   rff:
     dim_init: 500
     dim_pre_tr: 64
+    dropout_rate: 0.0
     init_distr: normal
     init_distr_param:
       stddev: 1

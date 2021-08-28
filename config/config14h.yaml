@@ -85,6 +85,7 @@ Model:
   rff:
     dim_init: 50
     dim_pre_tr: 128
+    dropout_rate: 0.0
     init_distr: normal
     init_distr_param: {}
     init_trainable: true

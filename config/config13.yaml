@@ -84,6 +84,7 @@ Model:
     orthogonality_penalty_weight: 0.001
   rff:
     dim_init: 500
+    dropout_rate: 0.0
     init_distr: normal
     init_distr_param: {}
     isab_n_induce_points: 50

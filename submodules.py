@@ -609,7 +609,7 @@ def rff_kernel_backend_fn(query_key, values):
     return tf.linalg.matmul(query_key, values) #(batch, num_querys, dim_values)
 
 class rff_kernel(snt.Module):
-    def __init__(self, dim_init, mapping, initialiser, embedding_dim=None, transform_dim=None, float_dtype=tf.float32, init_distr="normal", init_distr_param=dict(), rff_init_trainable=True, rff_weight_trainable=False, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
+    def __init__(self, dim_init, mapping, initialiser, dropout_rate=0., embedding_dim=None, transform_dim=None, float_dtype=tf.float32, init_distr="normal", init_distr_param=dict(), rff_init_trainable=True, rff_weight_trainable=False, num_iters=1, indp_iter=False, complete_return=True, name="rff_kernel"):
         """
         mapping: None or DeepSet etc.
         embedding_dim: int or None
@@ -668,8 +668,7 @@ class rff_kernel(snt.Module):
             name="rff_weights".format(i)
             ) for i in range(self._num_iters)]
 
-        dropout = tf.keras.layers.GaussianDropout(rate=0.1)
-        print("here\n\n\n\n\n\n here \n\n\n\n")
+        dropout = tf.keras.layers.GaussianDropout(rate=dropout_rate)
 
         self.call_fn_frontend = lambda querys, keys, iteration, is_training: rff_kernel_frontend_fn(
             w=dropout(self.module_list[iteration](self.rff_init_list[iteration]), training=is_training), querys=self.features_transform_list[iteration](querys), keys=self.features_transform_list[iteration](keys), weights=self.rff_weights[iteration])

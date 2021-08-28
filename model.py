@@ -194,7 +194,8 @@ class MetaFunClassifier(MetaFunBase):
             values=None,
             recompute=True,
             precomputed=None,
-            iteration=0
+            iteration=0,
+            is_training=self.is_training
         ))
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
@@ -223,7 +224,8 @@ class MetaFunClassifier(MetaFunBase):
             recompute=tf.math.logical_not(self._indp_iter), # if not indepnedent iteration, precompute 
             precomputed=self.precomputed_init,
             values=None,
-            iteration=0)
+            iteration=0,
+            is_training=self.is_training)
 
         # Iterative functional updating
         for k in range(self._num_iters):
@@ -235,7 +237,8 @@ class MetaFunClassifier(MetaFunBase):
                 recompute=self._indp_iter,
                 precomputed=precomputed,
                 values=None,
-                iteration=k)
+                iteration=k,
+                is_training=self.is_training)
 
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
@@ -299,7 +302,7 @@ class MetaFunClassifier(MetaFunBase):
                     trainable=True)
 
 
-    def constant_initialiser(self, x, is_training=True):
+    def constant_initialiser(self, x, is_training=False):
         return self._constant_initialiser(x)
 
     @snt.once
@@ -387,7 +390,7 @@ class MetaFunClassifier(MetaFunBase):
         self.se_kernel_all_init()
         self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
 
-    def se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         return self._se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale)
 
     def se_kernel_backend(self, querys, keys, precomputed, values): # use this input format for generality
@@ -406,7 +409,7 @@ class MetaFunClassifier(MetaFunBase):
             indp_iter=self._indp_iter
         )
 
-    def deep_se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def deep_se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         return self._deep_se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def deep_se_kernel_backend(self, querys, keys, precomputed, values):
@@ -426,7 +429,7 @@ class MetaFunClassifier(MetaFunBase):
 
         self.attention = submodules.Attention(config=config, num_iters=self._num_iters, indp_iter=self._indp_iter, complete_return=False)
 
-    def attention_block_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def attention_block_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         """dot-product kernel"""
         return self.attention(keys=keys, querys=querys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration)
 
@@ -564,7 +567,8 @@ class MetaFunRegressor(MetaFunBase):
             values=None,
             recompute=True,
             precomputed=None,
-            iteration=0
+            iteration=0,
+            is_training=self.is_training
         ))
 
     def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
@@ -599,7 +603,8 @@ class MetaFunRegressor(MetaFunBase):
             recompute=tf.math.logical_not(self._indp_iter),
             precomputed=self.precomputed_init,
             values=None,
-            iteration=0)
+            iteration=0,
+            is_training=self.is_training)
 
         # Iterative functional updating
         for k in range(self._num_iters):
@@ -611,7 +616,8 @@ class MetaFunRegressor(MetaFunBase):
                 recompute=self._indp_iter,
                 precomputed=precomputed,
                 values=None,
-                iteration=k)
+                iteration=k,
+                is_training=self.is_training)
 
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
@@ -780,7 +786,7 @@ class MetaFunRegressor(MetaFunBase):
         self.se_kernel_all_init()
         self._se_kernel = submodules.squared_exponential_kernel(complete_return=False)
     
-    def se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         return self._se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def se_kernel_backend(self, querys, keys, precomputed, values):
@@ -799,7 +805,7 @@ class MetaFunRegressor(MetaFunBase):
             indp_iter=self._indp_iter
         )
 
-    def deep_se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def deep_se_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         return self._deep_se_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, sigma=self.sigma, lengthscale=self.lengthscale, iteration=iteration)
 
     def deep_se_kernel_backend(self, querys, keys, precomputed, values):
@@ -819,7 +825,7 @@ class MetaFunRegressor(MetaFunBase):
 
         self.attention = submodules.Attention(config=config, num_iters=self._num_iters, indp_iter=self._indp_iter, complete_return=False)
 
-    def attention_block_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def attention_block_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         """dot-product kernel"""
         return self.attention(keys=keys, querys=querys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration)
 
@@ -990,7 +996,8 @@ class MetaFunBaseV2(MetaFunBase):
             values=None,
             recompute=True,
             precomputed=None,
-            iteration=0
+            iteration=0,
+            is_training=self.is_training
         ))
 
     def fourier_features_init(self):
@@ -1070,7 +1077,8 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
             recompute=tf.math.logical_not(self._indp_iter), # if not indepnedent iteration, precompute 
             precomputed=self.precomputed_init,
             values=None,
-            iteration=0)
+            iteration=0,
+            is_training=self.is_training)
 
         # Iterative functional updating
         for k in range(self._num_iters):
@@ -1095,7 +1103,8 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
                 recompute=self._indp_iter,
                 precomputed=precomputed,
                 values=None,
-                iteration=k)
+                iteration=k,
+                is_training=self.is_training)
 
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
@@ -1236,6 +1245,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         self._rff_init_distr_param = _config["init_distr_param"]
         self._rff_weight_trainable = _config["weight_trainable"]
         self._rff_transform_dim = _config["transform_dim"]
+        self._rff_dropout_rate = _config["dropout_rate"]
 
     @snt.once
     def predict_init(self):
@@ -1343,10 +1353,11 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             rff_weight_trainable=self._rff_weight_trainable,
             num_iters=self._num_iters,
             indp_iter=self._indp_iter,
-            complete_return=False
+            complete_return=False,
+            dropout_rate=self._rff_dropout_rate
             )
 
-    def rff_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=True):
+    def rff_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=False):
         return self._rff_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration, is_training=is_training)
 
     def rff_kernel_backend(self, querys, keys, precomputed, values):
@@ -1371,7 +1382,9 @@ class MetaFunRegressorV3b(MetaFunRegressorV3):
             return _split(preds)
 
         def predict_repr_as_inputs_simple(inputs, weights):
-            preds = self._predict_repr_as_inputs_simple(inputs=inputs, weights=weights)
+            tf.print(inputs.shape, weights.shape)
+            weights_concat = tf.concat([inputs, weights], axis=-1)
+            preds = self._predict_repr_as_inputs_simple(inputs=inputs, weights=weights_concat) #inputs are disabled 
             return _split(preds)
 
         def predict_not_repr_as_inputs(inputs, weights):
@@ -1427,7 +1440,8 @@ class MetaFunBaseGLV2(MetaFunBaseV2):
             values=None,
             recompute=True,
             precomputed=None,
-            iteration=0
+            iteration=0,
+            is_training=self.is_training
         ))
 
         self.sample_latent_init()
