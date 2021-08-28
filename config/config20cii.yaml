@@ -86,7 +86,7 @@ Model:
     label_smoothing: 0.0
     orthogonality_penalty_weight: 0.001
   rff:
-    dim_init: 256
+    dim_init: 300
     dim_pre_tr: 128
     init_distr: normal
     init_distr_param:
