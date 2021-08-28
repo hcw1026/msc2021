@@ -1155,7 +1155,8 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
             recompute=tf.math.logical_not(self._indp_iter), # if not indepnedent iteration, precompute 
             precomputed=self.precomputed_init,
             values=None,
-            iteration=0)
+            iteration=0,
+            is_training=self.is_training)
 
         # Iterative functional updating
         for k in range(self._num_iters):
@@ -1180,7 +1181,8 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
                 recompute=self._indp_iter,
                 precomputed=precomputed,
                 values=None,
-                iteration=k)
+                iteration=k,
+                is_training=self.is_training)
 
             tr_updates, val_updates = tf.split(
                 self.alpha * self.forward_kernel_or_attention(
@@ -1344,8 +1346,8 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
             complete_return=False
             )
 
-    def rff_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0):
-        return self._rff_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration)
+    def rff_kernel_precompute(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=True):
+        return self._rff_kernel(querys=querys, keys=keys, recompute=recompute, precomputed=precomputed, values=values, iteration=iteration, is_training=is_training)
 
     def rff_kernel_backend(self, querys, keys, precomputed, values):
         return self._rff_kernel.backend(query_key=precomputed, values=values)

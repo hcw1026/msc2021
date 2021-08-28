@@ -668,17 +668,20 @@ class rff_kernel(snt.Module):
             name="rff_weights".format(i)
             ) for i in range(self._num_iters)]
 
-        self.call_fn_frontend = lambda querys, keys, iteration: rff_kernel_frontend_fn(
-            w=self.module_list[iteration](self.rff_init_list[iteration]), querys=self.features_transform_list[iteration](querys), keys=self.features_transform_list[iteration](keys), weights=self.rff_weights[iteration])
+        dropout = tf.keras.layers.GaussianDropout(rate=0.1)
+        print("here\n\n\n\n\n\n here \n\n\n\n")
+
+        self.call_fn_frontend = lambda querys, keys, iteration, is_training: rff_kernel_frontend_fn(
+            w=dropout(self.module_list[iteration](self.rff_init_list[iteration]), training=is_training), querys=self.features_transform_list[iteration](querys), keys=self.features_transform_list[iteration](keys), weights=self.rff_weights[iteration])
 
         if complete_return:
             self.call_fn_backend = lambda query_key, values: rff_kernel_backend_fn(query_key=query_key, values=values)
         else:
             self.call_fn_backend = lambda query_key, values: query_key
 
-    def __call__(self, querys, keys, recompute, precomputed, values=None, iteration=0):
+    def __call__(self, querys, keys, recompute, precomputed, values=None, iteration=0, is_training=True):
         if recompute:
-            query_key = self.call_fn_frontend(querys=querys, keys=keys, iteration=min(self._num_iters-1, iteration))
+            query_key = self.call_fn_frontend(querys=querys, keys=keys, iteration=min(self._num_iters-1, iteration), is_training=is_training)
         else:
             query_key = precomputed
         return self.call_fn_backend(query_key=query_key, values=values)
