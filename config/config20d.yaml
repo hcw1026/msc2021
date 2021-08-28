@@ -1,0 +1,125 @@
+Data:
+  gp_regression:
+    eval_indp_target: true
+    is_batch_share: false
+    is_beta_binomial: false
+    is_reuse_across_epochs: false
+    max_context: 50
+    min_context: 3
+    n_points: 100
+    n_same_samples: 1
+    n_samples: 4096
+    proba_uniform: 0
+    random_targets: true
+    range_indcs: null
+    rescale: false
+    save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
+    sawtooth:
+      freq_range:
+      - 3
+      - 5
+      shift_range:
+      - -5
+      - 5
+      trunc_range:
+      - 10
+      - 20
+    shuffle: false
+    test_n_samples: 32768
+    train_indp_target: true
+    val_n_samples: 0.1
+  leo_imagenet:
+    data_path: D://embeddings/embeddings
+    dataset_name: tieredImageNet
+    embedding_crop: center
+    model_cls: metafun_classifier
+    num_classes: 3
+    num_tr_examples_per_class: 2
+    num_val_examples_per_class: 2
+    shuffle: false
+Eval:
+  batch_size: 16
+  drop_remainder: false
+  num_per_epoch: 960
+  validation: true
+GPU: 0
+Model:
+  arch:
+    decoder_output_sizes:
+    - 128
+    - 64
+    - 64
+    dim_reprs: 128
+    embedding_layers: 1
+    nn_layers: 2
+    nn_size: 128
+    num_iters: 7
+  comp:
+    attention_type: dot_product
+    deterministic_decoder: true
+    indp_iter: false
+    initial_state_type: constant
+    kernel_lengthscale_init: 1.0
+    kernel_lengthscale_trainable: true
+    kernel_sigma_init: 1.0
+    kernel_type: rff
+    neural_updater_concat_x: false
+    no_decoder: false
+    repr_as_inputs: simple
+    stddev_const_scale: 0
+    use_gradient: false
+    use_kernel: true
+  ff:
+    learnable: false
+    num_freq: 10
+    stddev_init: 10
+    use_ff: false
+  latent:
+    dim_latent: 128
+    num_z_samples: 10
+  other:
+    initial_inner_lr: 0.03
+    repr_as_inputs: false
+  reg:
+    dropout_rate: 0.0
+    l2_penalty_weight: 1.0e-08
+    label_smoothing: 0.0
+    orthogonality_penalty_weight: 0.001
+  rff:
+    dim_init: 256
+    dim_pre_tr: 128
+    init_distr: normal
+    init_distr_param:
+      stddev: 10
+    init_trainable: false
+    isab_n_induce_points: 50
+    mapping: deepset1
+    n_layers: 2
+    perm_equi_pool_fn: mean
+    sab_nn_layers: 3
+    sab_num_heads: 4
+    transform_dim: 128
+    weight_trainable: true
+Train:
+  batch_size: 16
+  drop_remainder: false
+  early_stop:
+    early_stop: true
+    early_stop_if_increase: false
+    early_stop_min_delta: 0
+    early_stop_monitor: logprob
+    early_stop_patience: 50
+    early_stop_reset: false
+  epoch: 200
+  loss_type: logprob
+  lr: 0.0003
+  num_per_epoch: 4096
+  print_freq: 100
+  save:
+    ckpt_restore_path: /data/ziz/chho/msc2021/Training
+    ckpt_save_dir: /data/ziz/chho/msc2021/Training
+    ckpt_save_prefix: null
+    restore_from_ckpt: false
+    save_final_model: false
+  tb_add_log: true
+  train_on_val: false
