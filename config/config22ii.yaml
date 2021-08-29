@@ -50,7 +50,7 @@ Model:
     - 64
     - 64
     dim_reprs: 128
-    embedding_layers: 1
+    embedding_layers: 2
     nn_layers: 2
     nn_size: 128
     num_iters: 7
@@ -105,7 +105,7 @@ Train:
   batch_size: 16
   drop_remainder: false
   early_stop:
-    early_stop: true
+    early_stop: false
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob
@@ -113,7 +113,7 @@ Train:
     early_stop_reset: false
   epoch: 200
   loss_type: logprob
-  lr: 0.001
+  lr: 0.0003
   num_per_epoch: 4096
   print_freq: 100
   save:

@@ -1968,6 +1968,75 @@ def Experiment_20dvii():
     output_dict["config_name"] = "config20gii"
     output_dict["other"]["info"] = "New rff trial with params matched with ConvCNP paper with sawtooth (normal rff), n_samples=1, Deepset 512 simple decoder niter 7 dropout 0.05"
     return output_dict
+
+
+### Experiment 21
+def Experiment_21a():
+    return dict(
+        config_name = "config21",
+        learner = dict(
+            learner = GPLearner,
+            model = MetaFunRegressorV4,
+            load_fn = GPLearnerLoad,
+            model_name = "MetaFunRegressorV4",
+        ),
+        train_fn = GPTrain,
+        test_fn = GPTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = GPDataLoad,
+            dataprovider = gp_provider,
+            load_type = "single",
+            custom_kernels = {"RBF_Kernel2":kernels.RBF(length_scale=(0.25))}, 
+            custom_kernels_merge = False, 
+        ),
+        other = dict( # for saving
+            info = "Deep kernel experiment",
+        )
+        )
+
+def Experiment_21b():
+    output_dict = Experiment_21a()
+    output_dict["data"]["custom_kernels"] = {"Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}
+    output_dict["other"]["info"] = "Deep kernel experiment"
+    return output_dict
+
+def Experiment_21c():
+    output_dict = Experiment_21a()
+    output_dict["data"]["custom_kernels"] = {"Matern_Kernel": kernels.Matern(length_scale=0.25, nu=2.5)}
+    output_dict["other"]["info"] = "Deep kernel experiment"
+    return output_dict
+
+def Experiment_21d():
+    output_dict = Experiment_21a()
+    output_dict["data"]["load_type"] = "sawtooth"
+    output_dict["config_name"] = "config21ii"
+    output_dict["other"]["info"] = "Deep kernel experiment"
+    return output_dict
+
+def Experiment_22a():
+    output_dict = Experiment_21a()
+    output_dict["config_name"] = "config22"
+    output_dict["other"]["info"] = "rff experiment"
+    return output_dict
+
+def Experiment_22b():
+    output_dict = Experiment_21b()
+    output_dict["config_name"] = "config22"
+    output_dict["other"]["info"] = "rff experiment"
+    return output_dict
+
+def Experiment_22c():
+    output_dict = Experiment_21c()
+    output_dict["config_name"] = "config22"
+    output_dict["other"]["info"] = "rff experiment"
+    return output_dict
+
+def Experiment_22d():
+    output_dict = Experiment_21d()
+    output_dict["config_name"] = "config22ii"
+    output_dict["other"]["info"] = "rff experiment"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################

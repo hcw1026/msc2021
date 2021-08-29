@@ -4,9 +4,9 @@ Data:
     is_batch_share: false
     is_beta_binomial: false
     is_reuse_across_epochs: false
-    max_context: 100
+    max_context: 50
     min_context: 3
-    n_points: 200
+    n_points: 100
     n_same_samples: 1
     n_samples: 4096
     proba_uniform: 0
@@ -50,7 +50,7 @@ Model:
     - 64
     - 64
     dim_reprs: 128
-    embedding_layers: 1
+    embedding_layers: 2
     nn_layers: 2
     nn_size: 128
     num_iters: 7
@@ -58,12 +58,12 @@ Model:
     attention_type: dot_product
     deterministic_decoder: true
     indp_iter: false
-    initial_state_type: constant
+    initial_state_type: parametric
     kernel_lengthscale_init: 1.0
     kernel_lengthscale_trainable: true
     kernel_sigma_init: 1.0
-    kernel_type: rff
-    neural_updater_concat_x: false
+    kernel_type: deep_se
+    neural_updater_concat_x: true
     no_decoder: false
     repr_as_inputs: simple
     stddev_const_scale: 0
@@ -105,7 +105,7 @@ Train:
   batch_size: 16
   drop_remainder: false
   early_stop:
-    early_stop: true
+    early_stop: false
     early_stop_if_increase: false
     early_stop_min_delta: 0
     early_stop_monitor: logprob
@@ -113,7 +113,7 @@ Train:
     early_stop_reset: false
   epoch: 200
   loss_type: logprob
-  lr: 0.001
+  lr: 0.0003
   num_per_epoch: 4096
   print_freq: 100
   save:
