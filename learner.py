@@ -825,7 +825,13 @@ if __name__ == "__main__":
     # mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
     # mylearn2.train()
     # mylearn2.test(20)
-
+    import random
+    def reset_random_seeds():
+        os.environ['PYTHONHASHSEED']=str(2)
+        tf.random.set_seed(2)
+        np.random.seed(2)
+        random.seed(2)
+    reset_random_seeds()
     from model import MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4
     from data.gp_regression import DataProvider as gp_provider
     mylearn2 = GPLearner(config, MetaFunRegressorV4)

@@ -1,6 +1,9 @@
 import argparse
 import os
 import pandas as pd
+import random
+import tensorflow as tf
+import numpy as np
 from time import time
 from utils import parse_config, copytree, remove_checkpoints
 from data.tools import dataset_translation
@@ -52,6 +55,11 @@ def ImageNetDataLoad(dataprovider, config, **kwargs):
     return train_data, val_data, test_data
 
 
+def reset_random_seeds(seed):
+   os.environ['PYTHONHASHSEED']=str(seed)
+   tf.random.set_seed(2)
+   np.random.seed(seed)
+   random.seed(seed)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -85,6 +93,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-c", "--comment", default=None, help="extra comment to add and store")
     parser.add_argument("--debug", action="store_true", help="debugging, for internal use only")
+    parser.add_argument("-s", "--set-seed", action="store_true", help="set seed")
 
     args = parser.parse_args()
 
@@ -94,6 +103,9 @@ if __name__ == "__main__":
     assert args.repeats >= args.repeats_start_from, "--repeats must be >= --repeats-start-from"
     # Experiment
     for rep in range(args.repeats_start_from, args.repeats+1):
+
+        if args.set_seed:
+            reset_random_seeds(rep)
 
         save_pred = args.save_pred if rep == args.repeats_start_from else False
         save_data = args.save_data if rep == args.repeats_start_from else False
