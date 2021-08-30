@@ -2013,6 +2013,13 @@ def Experiment_21d():
     output_dict["other"]["info"] = "Deep kernel experiment"
     return output_dict
 
+def Experiment_21dii():
+    output_dict = Experiment_21a()
+    output_dict["data"]["load_type"] = "sawtooth"
+    output_dict["config_name"] = "config21iib"
+    output_dict["other"]["info"] = "Deep kernel experiment with increased stddev to 0.01"
+    return output_dict
+
 def Experiment_22a():
     output_dict = Experiment_21a()
     output_dict["config_name"] = "config22"
