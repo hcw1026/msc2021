@@ -106,6 +106,7 @@ if __name__ == "__main__":
 
         if args.set_seed:
             reset_random_seeds(rep)
+            print("seed is set as {}".format(rep))
 
         save_pred = args.save_pred if rep == args.repeats_start_from else False
         save_data = args.save_data if rep == args.repeats_start_from else False
