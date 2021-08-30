@@ -320,3 +320,7 @@ def remove_checkpoints(best_epoch, last_epoch, ckpt_dir, ckpt_prefix):
                 pass
             else:
                 os.remove(path)
+
+def copy_checkpoint(checkpoint_path, dest):
+    for path in glob.glob(checkpoint_path + "*"):
+        shutil.copy2(path, dest)
