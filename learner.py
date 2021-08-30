@@ -479,13 +479,11 @@ class BaseLearner():
             os.mkdir(dest_dir)
         utils.save_as_yaml(self.config, os.path.join(dest_dir,"config_epoch_{}.yaml".format(self.epoch_counter.value())))
 
-        print("here", self._validation, int(self.epoch_counter.numpy()), int(self.best_epoch.numpy()))
         if self._validation and (int(self.epoch_counter.numpy()) == int(self.best_epoch.numpy())):
-            print("hihi")
             dest_dir = os.path.join(self._ckpt_save_dir, "best_ckpt")
             if not os.path.isdir(dest_dir):
                 os.mkdir(dest_dir)
-            utils.copy_checkpoint(self.latest_ckpt_path, os.path.join(dest_dir, "best_ckpt"))
+            utils.copy_checkpoint(self.latest_ckpt_path, dest_dir)
 
     def profile(self, with_graph=False, profile_dir=None):
         utils.profile(self, with_graph=with_graph, profile_dir=profile_dir)

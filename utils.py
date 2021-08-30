@@ -323,4 +323,6 @@ def remove_checkpoints(best_epoch, last_epoch, ckpt_dir, ckpt_prefix):
 
 def copy_checkpoint(checkpoint_path, dest):
     for path in glob.glob(checkpoint_path + "*"):
-        shutil.copy2(path, dest)
+        filetype = path.split(".")[-1]
+        save_path = os.path.join(dest, "best_ckpt" + "." + filetype)
+        shutil.copy2(path, save_path)
