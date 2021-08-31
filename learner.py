@@ -233,6 +233,9 @@ class BaseLearner():
 
                 self._write_tensorboard_step(self.optimiser.iterations, train_loss)
 
+                with open(os.path.join(self._ckpt_save_dir, "diagnostic.txt"), "a") as f:
+                    f.write(", ".join([str(self.optimiser.iterations.numpy()), str(epoch), str(train_loss)])+"\n")
+
             self._write_tensorboard_epoch(epoch)
 
             if self._validation:
