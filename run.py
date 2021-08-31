@@ -54,7 +54,7 @@ def ImageNetDataLoad(dataprovider, config, **kwargs):
     test_data = dataprovider("test", config).generate()
     return train_data, val_data, test_data
 
-
+# https://stackoverflow.com/questions/60058588/tesnorflow-2-0-tf-random-set-seed-not-working-since-i-am-getting-different-resul
 def reset_random_seeds(seed):
    os.environ['PYTHONHASHSEED']=str(seed)
    tf.random.set_seed(2)
@@ -113,6 +113,9 @@ if __name__ == "__main__":
 
         for exp_idx in args.experiments:
 
+            if args.set_seed:
+                reset_random_seeds(rep)
+                print("seed is set as {}".format(rep))
             print()
             print("Repeat - ", rep, "Experiment -", exp_idx)
             print()
