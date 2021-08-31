@@ -2068,6 +2068,30 @@ def Experiment_23d():
     output_dict["other"]["info"] = "Deep kernel indp iter with increased stddev to 0.01"
     return output_dict
 
+def Experiment_24a():
+    output_dict = Experiment_21a()
+    output_dict["config_name"] = "config24"
+    output_dict["other"]["info"] = "rff indp iter"
+    return output_dict
+
+def Experiment_24b():
+    output_dict = Experiment_21b()
+    output_dict["config_name"] = "config24"
+    output_dict["other"]["info"] = "rff indp iter"
+    return output_dict
+
+def Experiment_24c():
+    output_dict = Experiment_21c()
+    output_dict["config_name"] = "config24"
+    output_dict["other"]["info"] = "rff indp iter"
+    return output_dict
+
+def Experiment_24d():
+    output_dict = Experiment_21d()
+    output_dict["config_name"] = "config24ii"
+    output_dict["other"]["info"] = "rff indp iter"
+    return output_dict
+
 ############################################################################################################################
 # Classification
 ############################################################################################################################
