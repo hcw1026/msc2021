@@ -2097,7 +2097,7 @@ def Experiment_25t():
     output_dict = Experiment_21a()
     output_dict["learner"]["model"] = MetaFunRegressorGLV5
     output_dict["learner"]["model_name"] = "MetaFunRegressorV5"
-    output_dict["config_name"] = "config22"
+    output_dict["config_name"] = "config25t"
     output_dict["other"]["info"] = "trial"
     return output_dict
 
