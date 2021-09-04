@@ -1,5 +1,6 @@
 #from msc2021.data.tools import RegressionDescription
 from math import ceil
+from sonnet.src.base import no_name_scope
 
 from tensorflow.python.ops.gen_array_ops import deep_copy
 from model import MetaFunClassifier, MetaFunRegressor
@@ -67,7 +68,9 @@ class BaseLearner():
         self._validation = _config["validation"]
 
         self._val_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
+        self._extra_num_per_epoch = tf.constant(_config["num_per_epoch"], dtype=tf.int32) if _config["num_per_epoch"] is not None else tf.constant(999999, dtype=tf.int32)
         self._val_drop_remainder = _config["drop_remainder"]
+        self._extra_drop_remainder = _config["drop_remainder"]
 
 
         # GPU Configurations
@@ -77,10 +80,12 @@ class BaseLearner():
         self.train_data = None
         self.val_data = None
         self.test_data = None
+        self.extra_data = no_name_scope
 
         # Initialise
         self.train_dist_ds = None
         self.val_dist_ds = None
+        self.extra_dist_ds = None
 
         self.epoch_counter = tf.Variable(1, trainable=False) #count epoch
         self.current_state = "train"
@@ -108,7 +113,7 @@ class BaseLearner():
     def set_signature(self, signature):
         self.signature = signature
 
-    def load_data_from_datasets(self, training=None, val=None, test=None):
+    def load_data_from_datasets(self, training=None, val=None, test=None, extra=None):
         """load custom data"""
         if training is not None:
             self.train_data = training
@@ -119,7 +124,10 @@ class BaseLearner():
         if test is not None:
             self.test_data = test
 
-        for dataset in [self.train_data, self.val_data, self.test_data]:
+        if extra is not None:
+            self.extra_data = extra
+
+        for dataset in [self.train_data, self.val_data, self.test_data, self.extra_data]:
             if dataset is not None:
                 embedding_dim_x = next(iter(self.train_data)).tr_input.shape[-1]
                 embedding_dim_y = next(iter(self.train_data)).tr_output.shape[-1]
@@ -153,8 +161,12 @@ class BaseLearner():
         if self.val_data is not None:
             self._val_batch_size = next(iter(self.val_data)).tr_input.shape[0]
 
+        if self.extra_data is not None:
+            self._extra_batch_size = next(iter(self.extra_data)).tr_input.shape[0]
+
         self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
         self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
+        self._extra_num_takes = ceil(int(self._extra_num_per_epoch)/int(self._extra_batch_size)) 
 
         with self.strategy.scope():
             self.model = self._initialise(model=self.model, data=self.train_data) # initialise model and optimisers
@@ -169,9 +181,16 @@ class BaseLearner():
             validation_step = self._tf_func_val_step()
             distributed_val_step = self._distributed_step(validation_step)
             self.val_dist_ds = self.strategy.experimental_distribute_dataset(self.val_data)
+            if self.extra_data is not None:
+                extra_step = self._tf_func_extra_step()
+                distributed_extra_step = self._distributed_step(extra_step)
+                self.extra_dist_ds = self.strategy.experimental_distribute_dataset(self.extra_data)
+            else:
+                distributed_extra_step = None
         else:
             distributed_val_step = None
-
+            if self.extra_data is not None:
+                raise AssertionError("validation must be activated if extra_data is provided")
 
         self._define_metrics()
         with self.strategy.scope():
@@ -185,18 +204,19 @@ class BaseLearner():
         # Initialise tensorboard
         self._create_summary_writers()
 
-        self._train_loop(distributed_train_step, distributed_val_step)
+        self._train_loop(distributed_train_step, distributed_val_step, distributed_extra_step)
 
         # Save model
         if self._save_final_model:
             tf.saved_model.save(self.model, self._ckpt_save_dir)
         self.has_train = True
 
-    def _train_loop(self, train_step, validation_step):
+    def _train_loop(self, train_step, validation_step, extra_step):
         """training iterations"""
         # Determine number of steps per epoch
         train_last_step, train_remainder = divmod(int(self._train_num_per_epoch), int(self._train_batch_size))
         val_last_step, val_remainder = divmod(int(self._val_num_per_epoch), int(self._val_batch_size))
+        extra_last_step, extra_remainder = divmod(int(self._extra_num_per_epoch), int(self._extra_batch_size))
 
         epoch_start = int(self.epoch_counter.numpy())
         self.epoch_start = epoch_start
@@ -269,6 +289,35 @@ class BaseLearner():
                             print("      -- context_{0}: {1:.3f}, mean_context_{0}: {2:.3f}, target_{0}: {3:.3f}, mean_target_{0}: {4:.3f}".format(
                                 metric, tf.reduce_mean(val_tr_metric[idx]), self.metric_val_context[idx].result(), tf.reduce_mean(val_val_metric[idx]), self.metric_val_target[idx].result()))
 
+                
+                if self.extra_data:
+                    print()
+                    print("Validation-Extra>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+                    extra_iter = iter(self.extra_dist_ds)
+
+                    for step_num in tqdm(range(1, self._extra_num_takes+1)):
+                    #for val_batch in self.val_data.take(self._val_num_takes):
+                        #step_num += 1
+                        try:
+                            extra_batch = next(extra_iter)
+                        except StopIteration:
+                            break
+
+                        if self._extra_drop_remainder and step_num == extra_last_step:
+                            extra_batch = utils.trim(data=extra_batch, size=extra_remainder, description=self.description)
+
+                        extra_loss, extra_tr_metric, extra_val_metric = extra_step(extra_batch)
+                        self.metric_extra_target_loss(extra_loss) # TODO: check correctness of placing it here
+
+                        if step_num % self._print_freq == 0:
+                            print()
+                            print("Validation - Extra -- Epoch: {0}/{1}, Step: {2}, target_loss: {3:.3f}, mean_target_loss: {4:.3f}".format(
+                            epoch, self._epoch, step_num, extra_loss, self.metric_extra_target_loss.result()))
+                            for idx, metric in enumerate(self.metric_names):
+                                print("      -- context_{0}: {1:.3f}, mean_context_{0}: {2:.3f}, target_{0}: {3:.3f}, mean_target_{0}: {4:.3f}".format(
+                                    metric, tf.reduce_mean(extra_tr_metric[idx]), self.metric_extra_context[idx].result(), tf.reduce_mean(extra_val_metric[idx]), self.metric_extra_target[idx].result()))
+
             self._write_tensorboard_epoch(epoch)
 
             if self._validation:
@@ -326,6 +375,24 @@ class BaseLearner():
 
         return _val_step
 
+    def _tf_func_extra_step(self):
+        """one meta-extra loop"""
+
+        #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function #TODO: solve the nested tf.function problem when using nested gradient
+        def _extra_step(extra_batch):
+            extra_loss, additional_loss, extra_tr_metric, extra_val_metric = self.model(extra_batch, is_training=False)[:4]
+            reg_loss = self.regulariser(self.model.get_regularise_variables)
+            extra_loss = utils.combine_losses(extra_loss, reg_loss + additional_loss, self._extra_batch_size)
+
+            # Update metrics
+            for idx in range(len(self.metric_names)):
+                self.metric_extra_target[idx](extra_val_metric[idx])
+                self.metric_extra_context[idx](extra_tr_metric[idx])
+
+            return extra_loss, extra_tr_metric, extra_val_metric
+
+        return _extra_step
+
     def _distributed_step(self, compute_step_fn):
 
         @utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function
@@ -359,6 +426,15 @@ class BaseLearner():
                     self.metric_val_target.append(tf.keras.metrics.Mean(name="val_target_{}".format(metric)))
                     self.metric_val_context.append(tf.keras.metrics.Mean(name="val_context_{}".format(metric)))
 
+            if self.extra_data is not None:
+                self.metric_extra_target_loss = tf.keras.metrics.Mean(name="extra_target_loss")
+                with self.strategy.scope():
+                    self.metric_extra_context = []
+                    self.metric_extra_target = []
+                    for metric in self.metric_names:
+                        self.metric_extra_target.append(tf.keras.metrics.Mean(name="extra_target_{}".format(metric)))
+                        self.metric_extra_context.append(tf.keras.metrics.Mean(name="extra_context_{}".format(metric)))
+
     def _reset_metrics(self):
         self.metric_train_target_loss.reset_states()
         for metric in self.metric_tr_target:
@@ -372,6 +448,13 @@ class BaseLearner():
                 metric.reset_states()
             for metric in self.metric_val_context:
                 metric.reset_states()
+
+            if self.extra_data is not None:
+                self.metric_extra_target_loss.reset_states()
+                for metric in self.metric_extra_target:
+                    metric.reset_states()
+                for metric in self.metric_extra_context:
+                    metric.reset_states()
 
     def _create_restore_checkpoint(self):
         # Checkpoints
@@ -404,6 +487,10 @@ class BaseLearner():
             val_log_dir = os.path.join(self._ckpt_save_dir, "logs/summary/validation_epoch")
             self.val_summary_writer = tf.summary.create_file_writer(val_log_dir)
 
+            if self.extra_data is not None:
+                extra_log_dir = os.path.join(self._ckpt_save_dir, "logs/summary/extra_epoch")
+                self.extra_summary_writer = tf.summary.create_file_writer(extra_log_dir)
+
     def _write_tensorboard_epoch(self, epoch):
         if self.current_state == "train":
             with self.train_summary_writer.as_default():
@@ -420,6 +507,14 @@ class BaseLearner():
                     tf.summary.scalar("Validation Target {}".format(metric), self.metric_val_target[idx].result(), step=epoch)
                     tf.summary.scalar("Validation Context {}".format(metric), self.metric_val_context[idx].result(), step=epoch)
                 tf.summary.flush()
+
+            if self.extra_data is not None:
+                with self.val_summary_writer.as_default():
+                    tf.summary.scalar("Mean Extra Target loss", self.metric_extra_target_loss.result(), step=epoch)
+                    for idx, metric in enumerate(self.metric_names):
+                        tf.summary.scalar("Extra Target {}".format(metric), self.metric_extra_target[idx].result(), step=epoch)
+                        tf.summary.scalar("Extra Context {}".format(metric), self.metric_extra_context[idx].result(), step=epoch)
+                    tf.summary.flush()
 
     def _write_tensorboard_step(self, iteration, loss):
         with self.train_summary_writer.as_default():
@@ -673,11 +768,12 @@ class GPLearner(BaseLearner):
         self.val_data = self.val_data[kernel_name] if kernel_name is not None else list(self.val_data.values())[0]
         self.test_data = self.test_data[kernel_name] if kernel_name is not None else list(self.test_data.values())[0]
 
-    def load_data_from_datasets(self, training=None, val=None, test=None):
+    def load_data_from_datasets(self, training=None, val=None, test=None, extra=None):
         """load custom data"""
         self.train_data = training if training is not None else self.train_data
         self.val_data = val if val is not None else self.val_data
         self.test_data = test if test is not None else self.test_data
+        self.extra_data = extra if extra is not None else self.extra_data
     
     def _initialise_model(self, model):
         return model(config=self.config, name=self.model_name)
@@ -848,7 +944,7 @@ if __name__ == "__main__":
     gp_data = gp_dataloader.generate()
     gp_train_data = gp_data[0]["RBF_Kernel"]
     gp_test_data = gp_data[1]["RBF_Kernel"]
-    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data)
+    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=gp_train_data)
     mylearn2.train()
     mylearn2.test(20)
 

@@ -5,7 +5,9 @@ Data:
     is_beta_binomial: false
     is_reuse_across_epochs: false
     max_context: 50
+    max_target: null
     min_context: 0.0
+    min_target: null
     n_points: 128
     n_same_samples: 10
     n_samples: 50000
@@ -54,6 +56,8 @@ Model:
   comp:
     attention_type: dot_product
     deterministic_decoder: true
+    fixed_sigma_epoch: -1
+    fixed_sigma_value: 0.01
     indp_iter: false
     initial_state_type: parametric
     kernel_lengthscale_init: 1.0
@@ -64,6 +68,7 @@ Model:
     no_decoder: false
     repr_as_inputs: false
     stddev_const_scale: 0.1
+    stddev_offset: 0.0
     use_gradient: false
     use_kernel: true
   ff:
@@ -76,6 +81,7 @@ Model:
     num_z_samples: 10
   other:
     initial_inner_lr: 0.1
+    nonlinearity: relu
     repr_as_inputs: false
   reg:
     dropout_rate: 0.0

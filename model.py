@@ -45,7 +45,7 @@ class MetaFunBase(snt.Module):
 
         # Other configurations
         self._initial_inner_lr = config["Model"]["other"]["initial_inner_lr"]
-        self._nonlinearity = tf.nn.relu #if config["Model"]["other"]["nonlinearity"] == "relu" else partial(tf.nn.leaky_relu(), alpha=0.1)
+        self._nonlinearity = tf.nn.relu if config["Model"]["other"]["nonlinearity"] == "relu" else partial(tf.nn.leaky_relu(), alpha=0.1)
         self.initialiser = tf.keras.initializers.GlorotUniform()
         self.dropout = tf.keras.layers.Dropout(self._dropout_rate)
         self._no_batch = no_batch
@@ -61,8 +61,10 @@ class MetaFunBase(snt.Module):
         self._num_classes = num_classes
         self._repr_as_inputs = config["Model"]["comp"]["repr_as_inputs"]
         self._neural_updater_concat_x = config["Model"]["comp"]["neural_updater_concat_x"]
-        self._stddev_const_scale = config["Model"]["comp"]["stddev_const_scale"]
-        self._stddev_offset = 2 ###################
+        self._stddev_const_scale = tf.constant(config["Model"]["comp"]["stddev_const_scale"], dtype=tf.float32)
+        self._stddev_offset = tf.constant(config["Model"]["comp"]["stddev_const_scale"], dtype=tf.float32)
+        self._fixed_sigma_value = tf.constant(config["Model"]["comp"]["fixed_sigma_value"], dtype=tf.float32)
+        self._fixed_sigma_epoch = tf.constant(config["Model"]["comp"]["fixed_sigma_epoch"], dtype=tf.int32)
 
         # Define metric
         self._metric_names = []
@@ -576,7 +578,7 @@ class MetaFunRegressor(MetaFunBase):
             is_training=self.is_training
         ))
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(1, dtype=tf.int32)):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -590,7 +592,7 @@ class MetaFunRegressor(MetaFunBase):
 
         tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
         all_tr_reprs, all_val_reprs = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
-        return self.Decoder(data=data, all_tr_reprs=all_tr_reprs, all_val_reprs=all_val_reprs)
+        return self.Decoder(data=data, all_tr_reprs=all_tr_reprs, all_val_reprs=all_val_reprs, epoch=epoch)
 
     def Encoder(self, tr_input, val_input, tr_output):
         all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
@@ -641,7 +643,7 @@ class MetaFunRegressor(MetaFunBase):
             all_val_reprs = all_val_reprs.write(1+k, val_reprs)
             return all_tr_reprs, all_val_reprs
 
-    def Decoder(self, data, all_tr_reprs, all_val_reprs):
+    def Decoder(self, data, all_tr_reprs, all_val_reprs, epoch=tf.constant(1, dtype=tf.int32)):
         # Decode functional representation and compute loss and metric
         all_val_mu = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
         all_val_sigma = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
@@ -653,6 +655,14 @@ class MetaFunRegressor(MetaFunBase):
             tr_mu, tr_sigma = self.predict(inputs=data.tr_input, weights=weights)
             weights = self.forward_decoder(all_val_reprs.read(k))
             val_mu, val_sigma = self.predict(inputs=data.val_input, weights=weights)
+
+            if epoch <= self._fixed_sigma_epoch:
+                tr_sigma = self._fixed_sigma_value
+                val_sigma = self._fixed_sigma_value
+            else:
+                tr_sigma = tr_sigma
+                val_sigma = val_sigma
+
             all_val_mu = all_val_mu.write(k, val_mu)
             all_val_sigma = all_val_sigma.write(k, val_sigma)
             all_tr_mu = all_tr_mu.write(k, tr_mu)
@@ -1059,7 +1069,7 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
 
         tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
         tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
-        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
 
     def Encoder(self, tr_input, val_input, tr_output):
         # Initialise r
@@ -1147,7 +1157,7 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
     
         tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
         tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
-        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
 
     def Encoder(self, tr_input, val_input, tr_output):
 
@@ -1220,11 +1230,19 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
 
         return tr_reprs, val_reprs, tr_input_ff, val_input_ff
 
-    def Decoder(self, data, tr_reprs, val_reprs, tr_input, val_input):
+    def Decoder(self, data, tr_reprs, val_reprs, tr_input, val_input, epoch=tf.constant(1, dtype=tf.int32)):
         weights = self.forward_decoder(tr_reprs)
         tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
         weights = self.forward_decoder(val_reprs)
         val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
+
+        if epoch <= self._fixed_sigma_epoch:
+            tr_sigma = self._fixed_sigma_value
+            val_sigma = self._fixed_sigma_value
+        else:
+            tr_sigma = tr_sigma
+            val_sigma = val_sigma
+
 
         tr_loss, tr_metric = self.calculate_loss_and_metrics(
             target_y=data.tr_output,
@@ -1488,7 +1506,7 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
         #use sum(tr_reprs) and sum(tr_reprs_all) for z distribution, val_reprs for prediction, tr_input_ff from deterministic path as feature transformation
         tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
         all_reprs, _ = self.Encoder_train_only(tr_input=all_input, tr_output=all_output) #use all datapoints as context
-        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, all_reprs=all_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, all_reprs=all_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
 
     def Encoder_train_only(self, tr_input, tr_output):
 
@@ -1542,7 +1560,7 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
 
         return tr_reprs, tr_input_ff
 
-    def Decoder(self, data, tr_reprs, val_reprs, all_reprs, tr_input, val_input):
+    def Decoder(self, data, tr_reprs, val_reprs, all_reprs, tr_input, val_input, epoch=tf.constant(1, dtype=tf.int32)):
         q_c = self.sample_latent(tr_reprs)
         q_t = self.sample_latent(all_reprs)
         z_samples_c = q_c.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
@@ -1569,23 +1587,21 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
         weights = self.forward_decoder(val_reprs_t)
         val_mu_pos, val_sigma_pos = self.predict(inputs=val_input, weights=weights)
 
+        if epoch <= self._fixed_sigma_epoch:
+            tr_sigma = self._fixed_sigma_value
+            tr_sigma_pos = self._fixed_sigma_value
+            val_sigma = self._fixed_sigma_value
+            val_sigma_pos = self._fixed_sigma_value
+        else:
+            tr_sigma = tr_sigma
+            tr_sigma_pos = tr_sigma_pos
+            val_sigma = val_sigma
+            val_sigma_pos = val_sigma_pos
+
         tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus_c=tr_mu, sigmas_c=tr_sigma, mus_t=tr_mu_pos, sigmas_t=tr_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
         val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus_c=val_mu, sigmas_c=val_sigma, mus_t=val_mu_pos, sigmas_t=val_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
 
         additional_loss = tf.constant(0., dtype=self._float_dtype)
-        
-        
-
-        # tr_reprs_tr = self.latent_decoder(R=tr_reprs, z_samples=z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
-        # weights = self.forward_decoder(tr_reprs_tr) #(num_z_samples, batch_size, num_target, dim_weights)
-        # tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
-
-        # val_reprs_tr = self.latent_decoder(R=val_reprs, z_samples=z_samples)
-        # weights = self.forward_decoder(val_reprs_tr)
-        # val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
-
-        # tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus=tr_mu, sigmas=tr_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
-        # val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus=val_mu, sigmas=val_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
 
         additional_loss = tf.constant(0., dtype=self._float_dtype)
         return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
@@ -1811,7 +1827,7 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         tr_reprs_latent, val_reprs_latent, _, _ = super().Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output) # latent encoder
         all_reprs_latent, _ = super().Encoder_train_only(tr_input=all_input, tr_output=all_output) # use all datapoints as conte
 
-        return self.Decoder(data=data, tr_reprs_deter=tr_reprs_deter, val_reprs_deter=val_reprs_deter, tr_reprs_latent=tr_reprs_latent, val_reprs_latent=val_reprs_latent, all_reprs_latent=all_reprs_latent, tr_input=tr_input_ff, val_input=val_input_ff)
+        return self.Decoder(data=data, tr_reprs_deter=tr_reprs_deter, val_reprs_deter=val_reprs_deter, tr_reprs_latent=tr_reprs_latent, val_reprs_latent=val_reprs_latent, all_reprs_latent=all_reprs_latent, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
 
     def deterministic_encoder(self, tr_input, val_input, tr_output):
         return self.deterministic_encoder_cls.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
@@ -1829,7 +1845,7 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
     def deterministic_decoder(self, reprs):
         return self.deterministic_decoder(inputs=reprs)
 
-    def Decoder(self, data, tr_reprs_deter, val_reprs_deter, tr_reprs_latent, val_reprs_latent, all_reprs_latent, tr_input, val_input):
+    def Decoder(self, data, tr_reprs_deter, val_reprs_deter, tr_reprs_latent, val_reprs_latent, all_reprs_latent, tr_input, val_input, epoch=tf.constant(1, dtype=tf.int32)):
         q_c = self.sample_latent(tr_reprs_latent)
         q_t = self.sample_latent(all_reprs_latent)
         z_samples_c = q_c.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
@@ -1855,6 +1871,17 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         val_reprs_t = submodules.latent_deter_merger(R=val_reprs_deter, z_samples=z_samples_t) #for posterior sampling loss
         weights = self.forward_decoder(val_reprs_t)
         val_mu_pos, val_sigma_pos = self.predict(inputs=val_input, weights=weights)
+
+        if epoch <= self._fixed_sigma_epoch:
+            tr_sigma = self._fixed_sigma_value
+            tr_sigma_pos = self._fixed_sigma_value
+            val_sigma = self._fixed_sigma_value
+            val_sigma_pos = self._fixed_sigma_value
+        else:
+            tr_sigma = tr_sigma
+            tr_sigma_pos = tr_sigma_pos
+            val_sigma = val_sigma
+            val_sigma_pos = val_sigma_pos
 
         tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus_c=tr_mu, sigmas_c=tr_sigma, mus_t=tr_mu_pos, sigmas_t=tr_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
         val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus_c=val_mu, sigmas_c=val_sigma, mus_t=val_mu_pos, sigmas_t=val_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
