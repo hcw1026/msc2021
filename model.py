@@ -8,7 +8,7 @@ import copy
 
 
 class MetaFunBase(snt.Module):
-    def __init__(self, config, no_batch, num_classes=1, name="MetaFun"):
+    def __init__(self, config, no_batch, num_classes=1, disable_decoder=False, name="MetaFun"):
         super(MetaFunBase, self).__init__(name=name)
         self._float_dtype = tf.float32
         self._int_dtype = tf.int32
@@ -45,7 +45,7 @@ class MetaFunBase(snt.Module):
 
         # Other configurations
         self._initial_inner_lr = config["Model"]["other"]["initial_inner_lr"]
-        self._nonlinearity = tf.nn.relu
+        self._nonlinearity = tf.nn.relu #if config["Model"]["other"]["nonlinearity"] == "relu" else partial(tf.nn.leaky_relu(), alpha=0.1)
         self.initialiser = tf.keras.initializers.GlorotUniform()
         self.dropout = tf.keras.layers.Dropout(self._dropout_rate)
         self._no_batch = no_batch
@@ -53,6 +53,7 @@ class MetaFunBase(snt.Module):
         # Constant Initialization
         self._orthogonality_reg = tf.constant(0., dtype=self._float_dtype)
         self.is_training = tf.Variable(True, dtype=tf.bool, trainable=False)
+        self.epoch = tf.Variable(0, dtype=tf.int32, trainable=False)
         self.embedding_dim = tf.constant([1])
         self.has_initialised = False
 
@@ -61,18 +62,20 @@ class MetaFunBase(snt.Module):
         self._repr_as_inputs = config["Model"]["comp"]["repr_as_inputs"]
         self._neural_updater_concat_x = config["Model"]["comp"]["neural_updater_concat_x"]
         self._stddev_const_scale = config["Model"]["comp"]["stddev_const_scale"]
+        self._stddev_offset = 2 ###################
 
         # Define metric
         self._metric_names = []
 
         if self._no_decoder:
             self._dim_reprs = 1
+
     @snt.once
-    def additional_initialise_after(self): # for extra initialisation steps
+    def additional_initialise_after(self, data_instance=None): # for extra initialisation steps
         pass
 
     @snt.once
-    def additional_initialise_pre(self): # for extra initialisation steps
+    def additional_initialise_pre(self, data_instance=None): # for extra initialisation steps
         pass
 
 
@@ -164,7 +167,7 @@ class MetaFunClassifier(MetaFunBase):
         self.embedding_dim = data_instance.tr_input.get_shape()[-1]
         self.sample_tr_data = data_instance.tr_input
         self.sample_val_data = data_instance.val_input
-        self.additional_initialise_pre()
+        self.additional_initialise_pre(data_instance=data_instance)
 
         self.forward_initialiser = self.forward_initialiser_base()
         self.forward_local_updater = self.forward_local_updater_base()
@@ -176,7 +179,7 @@ class MetaFunClassifier(MetaFunBase):
         self.sample_init()
 
         # Change initialisation state
-        self.additional_initialise_after()
+        self.additional_initialise_after(data_instance=data_instance)
         self.has_initialised = True
         #self.__call__(data_instance)
 
@@ -184,7 +187,7 @@ class MetaFunClassifier(MetaFunBase):
         self.regularise_variables = utils.get_linear_layer_variables(self)
 
     @snt.once
-    def additional_initialise_after(self):
+    def additional_initialise_after(self, data_instance=None):
         """for data-specific initialisation and any extra initialisation"""
 
         # Deduce precompute shape of forward_kernel_or_attention_precompute
@@ -198,7 +201,7 @@ class MetaFunClassifier(MetaFunBase):
             is_training=self.is_training
         ))
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -207,20 +210,22 @@ class MetaFunClassifier(MetaFunBase):
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
-        tr_reprs, val_reprs = self.Encoder(data=data)
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        tr_reprs, val_reprs = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
         return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=data.tr_input, val_input=data.val_input)
 
-    def Encoder(self, data):
+    def Encoder(self, tr_input, val_input, tr_output):
         # Initialise r
-        tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
-        val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
+        tr_reprs = self.forward_initialiser(tr_input, is_training=self.is_training)
+        val_reprs = self.forward_initialiser(val_input, is_training=self.is_training)
 
         # Precompute target context interaction for kernel/attention
         precomputed = self.forward_kernel_or_attention_precompute(
-            querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-            keys=data.tr_input,
+            querys=tf.concat([tr_input, val_input],axis=-2), 
+            keys=tr_input,
             recompute=tf.math.logical_not(self._indp_iter), # if not indepnedent iteration, precompute 
             precomputed=self.precomputed_init,
             values=None,
@@ -229,11 +234,11 @@ class MetaFunClassifier(MetaFunBase):
 
         # Iterative functional updating
         for k in range(self._num_iters):
-            updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input, iteration=k) #return negative u
+            updates = self.forward_local_updater(tr_reprs, tr_output, tr_input, iteration=k) #return negative u
 
             precomputed = self.forward_kernel_or_attention_precompute(
-                querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-                keys=data.tr_input,
+                querys=tf.concat([tr_input, val_input],axis=-2), 
+                keys=tr_input,
                 recompute=self._indp_iter,
                 precomputed=precomputed,
                 values=None,
@@ -246,7 +251,7 @@ class MetaFunClassifier(MetaFunBase):
                     keys=None, 
                     precomputed=precomputed,
                     values=updates), 
-                num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]], 
+                num_or_size_splits=[tf.shape(tr_input)[-2], tf.shape(val_input)[-2]], 
                 axis=-2)
             tr_reprs += tr_updates
             val_reprs += val_updates
@@ -522,7 +527,7 @@ class MetaFunRegressor(MetaFunBase):
 
         # Decoder neural network size of last layers
         self._loss_type = config["Train"]["loss_type"]
-        self._decoder_output_sizes_f = config["Model"]["arch"]["decoder_output_sizes"].copy()
+        self._decoder_output_sizes_f = config["Model"]["arch"]["decoder_output_sizes"].copy() if config["Model"]["arch"]["decoder_output_sizes"] is not None else config["Model"]["arch"]["decoder_output_sizes"]
 
         self._metric_names = ["mse", "logprob"] # must be in the order of metric output
 
@@ -536,7 +541,7 @@ class MetaFunRegressor(MetaFunBase):
         self.output_dim = data_instance.tr_output.get_shape()[-1]
         self._decoder_output_sizes = [self._nn_size] * (self._nn_layers-1) if self._decoder_output_sizes_f is None else self._decoder_output_sizes_f
         self._decoder_output_sizes += [self.output_dim*2]
-        self.additional_initialise_pre()
+        self.additional_initialise_pre(data_instance=data_instance)
 
         self.forward_initialiser = self.forward_initialiser_base()
         self.forward_local_updater = self.forward_local_updater_base()
@@ -549,7 +554,7 @@ class MetaFunRegressor(MetaFunBase):
         self.sample_init()
 
         # Change initialisation state
-        self.additional_initialise_after()
+        self.additional_initialise_after(data_instance=data_instance)
         self.has_initialised = True
         #self.__call__(data_instance)
 
@@ -571,7 +576,7 @@ class MetaFunRegressor(MetaFunBase):
             is_training=self.is_training
         ))
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -580,26 +585,28 @@ class MetaFunRegressor(MetaFunBase):
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
-        all_tr_reprs, all_val_reprs = self.Encoder(data=data)
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        all_tr_reprs, all_val_reprs = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
         return self.Decoder(data=data, all_tr_reprs=all_tr_reprs, all_val_reprs=all_val_reprs)
 
-    def Encoder(self, data):
+    def Encoder(self, tr_input, val_input, tr_output):
         all_tr_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
         all_val_reprs = tf.TensorArray(dtype=self._float_dtype, size=self._num_iters+1)
 
         # Initialise r
-        tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
-        val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
+        tr_reprs = self.forward_initialiser(tr_input, is_training=self.is_training)
+        val_reprs = self.forward_initialiser(val_input, is_training=self.is_training)
         
         all_tr_reprs = all_tr_reprs.write(0, tr_reprs)
         all_val_reprs = all_val_reprs.write(0, val_reprs)
 
         # Precompute target context interaction for kernel/attention
         precomputed = self.forward_kernel_or_attention_precompute(
-            querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-            keys=data.tr_input,
+            querys=tf.concat([tr_input, val_input],axis=-2), 
+            keys=tr_input,
             recompute=tf.math.logical_not(self._indp_iter),
             precomputed=self.precomputed_init,
             values=None,
@@ -608,11 +615,11 @@ class MetaFunRegressor(MetaFunBase):
 
         # Iterative functional updating
         for k in range(self._num_iters):
-            updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input, iteration=k)
+            updates = self.forward_local_updater(r=tr_reprs, y=tr_output, x=tr_input, iteration=k)
 
             precomputed = self.forward_kernel_or_attention_precompute(
-                querys=tf.concat([data.tr_input, data.val_input],axis=-2), 
-                keys=data.tr_input,
+                querys=tf.concat([tr_input, val_input],axis=-2), 
+                keys=tr_input,
                 recompute=self._indp_iter,
                 precomputed=precomputed,
                 values=None,
@@ -625,7 +632,7 @@ class MetaFunRegressor(MetaFunBase):
                     keys=None,
                     precomputed=precomputed,
                     values=updates),
-                num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]],
+                num_or_size_splits=[tf.shape(tr_input)[-2], tf.shape(val_input)[-2]],
                 axis=-2
                 )
             tr_reprs += tr_updates
@@ -925,7 +932,7 @@ class MetaFunRegressor(MetaFunBase):
         
         def _split(preds):
             mu, log_sigma = tf.split(preds, 2, axis=-1)
-            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma-self._stddev_offset)
             return mu, sigma
 
         if self._no_decoder:
@@ -977,7 +984,7 @@ class MetaFunBaseV2(MetaFunBase):
         self._ff_learnable = _config["learnable"]
 
     @snt.once
-    def additional_initialise_pre(self):
+    def additional_initialise_pre(self, data_instance=None):
         if self._use_ff:
             self.fourier_features_init()
             self.fourier_features = self.fourier_features_compute
@@ -988,7 +995,7 @@ class MetaFunBaseV2(MetaFunBase):
         self.sample_val_data = self.fourier_features(X=self.sample_val_data, recompute=True, precomputed=None, iteration=0)
 
     @snt.once
-    def additional_initialise_after(self):
+    def additional_initialise_after(self, data_instance=None):
         # Deduce precompute shape of forward_kernel_or_attention_precompute
         self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
             querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
@@ -1038,7 +1045,7 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
         self._num_classes = config["Data"][data_source]["num_classes"]
         super(MetaFunClassifierV2, self).__init__(config=config, data_source=data_source, num_classes=self._num_classes, no_batch=no_batch, name=name)
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -1047,25 +1054,27 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
 
-        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(data=data)
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
         return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
 
-    def Encoder(self, data):
+    def Encoder(self, tr_input, val_input, tr_output):
         # Initialise r
-        tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
-        val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
+        tr_reprs = self.forward_initialiser(tr_input, is_training=self.is_training)
+        val_reprs = self.forward_initialiser(val_input, is_training=self.is_training)
 
         # Fourier features
         tr_input_ff = self.fourier_features(
-            X=data.tr_input, 
+            X=tr_input, 
             recompute=tf.math.logical_not(self._indp_iter), 
             precomputed=self.sample_tr_data,
             iteration=0)
 
         val_input_ff = self.fourier_features(
-            X=data.val_input, 
+            X=val_input, 
             recompute=tf.math.logical_not(self._indp_iter), 
             precomputed=self.sample_val_data,
             iteration=0)
@@ -1082,17 +1091,17 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
 
         # Iterative functional updating
         for k in range(self._num_iters):
-            updates = self.forward_local_updater(tr_reprs, data.tr_output, data.tr_input, iteration=k) #return negative u
+            updates = self.forward_local_updater(tr_reprs, tr_output, tr_input, iteration=k) #return negative u
 
             # Fourier features
             tr_input_ff = self.fourier_features(
-                X=data.tr_input, 
+                X=tr_input, 
                 recompute=self._indp_iter, 
                 precomputed=tr_input_ff,
                 iteration=k)
 
             val_input_ff = self.fourier_features(
-                X=data.val_input, 
+                X=val_input, 
                 recompute=self._indp_iter, 
                 precomputed=val_input_ff,
                 iteration=k)
@@ -1112,7 +1121,7 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
                     keys=None, 
                     precomputed=precomputed,
                     values=updates), 
-                num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]], 
+                num_or_size_splits=[tf.shape(tr_input)[-2], tf.shape(val_input)[-2]], 
                 axis=-2)
             tr_reprs += tr_updates
             val_reprs += val_updates
@@ -1124,7 +1133,7 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV2", **kwargs):
         super(MetaFunRegressorV2, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -1133,26 +1142,28 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
         """
         # Initialise Variables #TODO: is_training set as tf.constant in learner
         self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
         assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
     
-        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(data=data)
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
         return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
 
-    def Encoder(self, data):
+    def Encoder(self, tr_input, val_input, tr_output):
 
         # Initialise r
-        tr_reprs = self.forward_initialiser(data.tr_input, is_training=self.is_training)
-        val_reprs = self.forward_initialiser(data.val_input, is_training=self.is_training)
+        tr_reprs = self.forward_initialiser(tr_input, is_training=self.is_training)
+        val_reprs = self.forward_initialiser(val_input, is_training=self.is_training)
         
         # Fourier features
         tr_input_ff = self.fourier_features(
-            X=data.tr_input, 
+            X=tr_input, 
             recompute=tf.math.logical_not(self._indp_iter), 
             precomputed=self.sample_tr_data,
             iteration=0)
 
         val_input_ff = self.fourier_features(
-            X=data.val_input, 
+            X=val_input, 
             recompute=tf.math.logical_not(self._indp_iter), 
             precomputed=self.sample_val_data,
             iteration=0)
@@ -1167,19 +1178,20 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
             iteration=0,
             is_training=self.is_training)
 
+
         # Iterative functional updating
         for k in range(self._num_iters):
-            updates = self.forward_local_updater(r=tr_reprs, y=data.tr_output, x=data.tr_input, iteration=k)
+            updates = self.forward_local_updater(r=tr_reprs, y=tr_output, x=tr_input, iteration=k)
 
             # Fourier features
             tr_input_ff = self.fourier_features(
-                X=data.tr_input, 
+                X=tr_input, 
                 recompute=self._indp_iter, 
                 precomputed=tr_input_ff,
                 iteration=k)
 
             val_input_ff = self.fourier_features(
-                X=data.val_input, 
+                X=val_input, 
                 recompute=self._indp_iter, 
                 precomputed=val_input_ff,
                 iteration=k)
@@ -1199,7 +1211,7 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
                     keys=None,
                     precomputed=precomputed,
                     values=updates),
-                num_or_size_splits=[tf.shape(data.tr_input)[-2], tf.shape(data.val_input)[-2]],
+                num_or_size_splits=[tf.shape(tr_input)[-2], tf.shape(val_input)[-2]],
                 axis=-2
                 )
 
@@ -1270,7 +1282,7 @@ class MetaFunRegressorV3(MetaFunRegressorV2):
         
         def _split(preds):
             mu, log_sigma = tf.split(preds, 2, axis=-1)
-            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma-self._stddev_offset)
             return mu, sigma
 
         if self._no_decoder:
@@ -1393,7 +1405,7 @@ class MetaFunRegressorV3b(MetaFunRegressorV3):
         
         def _split(preds):
             mu, log_sigma = tf.split(preds, 2, axis=-1)
-            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma-self._stddev_offset)
             return mu, sigma
 
         if self._no_decoder:
@@ -1432,7 +1444,7 @@ class MetaFunBaseGLV2(MetaFunBaseV2):
         super(MetaFunBaseGLV2, self).__init__(config=config, no_batch=no_batch, num_classes=num_classes, name=name)
 
     @snt.once
-    def additional_initialise_after(self):
+    def additional_initialise_after(self, data_instance=None):
         # Deduce precompute shape of forward_kernel_or_attention_precompute
         self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
             querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
@@ -1455,21 +1467,144 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
         self._num_z_samples = _config["num_z_samples"]
         self._dim_latent = _config["dim_latent"]
 
-        self._metric_names = ["mse", "logprob_VI", "logprob_ML"]
+        self._metric_names = ["mse", "logprob_VI", "logprob_ML", "logprob_ML_IW"]
 
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+        """
+        data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
+            Classification training/validation data of a task.
+        is_training: bool
+            If True, training mode
+        """
+        # Initialise Variables #TODO: is_training set as tf.constant in learner
+        self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
+        assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
+
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        all_input = tf.concat([tr_input, val_input], axis=-2)
+        all_output = tf.concat([tr_output, val_output], axis=-2)
+
+        #use sum(tr_reprs) and sum(tr_reprs_all) for z distribution, val_reprs for prediction, tr_input_ff from deterministic path as feature transformation
+        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
+        all_reprs, _ = self.Encoder_train_only(tr_input=all_input, tr_output=all_output) #use all datapoints as context
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, all_reprs=all_reprs, tr_input=tr_input_ff, val_input=val_input_ff)
+
+    def Encoder_train_only(self, tr_input, tr_output):
+
+        # Initialise r
+        tr_reprs = self.forward_initialiser(tr_input, is_training=self.is_training)
+        
+        # Fourier features
+        tr_input_ff = self.fourier_features(
+            X=tr_input, 
+            recompute=tf.math.logical_not(self._indp_iter), 
+            precomputed=self.sample_tr_data,
+            iteration=0)
+
+        # Precompute target context interaction for kernel/attention
+        precomputed = self.forward_kernel_or_attention_precompute(
+            querys=tr_input_ff, 
+            keys=tr_input_ff,
+            recompute=tf.math.logical_not(self._indp_iter), # if not indepnedent iteration, precompute 
+            precomputed=self.precomputed_init,
+            values=None,
+            iteration=0,
+            is_training=self.is_training)
+
+        # Iterative functional updating
+        for k in range(self._num_iters):
+            updates = self.forward_local_updater(r=tr_reprs, y=tr_output, x=tr_input, iteration=k)
+
+            # Fourier features
+            tr_input_ff = self.fourier_features(
+                X=tr_input, 
+                recompute=self._indp_iter, 
+                precomputed=tr_input_ff,
+                iteration=k)
+
+            precomputed = self.forward_kernel_or_attention_precompute(
+                querys=tr_input_ff, 
+                keys=tr_input_ff,
+                recompute=self._indp_iter,
+                precomputed=precomputed,
+                values=None,
+                iteration=k,
+                is_training=self.is_training)
+
+            tr_updates = self.alpha * self.forward_kernel_or_attention(
+                querys=None,
+                keys=None,
+                precomputed=precomputed,
+                values=updates)
+
+            tr_reprs += tr_updates
+
+        return tr_reprs, tr_input_ff
+
+    def Decoder(self, data, tr_reprs, val_reprs, all_reprs, tr_input, val_input):
+        q_c = self.sample_latent(tr_reprs)
+        q_t = self.sample_latent(all_reprs)
+        z_samples_c = q_c.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+        z_samples_t = q_t.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+
+        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=self._num_z_samples) #for context loss
+        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=self._num_z_samples) #for target loss
+        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=self._num_z_samples)
+        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=self._num_z_samples)
+
+        tr_reprs_c = self.latent_decoder(R=tr_reprs, z_samples=z_samples_c) #(num_z_samples, batch_size, num_target, dim_reprs) #for train prediction
+        weights = self.forward_decoder(tr_reprs_c) #(num_z_samples, batch_size, num_target, dim_weights)
+        tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
+
+        tr_reprs_t = self.latent_decoder(R=tr_reprs, z_samples=z_samples_t) #(num_z_samples, batch_size, num_target, dim_reprs) #for posterior sampling loss
+        weights = self.forward_decoder(tr_reprs_t) #(num_z_samples, batch_size, num_target, dim_weights)
+        tr_mu_pos, tr_sigma_pos = self.predict(inputs=tr_input, weights=weights)
+
+        val_reprs_c = self.latent_decoder(R=val_reprs, z_samples=z_samples_c) #for val prediction
+        weights = self.forward_decoder(val_reprs_c)
+        val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
+
+        val_reprs_t = self.latent_decoder(R=val_reprs, z_samples=z_samples_t) #for posterior sampling loss
+        weights = self.forward_decoder(val_reprs_t)
+        val_mu_pos, val_sigma_pos = self.predict(inputs=val_input, weights=weights)
+
+        tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus_c=tr_mu, sigmas_c=tr_sigma, mus_t=tr_mu_pos, sigmas_t=tr_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
+        val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus_c=val_mu, sigmas_c=val_sigma, mus_t=val_mu_pos, sigmas_t=val_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
+
+        additional_loss = tf.constant(0., dtype=self._float_dtype)
+        
+        
+
+        # tr_reprs_tr = self.latent_decoder(R=tr_reprs, z_samples=z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
+        # weights = self.forward_decoder(tr_reprs_tr) #(num_z_samples, batch_size, num_target, dim_weights)
+        # tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
+
+        # val_reprs_tr = self.latent_decoder(R=val_reprs, z_samples=z_samples)
+        # weights = self.forward_decoder(val_reprs_tr)
+        # val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
+
+        # tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus=tr_mu, sigmas=tr_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
+        # val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus=val_mu, sigmas=val_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
+
+        additional_loss = tf.constant(0., dtype=self._float_dtype)
+        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
+
+    @snt.once
     def sample_latent_init(self):
         self._sample_latent = submodules.sample_latent(
-            num_z_samples=self._num_z_samples,
             nn_layers=self._nn_layers,
             nn_size=self._nn_size,
             dim_latent=self._dim_latent,
             stddev_const_scale=self._stddev_const_scale,
             initialiser=self.initialiser,
-            nonlinearity=self._nonlinearity)
+            nonlinearity=self._nonlinearity,
+            stddev_offset=self._stddev_offset)
 
-    def sample_latent(self, repr):
-        return self._sample_latent(repr=repr)
+    def sample_latent(self, reprs):
+        return self._sample_latent(reprs=reprs)
 
+    @snt.once
     def latent_decoder_init(self):
         self._latent_decoder = submodules.latent_decoder(
             initialiser=self.initialiser,
@@ -1480,46 +1615,34 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
     def latent_decoder(self, R, z_samples):
         return self._latent_decoder(R=R, z_samples=z_samples)
 
-    def Decoder(self, data, tr_reprs, val_reprs, tr_input, val_input):
-        q_c = self.sample_latent(tr_reprs)
-        q_t = self.sample_latent(val_reprs)
-        z_samples = q_t.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
-
-        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=self._num_z_samples)
-        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=self._num_z_samples)
-        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=self._num_z_samples)
-        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=self._num_z_samples)
-
-        tr_reprs_tr = self.latent_decoder(R=tr_reprs, z_samples=z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
-        weights = self.forward_decoder(tr_reprs_tr) #(num_z_samples, batch_size, num_target, dim_weights)
-        tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
-
-        val_reprs_tr = self.latent_decoder(R=val_reprs, z_samples=z_samples)
-        weights = self.forward_decoder(val_reprs_tr)
-        val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
-
-        tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus=tr_mu, sigmas=tr_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
-        val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus=val_mu, sigmas=val_sigma, q_c=q_c, q_t=q_t, z_samples=z_samples)
-
-        additional_loss = tf.constant(0., dtype=self._float_dtype)
-        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
-
     @snt.once
     def calculate_loss_and_metrics_init(self):
 
-        def mse_loss(target_y, mus, sigmas, q_c=None, q_t=None, z_samples=None):
+        def mse_loss(target_y, mus_c, mus_t, sigmas_c, sigmas_t, q_c=None, q_t=None, z_samples_c=None, z_samples_t=None):
+            mus, sigmas, z_samples = mus_c, sigmas_c, z_samples_c
             mu, sigma = mus, sigmas
             mse = self.loss_fn(mu, target_y)
             return mse
 
-        def log_prob_VI_loss(target_y, mus, sigmas, q_c, q_t, z_samples=None):
+        def log_prob_VI_loss(target_y, mus_c, mus_t, sigmas_c, sigmas_t, q_c, q_t, z_samples_c=None, z_samples_t=None):
+            mus, sigmas, z_samples = mus_t, sigmas_t, z_samples_t
             p_y = tfp.distributions.MultivariateNormalDiag(loc=mus, scale_diag=sigmas)
             E_p_y = tf.math.reduce_sum(tf.math.reduce_mean(p_y.log_prob(target_y), axis=0),axis=-1) #(batch_size)
             kl = tf.squeeze(tfp.distributions.kl_divergence(q_t, q_c)) #(batch_size)
             loss = - (E_p_y - kl)
             return loss
 
-        def log_prob_ML_loss(target_y, mus, sigmas, z_samples, q_c, q_t):
+        def log_prob_ML_loss(target_y, mus_c, mus_t, sigmas_c, sigmas_t, z_samples_c, z_samples_t, q_c, q_t):
+            mus, sigmas, z_samples = mus_c, sigmas_c, z_samples_c
+            num_z_samples = tf.shape(z_samples)[0]
+            p_y = tfp.distributions.MultivariateNormalDiag(loc=mus, scale_diag=sigmas)
+            loss = tf.math.reduce_sum(p_y.log_prob(target_y),axis=-1) #(num_z_samples, batch_size)
+            loss = tf.math.reduce_logsumexp(loss, axis=0) #(batch_size)
+            loss = - (loss - tf.math.log(tf.cast(num_z_samples, dtype=tf.float32)))
+            return loss
+
+        def log_prob_ML_IW_loss(target_y, mus_c, sigmas_c, mus_t, sigmas_t, z_samples_c, z_samples_t, q_c, q_t):
+            mus, sigmas, z_samples = mus_t, sigmas_t, z_samples_t
             num_z_samples = tf.shape(z_samples)[0]
             p_y = tfp.distributions.MultivariateNormalDiag(loc=mus, scale_diag=sigmas)
             sum_p_y = tf.math.reduce_sum(p_y.log_prob(target_y),axis=-1) #(num_z_samples, batch_size)
@@ -1528,13 +1651,14 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
             loss = - (loss - tf.math.log(tf.cast(num_z_samples, dtype=tf.float32)))
             return loss
 
-        def loss_and_metric(loss_fn, target_y, mus, sigmas, q_c, q_t, z_samples=None):
+        def loss_and_metric(loss_fn, target_y, mus_c, sigmas_c, mus_t, sigmas_t, q_c, q_t, z_samples_c=None, z_samples_t=None):
             n_points = tf.cast(tf.shape(target_y)[-2], dtype=tf.float32)
 
-            loss = loss_fn(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples)
-            mse = mse_loss(target_y=target_y, mus=mus, sigmas=sigmas)
-            logprob_VI = tf.math.divide_no_nan(- log_prob_VI_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples), n_points)
-            logprob_ML = tf.math.divide_no_nan(- log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples), n_points)
+            loss = loss_fn(target_y=target_y, mus_c=mus_c, sigmas_c=sigmas_c, mus_t=mus_t, sigmas_t=sigmas_t, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
+            mse = mse_loss(target_y=target_y, mus_c=mus_c, sigmas_c=sigmas_c, mus_t=mus_t, sigmas_t=sigmas_t, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
+            logprob_VI = tf.math.divide_no_nan(- log_prob_VI_loss(target_y=target_y, mus_c=mus_c, sigmas_c=sigmas_c, mus_t=mus_t, sigmas_t=sigmas_t, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t), n_points)
+            logprob_ML = tf.math.divide_no_nan(- log_prob_ML_loss(target_y=target_y, mus_c=mus_c, sigmas_c=sigmas_c, mus_t=mus_t, sigmas_t=sigmas_t, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t), n_points)
+            logprob_ML_IW = tf.math.divide_no_nan(- log_prob_ML_IW_loss(target_y=target_y, mus_c=mus_c, sigmas_c=sigmas_c, mus_t=mus_t, sigmas_t=sigmas_t, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t), n_points)
             # if tf.shape(target_y)[-2] != tf.constant(0, dtype=tf.int32): # to avoid nan when computing metrics
             #     logprob_VI = - log_prob_VI_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
             #     logprob_ML = - log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
@@ -1543,7 +1667,7 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
             #     logprob_ML = - log_prob_ML_loss(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples) / n_points
                 # logprob_VI = tf.zeros(tf.shape(mus)[:2])[0,:] #empty shape
                 # logprob_ML = tf.zeros(tf.shape(mus)[:2])[0,:] #empty shape
-            return loss, [mse, logprob_VI, logprob_ML]
+            return loss, [mse, logprob_VI, logprob_ML, logprob_ML_IW]
 
         if self._loss_type == "mse":
             self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=mse_loss)
@@ -1551,11 +1675,13 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
             self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_VI_loss)
         elif self._loss_type == "logprob_ML":
             self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_ML_loss)
+        elif self._loss_type == "logprob_ML_IW":
+            self._calculate_loss_and_metrics =  partial(loss_and_metric, loss_fn=log_prob_ML_IW_loss)
         else:
             raise NameError("unknown loss type")
 
-    def calculate_loss_and_metrics(self, target_y, mus, sigmas, q_c, q_t, z_samples):
-        return self._calculate_loss_and_metrics(target_y=target_y, mus=mus, sigmas=sigmas, q_c=q_c, q_t=q_t, z_samples=z_samples)
+    def calculate_loss_and_metrics(self, target_y, mus_c, sigmas_c, mus_t, sigmas_t, q_c, q_t, z_samples_c, z_samples_t):
+        return self._calculate_loss_and_metrics(target_y=target_y, mus_c=mus_c, sigmas_c=sigmas_c, mus_t=mus_t, sigmas_t=sigmas_t, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
         
 
 class MetaFunRegressorV4(MetaFunRegressorV3):
@@ -1587,7 +1713,7 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
         
         def _split(preds):
             mu, log_sigma = tf.split(preds, 2, axis=-1)
-            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma)
+            sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(log_sigma-self._stddev_offset)
             return mu, sigma
 
         if self._no_decoder:
@@ -1630,9 +1756,114 @@ class MetaFunRegressorV4(MetaFunRegressorV3):
                 self._predict =  predict_not_repr_as_inputs
 
 
-class MetaFunRegressorGLV4(MetaFunBaseGLV2, MetaFunRegressorV4):
+class MetaFunRegressorGLV4(MetaFunRegressorGLV3, MetaFunRegressorV4):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV4", **kwargs):
         super(MetaFunRegressorGLV4, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
+
+
+class MetaFunBaseGLV3(MetaFunBaseV2):
+    def __init__(self, config, no_batch, num_classes=1, name="MetaFunGLV3", **kwargs):
+        super(MetaFunBaseGLV3, self).__init__(config=config, no_batch=no_batch, num_classes=num_classes, name=name)
+
+    @snt.once
+    def additional_initialise_after(self, data_instance=None):
+        # Deduce precompute shape of forward_kernel_or_attention_precompute
+        self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
+            keys=self.sample_tr_data,
+            values=None,
+            recompute=True,
+            precomputed=None,
+            iteration=0,
+            is_training=self.is_training
+        ))
+
+        self.deterministic_encoder_cls.initialise(data_instance=data_instance)
+        self.sample_latent_init()
+
+
+class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV5", **kwargs):
+        super(MetaFunRegressorGLV5, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
+
+        self.deterministic_encoder_cls = MetaFunRegressorV4(config=config, data_source=data_source, no_batch=no_batch, name="deterministic_encoder")
+        utils.disable_decoder(self.deterministic_encoder_cls)
+
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+        """
+        data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
+            Classification training/validation data of a task.
+        is_training: bool
+            If True, training mode
+        """
+        # Initialise Variables #TODO: is_training set as tf.constant in learner
+        self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
+        self.deterministic_encoder_cls.is_training.assign(is_training)
+        self.deterministic_encoder_cls.epoch.assign(epoch)
+        assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
+    
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        all_input = tf.concat([tr_input, val_input], axis=-2)
+        all_output = tf.concat([tr_output, val_output], axis=-2)
+
+        tr_reprs_deter, val_reprs_deter, tr_input_ff, val_input_ff = self.deterministic_encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output) #deterministic
+        tr_reprs_latent, val_reprs_latent, _, _ = super().Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output) # latent encoder
+        all_reprs_latent, _ = super().Encoder_train_only(tr_input=all_input, tr_output=all_output) # use all datapoints as conte
+
+        return self.Decoder(data=data, tr_reprs_deter=tr_reprs_deter, val_reprs_deter=val_reprs_deter, tr_reprs_latent=tr_reprs_latent, val_reprs_latent=val_reprs_latent, all_reprs_latent=all_reprs_latent, tr_input=tr_input_ff, val_input=val_input_ff)
+
+    def deterministic_encoder(self, tr_input, val_input, tr_output):
+        return self.deterministic_encoder_cls.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
+
+    @snt.once
+    def deterministic_decoder_init(self):
+        self._deterministic_decoder = submodules.simple_MLP(
+            nn_size=self._nn_size,
+            nn_layers=self._nn_layers, 
+            output_dim=self._dim_reprs,
+            initialiser=self.initialiser,
+            nonlinearity=self._nonlinearity
+            )
+    
+    def deterministic_decoder(self, reprs):
+        return self.deterministic_decoder(inputs=reprs)
+
+    def Decoder(self, data, tr_reprs_deter, val_reprs_deter, tr_reprs_latent, val_reprs_latent, all_reprs_latent, tr_input, val_input):
+        q_c = self.sample_latent(tr_reprs_latent)
+        q_t = self.sample_latent(all_reprs_latent)
+        z_samples_c = q_c.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+        z_samples_t = q_t.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+
+        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=self._num_z_samples) #for context loss
+        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=self._num_z_samples) #for target loss
+        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=self._num_z_samples)
+        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=self._num_z_samples)
+
+        tr_reprs_c = submodules.latent_deter_merger(R=tr_reprs_deter, z_samples=z_samples_c) #(num_z_samples, batch_size, num_target, dim_reprs) #for train prediction
+        weights = self.forward_decoder(tr_reprs_c) #(num_z_samples, batch_size, num_target, dim_weights)
+        tr_mu, tr_sigma = self.predict(inputs=tr_input, weights=weights)
+
+        tr_reprs_t = submodules.latent_deter_merger(R=tr_reprs_deter, z_samples=z_samples_t) #(num_z_samples, batch_size, num_target, dim_reprs) #for posterior sampling loss
+        weights = self.forward_decoder(tr_reprs_t) #(num_z_samples, batch_size, num_target, dim_weights)
+        tr_mu_pos, tr_sigma_pos = self.predict(inputs=tr_input, weights=weights)
+
+        val_reprs_c = submodules.latent_deter_merger(R=val_reprs_deter, z_samples=z_samples_c) #for val prediction
+        weights = self.forward_decoder(val_reprs_c)
+        val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
+
+        val_reprs_t = submodules.latent_deter_merger(R=val_reprs_deter, z_samples=z_samples_t) #for posterior sampling loss
+        weights = self.forward_decoder(val_reprs_t)
+        val_mu_pos, val_sigma_pos = self.predict(inputs=val_input, weights=weights)
+
+        tr_loss, tr_metric = self.calculate_loss_and_metrics(target_y=tr_output, mus_c=tr_mu, sigmas_c=tr_sigma, mus_t=tr_mu_pos, sigmas_t=tr_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
+        val_loss, val_metric = self.calculate_loss_and_metrics(target_y=val_output, mus_c=val_mu, sigmas_c=val_sigma, mus_t=val_mu_pos, sigmas_t=val_sigma_pos, q_c=q_c, q_t=q_t, z_samples_c=z_samples_c, z_samples_t=z_samples_t)
+
+        additional_loss = tf.constant(0., dtype=self._float_dtype)
+
+        return val_loss, additional_loss, tr_metric, val_metric, val_mu, val_sigma, tr_mu, tr_sigma
+
+        
 
 
 if __name__ == "__main__":
@@ -1641,8 +1872,8 @@ if __name__ == "__main__":
     import numpy as np
     import collections
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
-    tf.random.set_seed(1234)
-    np.random.seed(1234)
+    #tf.random.set_seed(1234)
+    #np.random.seed(1234)
 
     # ClassificationDescription = collections.namedtuple(
     # "ClassificationDescription",
@@ -1829,11 +2060,45 @@ if __name__ == "__main__":
     # print("time consumed", time.time()-t1)
 
 
-    ####V4
+    # ####V4
+    # import time
+    # config = parse_config(os.path.join(os.path.dirname(__file__),"config/config22.yaml"))
+
+    # print("Regression")
+    # module2 = MetaFunRegressorV4(config=config)
+    # ClassificationDescription = collections.namedtuple(
+    # "ClassificationDescription",
+    # ["tr_input", "tr_output", "val_input", "val_output"])
+    
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+
+    # module2.initialise(data_reg)
+    # data_reg = ClassificationDescription(
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32),
+    # tf.constant(np.random.random([2, 10,10]),dtype=tf.float32),
+    # tf.constant(np.random.random([2,10,1]),dtype=tf.float32))
+    # @tf.function
+    # def trial(x, is_training=True):
+    #     l,*_ = module2(x, is_training=is_training)
+    #     return l
+
+    # print("DEBUGGGGGGGGGGGGGGG")
+ 
+    # print(trial(data_reg, is_training=False))
+    # t1 = time.time()
+    # print(module2(data_reg, is_training=False)[0])
+    # print("time consumed", time.time()-t1)
+
+    ####GLV5
     import time
 
     print("Regression")
-    module2 = MetaFunRegressorV4(config=config)
+    module2 = MetaFunRegressorGLV5(config=config)
     ClassificationDescription = collections.namedtuple(
     "ClassificationDescription",
     ["tr_input", "tr_output", "val_input", "val_output"])
@@ -1856,9 +2121,25 @@ if __name__ == "__main__":
         return l
 
     print("DEBUGGGGGGGGGGGGGGG")
- 
+    print("-----tffunction")
     #print(trial(data_reg, is_training=False))
+
     t1 = time.time()
-    print(module2(data_reg, is_training=False)[0])
+    print("-----normal")
+    print(module2(data_reg, is_training=False)[3])
     print("time consumed", time.time()-t1)
 
+
+    ######### invariant check
+    a1 = tf.constant(np.random.random([2, 10,10]),dtype=tf.float32)
+    a2 = tf.constant(np.random.random([2,10,1]),dtype=tf.float32)
+    a3 = tf.constant(np.random.random([2, 10,10]),dtype=tf.float32)
+    a4 = tf.constant(np.random.random([2,10,1]),dtype=tf.float32)
+    data_reg = ClassificationDescription(a1,a2,a3,a4)
+    _,_,_,_,b1,*_ = module2(data_reg)
+
+    c1, c2, c3, c4 = a1+10000, a2, a3+10000, a4
+    data_reg2 = ClassificationDescription(c1,c2,c3,c4)
+    _,_,_,_,b2,*_ = module2(data_reg2)
+
+    print(b1[0]-b2[0])

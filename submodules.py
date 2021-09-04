@@ -447,6 +447,21 @@ class predict_repr_as_inputs_simple(snt.Module):
     def __call__(self, inputs, weights):
         return self.module(weights)
 
+class simple_MLP(snt.Module):
+    def __init__(self, nn_size, nn_layers, output_dim, initialiser, nonlinearity, name="simple_MLP"):
+        super(simple_MLP, self).__init__(name=name)
+        self.module = snt.nets.MLP(
+                output_sizes=[nn_size] * nn_layers + [output_dim],
+                activation=nonlinearity,
+                with_bias=True,
+                w_init=initialiser,
+                name="simple_MLP"
+            )
+
+    def __call__(self, inputs):
+        return self.module(inputs)
+
+
 class custom_MLP(snt.Module):
     def __init__(self, output_sizes, embedding_dim, nonlinearity, name="custom_MLP"):
         super(custom_MLP, self).__init__(name=name)
@@ -531,8 +546,8 @@ class PermEqui(snt.Module): #not support batch
         """
         super(PermEqui, self).__init__(name=name)
 
-        self.Gamma = snt.Linear(output_size=dim_out)
-        self.Lambda = snt.Linear(output_size=dim_out, with_bias=False, w_init=initialiser)
+        self.Gamma = snt.Linear(output_size=dim_out, name="linear_gamma")
+        self.Lambda = snt.Linear(output_size=dim_out, with_bias=False, w_init=initialiser, name="linear_lambda")
 
         if pool_fn == "sum":
             self.pool_fn = tf.math.reduce_max
@@ -852,7 +867,7 @@ class ISAB(snt.Module):
 #################################################################################
 
 class sample_latent(snt.Module):
-    def __init__(self, num_z_samples, nn_layers, nn_size, dim_latent, stddev_const_scale, initialiser, nonlinearity, name="sample_latent"):
+    def __init__(self, nn_layers, nn_size, dim_latent, stddev_const_scale, stddev_offset, initialiser, nonlinearity, name="sample_latent"):
         super(sample_latent, self).__init__(name=name)
 
         self.latent_encoder = snt.nets.MLP(
@@ -863,13 +878,13 @@ class sample_latent(snt.Module):
             name="latent_encoder")
 
         self._stddev_const_scale = stddev_const_scale
-        self._num_z_samples = num_z_samples
+        self._stddev_offset = stddev_offset
 
-    def __call__(self, repr):
-        repr_sum = tf.math.reduce_sum(repr, axis=-2, keepdims=True) #(batch_size, 1, dim_repr)
+    def __call__(self, reprs):
+        repr_sum = tf.math.reduce_sum(reprs, axis=-2, keepdims=True) #(batch_size, 1, dim_repr)
         repr_sum = self.latent_encoder(repr_sum) #(batch_size, 1, 2*dim_latent)
         mu, sigma = tf.split(repr_sum, 2, axis=-1) #(batch_size, 1, dim_latent)
-        sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(sigma)
+        sigma = self._stddev_const_scale + (1-self._stddev_const_scale) * tf.nn.softplus(sigma-self._stddev_offset)
         return tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
 
 class latent_decoder(snt.Module):
@@ -888,11 +903,19 @@ class latent_decoder(snt.Module):
             self._nonlinearity = nonlinearity
 
     def __call__(self, R, z_samples):
-        num_z_samples = tf.shape(z_samples)[0]
-        R = tf.repeat(tf.expand_dims(R,axis=0), axis=0, repeats=num_z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
-        z_samples = tf.repeat(z_samples, axis=-2, repeats=tf.shape(R)[-2]) #(num_z_samples, batch_size, num_target, dim_latent)
-        output = tf.concat([R, z_samples], axis=-1) #(num_z_samples, batch_size, num_target, dim_latent+dim_reprs)
+        # num_z_samples = tf.shape(z_samples)[0]
+        # R = tf.repeat(tf.expand_dims(R,axis=0), axis=0, repeats=num_z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
+        # z_samples = tf.repeat(z_samples, axis=-2, repeats=tf.shape(R)[-2]) #(num_z_samples, batch_size, num_target, dim_latent)
+        # output = tf.concat([R, z_samples], axis=-1) #(num_z_samples, batch_size, num_target, dim_latent+dim_reprs)
+        output = latent_deter_merger(R=R, z_samples=z_samples)
         return self._nonlinearity(self.merge_r_z(output))  #(num_z_samples, batch_size, num_target, dim_reprs)
+
+def latent_deter_merger(R, z_samples):
+    num_z_samples = tf.shape(z_samples)[0]
+    R = tf.repeat(tf.expand_dims(R,axis=0), axis=0, repeats=num_z_samples) #(num_z_samples, batch_size, num_target, dim_reprs)
+    z_samples = tf.repeat(z_samples, axis=-2, repeats=tf.shape(R)[-2]) #(num_z_samples, batch_size, num_target, dim_latent)
+    output = tf.concat([R, z_samples], axis=-1) #(num_z_samples, batch_size, num_target, dim_latent+dim_reprs)
+    return output
 
 
 

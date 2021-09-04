@@ -326,3 +326,17 @@ def copy_checkpoint(checkpoint_path, dest):
         filetype = path.split(".")[-1]
         save_path = os.path.join(dest, "best_ckpt" + "." + filetype)
         shutil.copy2(path, save_path)
+
+
+#############################################################################################
+# model
+#############################################################################################
+def disable_decoder(model_cls):
+    model_cls.no_decoder = True
+
+    def empty_fun():
+        pass
+
+    model_cls.predict_init = empty_fun
+    model_cls.forward_decoder_base = empty_fun
+    model_cls.calculate_loss_and_metrics_init = empty_fun

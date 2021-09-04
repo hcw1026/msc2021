@@ -1,7 +1,7 @@
 from data.gp_regression import DataProvider as gp_provider
 from data.leo_imagenet import DataProvider as imagenet_provider
 from learner import ImageNetLearner, GPLearner
-from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4
+from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4, MetaFunRegressorGLV5
 from sklearn.gaussian_process import kernels
 from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad, GPDataLoadTE
 
@@ -2091,6 +2091,16 @@ def Experiment_24d():
     output_dict["config_name"] = "config24ii"
     output_dict["other"]["info"] = "rff indp iter"
     return output_dict
+
+
+def Experiment_25t():
+    output_dict = Experiment_21a()
+    output_dict["learner"]["model"] = MetaFunRegressorGLV5
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV5"
+    output_dict["config_name"] = "config22"
+    output_dict["other"]["info"] = "trial"
+    return output_dict
+
 
 ############################################################################################################################
 # Classification

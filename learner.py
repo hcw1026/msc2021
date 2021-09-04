@@ -841,9 +841,9 @@ if __name__ == "__main__":
         np.random.seed(2)
         random.seed(2)
     reset_random_seeds()
-    from model import MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4
+    from model import MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4, MetaFunRegressorGLV5
     from data.gp_regression import DataProvider as gp_provider
-    mylearn2 = GPLearner(config, MetaFunRegressorV4)
+    mylearn2 = GPLearner(config, MetaFunRegressorGLV5)
     gp_dataloader = gp_provider(config=config)
     gp_data = gp_dataloader.generate()
     gp_train_data = gp_data[0]["RBF_Kernel"]
