@@ -2127,6 +2127,23 @@ def Experiment_25c():
     output_dict["config_name"] = "config25"
     return output_dict
 
+def Experiment_25aii():
+    output_dict = Experiment_25a()
+    output_dict["config_name"] = "config25ii"
+    output_dict["other"]["info"] = "GL ML experiment with more layers"
+    return output_dict
+
+def Experiment_25bii():
+    output_dict = Experiment_25b()
+    output_dict["config_name"] = "config25ii"
+    output_dict["other"]["info"] = "GL ML experiment with more layers"
+    return output_dict
+
+def Experiment_25cii():
+    output_dict = Experiment_25c()
+    output_dict["config_name"] = "config25ii"
+    output_dict["other"]["info"] = "GL ML experiment with more layers"
+    return output_dict
 
 def Experiment_26a():
     output_dict = Experiment_25a()
