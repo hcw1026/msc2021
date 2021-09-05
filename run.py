@@ -10,9 +10,9 @@ from data.tools import dataset_translation
 
 import experiments
 
-def GPTrain(learner, train_data, val_data, test_data, train=True, **kwargs):
+def GPTrain(learner, train_data, val_data, test_data, train=True, extra_data=None, **kwargs):
     """perform GP experiment"""
-    learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data)
+    learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data, extra_data=extra_data)
     if train:
         learner.train()
     return learner
@@ -27,12 +27,25 @@ def GPLearnerLoad(learner, config, model, model_name="MetaFunRegressor", name=No
 def GPDataLoad(dataprovider, config, load_type, custom_kernels, custom_kernels_merge, **kwargs):
     dataloader = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
     train_data, val_data, test_data = dataloader.generate(return_valid=True, return_test=True, val_is_reuse_across_epochs=False, test_is_reuse_across_epochs=True) # is_reuse_across_epochs follows the convention of the NP processes experiments used
-    return list(train_data.values())[0], list(val_data.values())[0], list(test_data.values())[0]
+    return dict(train_data=list(train_data.values())[0],
+                val_data=list(val_data.values())[0], 
+                test_data=list(test_data.values())[0])
 
 def GPDataLoadTE(dataprovider, config, load_type, custom_kernels, custom_kernels_merge, offsets, **kwargs): #offsets must be a list
-    train_df, val_df, test_df = GPDataLoad(dataprovider=dataprovider, config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge, **kwargs)
+    train_df, val_df, test_df = GPDataLoad(dataprovider=dataprovider, config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge, **kwargs).values()
     test_df = dataset_translation(test_df, offsets=offsets)
-    return train_df, val_df, test_df
+    return dict(train_data=train_df, val_data=val_df, test_data=test_df)
+
+def GPDataLoadGL1(dataprovider, config, load_type, custom_kernels, custom_kernels_merge, **kwargs):
+    dataloader = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
+    train_data, val_data = dataloader.generate(return_valid=True, return_test=False, val_is_reuse_across_epochs=True)
+    dataloader2 = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge, eval_batch_size=1, min_context=0, max_context=10, min_target=50, max_target=50)
+    extra_data = dataloader2.generate_test(n_samples=4096, batch_size=16)
+    test_data = dataloader2.generate_test(n_samples=5000, batch_size=1)
+    return dict(train_data=list(train_data.values())[0], 
+                val_data=list(val_data.values())[0], 
+                extra_data=list(extra_data.values())[0], 
+                test_data=list(test_data.values())[0])
 
 def ImageNetTrain(learner, train_data, val_data, test_data, train=True, **kwargs):
     """perform imagenet classification experiment"""

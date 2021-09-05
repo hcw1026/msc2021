@@ -81,7 +81,7 @@ Model:
     use_ff: false
   latent:
     dim_latent: 128
-    num_z_samples: 5
+    num_z_samples: 20
     test_num_z_samples: 5000
   other:
     initial_inner_lr: 0.1
@@ -115,11 +115,11 @@ Train:
     early_stop: false
     early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: logprob_VI
+    early_stop_monitor: logprob_ML
     early_stop_patience: 20
     early_stop_reset: false
   epoch: 100
-  loss_type: logprob_VI
+  loss_type: logprob_ML
   lr: 0.0005
   num_per_epoch: 16384
   print_freq: 100

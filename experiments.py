@@ -3,7 +3,7 @@ from data.leo_imagenet import DataProvider as imagenet_provider
 from learner import ImageNetLearner, GPLearner
 from model import MetaFunClassifier, MetaFunRegressor, MetaFunClassifierV2, MetaFunRegressorV2, MetaFunRegressorV3, MetaFunRegressorV3b, MetaFunRegressorGLV3, MetaFunRegressorV4, MetaFunRegressorGLV4, MetaFunRegressorGLV5
 from sklearn.gaussian_process import kernels
-from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad, GPDataLoadTE
+from run import GPTrain, GPTest, GPLearnerLoad, GPDataLoad, ImageNetTrain, ImageNetTest, ImageNetLearnerLoad, ImageNetDataLoad, GPDataLoadTE, GPDataLoadGL1
 
 ############################################################################################################################
 # Regression
@@ -2092,21 +2092,58 @@ def Experiment_24d():
     output_dict["other"]["info"] = "rff indp iter"
     return output_dict
 
+def Experiment_25a():
+    return dict(
+        config_name = "config25",
+        learner = dict(
+            learner = GPLearner,
+            model = MetaFunRegressorGLV5,
+            load_fn = GPLearnerLoad,
+            model_name = "MetaFunRegressorGLV5",
+        ),
+        train_fn = GPTrain,
+        test_fn = GPTest,
+        data = dict( # for data loading function parser in run.py
+            load_fn = GPDataLoadGL1,
+            dataprovider = gp_provider,
+            load_type = "single",
+            custom_kernels = {kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}, 
+            custom_kernels_merge = False, 
+        ),
+        other = dict( # for saving
+            info = "GL VI experiment",
+        )
+        )
 
-def Experiment_25t():
-    output_dict = Experiment_21c()
-    output_dict["learner"]["model"] = MetaFunRegressorGLV5
-    output_dict["learner"]["model_name"] = "MetaFunRegressorV5"
+def Experiment_25b():
+    output_dict = Experiment_25a()
+    output_dict["data"]["custom_kernels"] = {"Matern_Kernel": kernels.Matern(length_scale=0.25, nu=2.5)}
     output_dict["config_name"] = "config25"
-    output_dict["other"]["info"] = "trial"
     return output_dict
 
-def Experiment_25t2():
-    output_dict = Experiment_21d()
-    output_dict["learner"]["model"] = MetaFunRegressorGLV5
-    output_dict["learner"]["model_name"] = "MetaFunRegressorV5"
+def Experiment_25c():
+    output_dict = Experiment_25a()
+    output_dict["data"]["load_type"] = "sawtooth"
     output_dict["config_name"] = "config25"
-    output_dict["other"]["info"] = "trial"
+    return output_dict
+
+
+def Experiment_26a():
+    output_dict = Experiment_25a()
+    output_dict["config_name"] = "config26"
+    output_dict["other"]["info"] = "GL ML experiment"
+    return output_dict
+
+def Experiment_26b():
+    output_dict = Experiment_25b()
+    output_dict["config_name"] = "config26"
+    output_dict["other"]["info"] = "GL ML experiment"
+    return output_dict
+
+def Experiment_26c():
+    output_dict = Experiment_25c()
+    output_dict["config_name"] = "config26"
+    output_dict["other"]["info"] = "GL ML experiment"
     return output_dict
 
 
