@@ -12,7 +12,7 @@ import experiments
 
 def GPTrain(learner, train_data, val_data, test_data, train=True, extra_data=None, **kwargs):
     """perform GP experiment"""
-    learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data, extra_data=extra_data)
+    learner.load_data_from_datasets(training=train_data, val=val_data, test=test_data, extra=extra_data)
     if train:
         learner.train()
     return learner
@@ -204,7 +204,8 @@ if __name__ == "__main__":
                         learner = learner,
                         train_data = train_data, 
                         val_data = val_data, 
-                        test_data = test_data, 
+                        test_data = test_data,
+                        extra_data = extra_data,
                         train = False)
 
 
