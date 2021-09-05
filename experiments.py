@@ -2107,7 +2107,7 @@ def Experiment_25a():
             load_fn = GPDataLoadGL1,
             dataprovider = gp_provider,
             load_type = "single",
-            custom_kernels = {kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}, 
+            custom_kernels = {"Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}, 
             custom_kernels_merge = False, 
         ),
         other = dict( # for saving
