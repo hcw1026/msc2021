@@ -158,7 +158,11 @@ if __name__ == "__main__":
             # Data loading
             exp_dict_data = exp_dict.get("data")
             Load_fn = exp_dict_data.get("load_fn")
-            train_data, val_data, test_data = Load_fn(config=config, **exp_dict_data)
+            data = Load_fn(config=config, **exp_dict_data)
+            train_data = data.get("train_data")
+            val_data = data.get("val_data")
+            test_data = data.get("test_data")
+            extra_data = data.get("extra_data")
 
             # Model parsing
             exp_dict_learner = exp_dict.get("learner")
@@ -179,6 +183,7 @@ if __name__ == "__main__":
                     train_data = train_data, 
                     val_data = val_data, 
                     test_data = test_data,
+                    extra_data = extra_data,
                     train = True)
 
                 end_time = time()
