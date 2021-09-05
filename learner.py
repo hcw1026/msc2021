@@ -159,16 +159,17 @@ class BaseLearner():
         print()
         print("Number of devices: {}".format(self.strategy.num_replicas_in_sync))
         self._train_batch_size = next(iter(self.train_data)).tr_input.shape[0]
+        self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
+
 
         if self.val_data is not None:
             self._val_batch_size = next(iter(self.val_data)).tr_input.shape[0]
+            self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
+
 
         if self.extra_data is not None:
             self._extra_batch_size = next(iter(self.extra_data)).tr_input.shape[0]
-
-        self._train_num_takes = ceil(int(self._train_num_per_epoch)/int(self._train_batch_size))
-        self._val_num_takes = ceil(int(self._val_num_per_epoch)/int(self._val_batch_size))
-        self._extra_num_takes = ceil(int(self._extra_num_per_epoch)/int(self._extra_batch_size)) 
+            self._extra_num_takes = ceil(int(self._extra_num_per_epoch)/int(self._extra_batch_size)) 
 
         with self.strategy.scope():
             self.model = self._initialise(model=self.model, data=self.train_data) # initialise model and optimisers
@@ -947,6 +948,7 @@ if __name__ == "__main__":
     gp_train_data = gp_data[0]["RBF_Kernel"]
     gp_test_data = gp_data[1]["RBF_Kernel"]
     mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=gp_train_data)
+    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=None)
     mylearn2.train()
     mylearn2.test(20)
 
