@@ -79,6 +79,7 @@ Model:
   latent:
     dim_latent: 64
     num_z_samples: 10
+    test_num_z_samples: 10
   other:
     initial_inner_lr: 0.03
     nonlinearity: relu

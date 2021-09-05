@@ -86,6 +86,12 @@ class DataProvider():
 
         self._min_context = read_kwargs(kwargs=kwargs, config=_config, config_name="min_context", kwargs_name="min_context", delete=True)
         self._max_context = read_kwargs(kwargs=kwargs, config=_config, config_name="max_context", kwargs_name="max_context", delete=True)
+        self._min_target = read_kwargs(kwargs=kwargs, config=_config, config_name="min_target", kwargs_name="min_target", delete=True)
+        self._max_target = read_kwargs(kwargs=kwargs, config=_config, config_name="max_target", kwargs_name="max_target", delete=True)
+
+        self._max_target = self._max_target if self._max_target is not None else self._max_context
+        self._min_target = self._min_target if self._min_target is not None else self._min_context
+
         self._is_batch_share = read_kwargs(kwargs=kwargs, config=_config, config_name="is_batch_share", kwargs_name="is_batch_share", delete=True)
         self._range_indcs = read_kwargs(kwargs=kwargs, config=_config, config_name="range_indcs", kwargs_name="range_indcs", delete=True)
         self._is_beta_binomial = read_kwargs(kwargs=kwargs, config=_config, config_name="is_beta_binomial", kwargs_name="is_beta_binomial", delete=True)
@@ -119,8 +125,8 @@ class DataProvider():
         if custom_trgt_getter is None:
             if self._random_targets:
                 targets_getter = GetRandomIndcs(
-                    a=self._min_context, 
-                    b=self._max_context, 
+                    a=self._min_target, 
+                    b=self._max_target, 
                     is_batch_share=self._is_batch_share, 
                     range_indcs=self._range_indcs,
                     is_beta_binomial=self._is_beta_binomial, 

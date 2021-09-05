@@ -2094,10 +2094,18 @@ def Experiment_24d():
 
 
 def Experiment_25t():
-    output_dict = Experiment_21a()
+    output_dict = Experiment_21c()
     output_dict["learner"]["model"] = MetaFunRegressorGLV5
     output_dict["learner"]["model_name"] = "MetaFunRegressorV5"
-    output_dict["config_name"] = "config25t"
+    output_dict["config_name"] = "config25"
+    output_dict["other"]["info"] = "trial"
+    return output_dict
+
+def Experiment_25t2():
+    output_dict = Experiment_21d()
+    output_dict["learner"]["model"] = MetaFunRegressorGLV5
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV5"
+    output_dict["config_name"] = "config25"
     output_dict["other"]["info"] = "trial"
     return output_dict
 

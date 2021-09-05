@@ -31,6 +31,8 @@ class BaseLearner():
         # Model Configurations
         self._l2_penalty_weight = config["Model"]["reg"]["l2_penalty_weight"]
         self._use_gradient = config["Model"]["comp"]["use_gradient"]
+        self._num_z_samples = config["Model"]["latent"]["num_z_samples"]
+        self._test_num_z_samples = config["Model"]["latent"]["test_num_z_samples"]
 
         # Training Configurations
         _config = config["Train"]
@@ -80,7 +82,7 @@ class BaseLearner():
         self.train_data = None
         self.val_data = None
         self.test_data = None
-        self.extra_data = no_name_scope
+        self.extra_data = None
 
         # Initialise
         self.train_dist_ds = None
@@ -341,7 +343,7 @@ class BaseLearner():
             print()
             print("Graph built")
             with tf.GradientTape() as tape:
-                train_loss, additional_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True)[:4] #additional_loss is orthogonality loss for imagenet datasets
+                train_loss, additional_loss, train_tr_metric, train_val_metric = self.model(train_batch, is_training=True, epoch=self.epoch_counter.value(), num_z_samples=self._num_z_samples)[:4] #additional_loss is orthogonality loss for imagenet datasets
                 reg_loss = self.regulariser(self.model.get_regularise_variables)
                 train_loss = utils.combine_losses(train_loss, reg_loss + additional_loss, self._train_batch_size)
                 
@@ -362,7 +364,7 @@ class BaseLearner():
 
         #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function #TODO: solve the nested tf.function problem when using nested gradient
         def _val_step(val_batch):
-            val_loss, additional_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False)[:4]
+            val_loss, additional_loss, val_tr_metric, val_val_metric = self.model(val_batch, is_training=False, epoch=self.epoch_counter.value(), num_z_samples=self._num_z_samples)[:4]
             reg_loss = self.regulariser(self.model.get_regularise_variables)
             val_loss = utils.combine_losses(val_loss, reg_loss + additional_loss, self._val_batch_size)
 
@@ -380,7 +382,7 @@ class BaseLearner():
 
         #@utils.conditional_tf_function(condition= not self._use_gradient, input_signature=self.signature)#@tf.function #TODO: solve the nested tf.function problem when using nested gradient
         def _extra_step(extra_batch):
-            extra_loss, additional_loss, extra_tr_metric, extra_val_metric = self.model(extra_batch, is_training=False)[:4]
+            extra_loss, additional_loss, extra_tr_metric, extra_val_metric = self.model(extra_batch, is_training=False, epoch=self.epoch_counter.value(), num_z_samples=self._num_z_samples)[:4]
             reg_loss = self.regulariser(self.model.get_regularise_variables)
             extra_loss = utils.combine_losses(extra_loss, reg_loss + additional_loss, self._extra_batch_size)
 
@@ -665,7 +667,7 @@ class ImageNetLearner(BaseLearner):
 
         # Define test step
         def _test_step(test_batch):
-            test_loss, additional_loss, test_tr_metric, test_val_metric = model_instance(test_batch, is_training=False)
+            test_loss, additional_loss, test_tr_metric, test_val_metric = model_instance(test_batch, is_training=False, epoch=tf.constant(9999999, dtype=tf.int32), num_z_samples=self._test_num_z_samples)
             reg_loss = self.regulariser(model_instance.get_regularise_variables)
             test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
 
@@ -792,7 +794,7 @@ class GPLearner(BaseLearner):
 
         # Define test step
         def _test_step(test_batch):
-            test_loss, additional_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma = model_instance(test_batch, is_training=False)
+            test_loss, additional_loss, test_tr_metric, test_val_metric, all_val_mu, all_val_sigma, all_tr_mu, all_tr_sigma = model_instance(test_batch, is_training=False, epoch=tf.constant(9999999, dtype=tf.int32), num_z_samples=self._test_num_z_samples)
             reg_loss = self.regulariser(model_instance.get_regularise_variables)
             test_loss = utils.combine_losses(test_loss, reg_loss + additional_loss, self._test_batch_size)
 

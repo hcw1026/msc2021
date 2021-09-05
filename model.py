@@ -45,7 +45,7 @@ class MetaFunBase(snt.Module):
 
         # Other configurations
         self._initial_inner_lr = config["Model"]["other"]["initial_inner_lr"]
-        self._nonlinearity = tf.nn.relu if config["Model"]["other"]["nonlinearity"] == "relu" else partial(tf.nn.leaky_relu(), alpha=0.1)
+        self._nonlinearity = tf.nn.relu if config["Model"]["other"]["nonlinearity"] == "relu" else partial(tf.nn.leaky_relu, alpha=0.1)
         self.initialiser = tf.keras.initializers.GlorotUniform()
         self.dropout = tf.keras.layers.Dropout(self._dropout_rate)
         self._no_batch = no_batch
@@ -79,7 +79,6 @@ class MetaFunBase(snt.Module):
     @snt.once
     def additional_initialise_pre(self, data_instance=None): # for extra initialisation steps
         pass
-
 
     def forward_initialiser_base(self):
         """initialise neural latent - r"""
@@ -203,7 +202,7 @@ class MetaFunClassifier(MetaFunBase):
             is_training=self.is_training
         ))
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), **kwargs):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -578,7 +577,7 @@ class MetaFunRegressor(MetaFunBase):
             is_training=self.is_training
         ))
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(1, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), **kwargs):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -657,8 +656,8 @@ class MetaFunRegressor(MetaFunBase):
             val_mu, val_sigma = self.predict(inputs=data.val_input, weights=weights)
 
             if epoch <= self._fixed_sigma_epoch:
-                tr_sigma = self._fixed_sigma_value
-                val_sigma = self._fixed_sigma_value
+                tr_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(tr_sigma))
+                val_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(val_sigma))
             else:
                 tr_sigma = tr_sigma
                 val_sigma = val_sigma
@@ -1055,7 +1054,7 @@ class MetaFunClassifierV2(MetaFunBaseV2, MetaFunClassifier):
         self._num_classes = config["Data"][data_source]["num_classes"]
         super(MetaFunClassifierV2, self).__init__(config=config, data_source=data_source, num_classes=self._num_classes, no_batch=no_batch, name=name)
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), **kwargs):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -1143,7 +1142,7 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV2", **kwargs):
         super(MetaFunRegressorV2, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), **kwargs):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -1237,8 +1236,8 @@ class MetaFunRegressorV2(MetaFunBaseV2, MetaFunRegressor):
         val_mu, val_sigma = self.predict(inputs=val_input, weights=weights)
 
         if epoch <= self._fixed_sigma_epoch:
-            tr_sigma = self._fixed_sigma_value
-            val_sigma = self._fixed_sigma_value
+            tr_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(tr_sigma))
+            val_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(val_sigma))
         else:
             tr_sigma = tr_sigma
             val_sigma = val_sigma
@@ -1482,12 +1481,11 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
     def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorGLV3", **kwargs):
         super(MetaFunRegressorGLV3, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
         _config = config["Model"]["latent"]
-        self._num_z_samples = _config["num_z_samples"]
         self._dim_latent = _config["dim_latent"]
 
         self._metric_names = ["mse", "logprob_VI", "logprob_ML", "logprob_ML_IW"]
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), num_z_samples=tf.constant(1, dtype=tf.int32), **kwargs):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -1506,7 +1504,7 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
         #use sum(tr_reprs) and sum(tr_reprs_all) for z distribution, val_reprs for prediction, tr_input_ff from deterministic path as feature transformation
         tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
         all_reprs, _ = self.Encoder_train_only(tr_input=all_input, tr_output=all_output) #use all datapoints as context
-        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, all_reprs=all_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, all_reprs=all_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch, num_z_samples=num_z_samples)
 
     def Encoder_train_only(self, tr_input, tr_output):
 
@@ -1560,16 +1558,16 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
 
         return tr_reprs, tr_input_ff
 
-    def Decoder(self, data, tr_reprs, val_reprs, all_reprs, tr_input, val_input, epoch=tf.constant(1, dtype=tf.int32)):
+    def Decoder(self, data, tr_reprs, val_reprs, all_reprs, tr_input, val_input, epoch=tf.constant(1, dtype=tf.int32), num_z_samples=tf.constant(1, dtype=tf.int32)):
         q_c = self.sample_latent(tr_reprs)
         q_t = self.sample_latent(all_reprs)
-        z_samples_c = q_c.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
-        z_samples_t = q_t.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+        z_samples_c = q_c.sample(sample_shape=num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+        z_samples_t = q_t.sample(sample_shape=num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
 
-        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=self._num_z_samples) #for context loss
-        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=self._num_z_samples) #for target loss
-        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=self._num_z_samples)
-        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=self._num_z_samples)
+        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=num_z_samples) #for context loss
+        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=num_z_samples) #for target loss
+        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=num_z_samples)
+        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=num_z_samples)
 
         tr_reprs_c = self.latent_decoder(R=tr_reprs, z_samples=z_samples_c) #(num_z_samples, batch_size, num_target, dim_reprs) #for train prediction
         weights = self.forward_decoder(tr_reprs_c) #(num_z_samples, batch_size, num_target, dim_weights)
@@ -1588,10 +1586,10 @@ class MetaFunRegressorGLV3(MetaFunBaseGLV2, MetaFunRegressorV3):
         val_mu_pos, val_sigma_pos = self.predict(inputs=val_input, weights=weights)
 
         if epoch <= self._fixed_sigma_epoch:
-            tr_sigma = self._fixed_sigma_value
-            tr_sigma_pos = self._fixed_sigma_value
-            val_sigma = self._fixed_sigma_value
-            val_sigma_pos = self._fixed_sigma_value
+            tr_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(tr_sigma))
+            tr_sigma_pos = tf.broadcast_to(self._fixed_sigma_value, tf.shape(tr_sigma_pos))
+            val_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(val_sigma))
+            val_sigma_pos = tf.broadcast_to(self._fixed_sigma_value, tf.shape(val_sigma_pos))
         else:
             tr_sigma = tr_sigma
             tr_sigma_pos = tr_sigma_pos
@@ -1796,6 +1794,7 @@ class MetaFunBaseGLV3(MetaFunBaseV2):
 
         self.deterministic_encoder_cls.initialise(data_instance=data_instance)
         self.sample_latent_init()
+        self.deterministic_decoder_init()
 
 
 class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
@@ -1805,7 +1804,7 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         self.deterministic_encoder_cls = MetaFunRegressorV4(config=config, data_source=data_source, no_batch=no_batch, name="deterministic_encoder")
         utils.disable_decoder(self.deterministic_encoder_cls)
 
-    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32)):
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), num_z_samples=tf.constant(1, dtype=tf.int32), **kwargs):
         """
         data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
             Classification training/validation data of a task.
@@ -1824,10 +1823,10 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         all_output = tf.concat([tr_output, val_output], axis=-2)
 
         tr_reprs_deter, val_reprs_deter, tr_input_ff, val_input_ff = self.deterministic_encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output) #deterministic
-        tr_reprs_latent, val_reprs_latent, _, _ = super().Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output) # latent encoder
+        tr_reprs_latent, _ = super().Encoder_train_only(tr_input=tr_input, tr_output=tr_output) # latent encoder
         all_reprs_latent, _ = super().Encoder_train_only(tr_input=all_input, tr_output=all_output) # use all datapoints as conte
 
-        return self.Decoder(data=data, tr_reprs_deter=tr_reprs_deter, val_reprs_deter=val_reprs_deter, tr_reprs_latent=tr_reprs_latent, val_reprs_latent=val_reprs_latent, all_reprs_latent=all_reprs_latent, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
+        return self.Decoder(data=data, tr_reprs_deter=tr_reprs_deter, val_reprs_deter=val_reprs_deter, tr_reprs_latent=tr_reprs_latent, all_reprs_latent=all_reprs_latent, tr_input=tr_input_ff, val_input=val_input_ff, num_z_samples=num_z_samples, epoch=epoch)
 
     def deterministic_encoder(self, tr_input, val_input, tr_output):
         return self.deterministic_encoder_cls.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
@@ -1839,22 +1838,26 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
             nn_layers=self._nn_layers, 
             output_dim=self._dim_reprs,
             initialiser=self.initialiser,
-            nonlinearity=self._nonlinearity
+            nonlinearity=self._nonlinearity,
+            name="deterministic_decoder"
             )
     
     def deterministic_decoder(self, reprs):
-        return self.deterministic_decoder(inputs=reprs)
+        return self._deterministic_decoder(inputs=reprs)
 
-    def Decoder(self, data, tr_reprs_deter, val_reprs_deter, tr_reprs_latent, val_reprs_latent, all_reprs_latent, tr_input, val_input, epoch=tf.constant(1, dtype=tf.int32)):
+    def Decoder(self, data, tr_reprs_deter, val_reprs_deter, tr_reprs_latent, all_reprs_latent, tr_input, val_input, num_z_samples=tf.constant(1, dtype=tf.int32), epoch=tf.constant(1, dtype=tf.int32)):
         q_c = self.sample_latent(tr_reprs_latent)
         q_t = self.sample_latent(all_reprs_latent)
-        z_samples_c = q_c.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
-        z_samples_t = q_t.sample(sample_shape=self._num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+        z_samples_c = q_c.sample(sample_shape=num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
+        z_samples_t = q_t.sample(sample_shape=num_z_samples) #(num_z_samples, batch_size, 1, dim_latent)
 
-        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=self._num_z_samples) #for context loss
-        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=self._num_z_samples) #for target loss
-        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=self._num_z_samples)
-        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=self._num_z_samples)
+        tr_input = tf.repeat(tf.expand_dims(tr_input, axis=0), axis=0, repeats=num_z_samples) #for context loss
+        val_input = tf.repeat(tf.expand_dims(val_input, axis=0), axis=0, repeats=num_z_samples) #for target loss
+        tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=num_z_samples)
+        val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=num_z_samples)
+
+        tr_reprs_deter = self.deterministic_decoder(reprs=tr_reprs_deter)
+        val_reprs_deter = self.deterministic_decoder(reprs=val_reprs_deter)
 
         tr_reprs_c = submodules.latent_deter_merger(R=tr_reprs_deter, z_samples=z_samples_c) #(num_z_samples, batch_size, num_target, dim_reprs) #for train prediction
         weights = self.forward_decoder(tr_reprs_c) #(num_z_samples, batch_size, num_target, dim_weights)
@@ -1873,10 +1876,10 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         val_mu_pos, val_sigma_pos = self.predict(inputs=val_input, weights=weights)
 
         if epoch <= self._fixed_sigma_epoch:
-            tr_sigma = self._fixed_sigma_value
-            tr_sigma_pos = self._fixed_sigma_value
-            val_sigma = self._fixed_sigma_value
-            val_sigma_pos = self._fixed_sigma_value
+            tr_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(tr_sigma))
+            tr_sigma_pos = tf.broadcast_to(self._fixed_sigma_value, tf.shape(tr_sigma_pos))
+            val_sigma = tf.broadcast_to(self._fixed_sigma_value, tf.shape(val_sigma))
+            val_sigma_pos = tf.broadcast_to(self._fixed_sigma_value, tf.shape(val_sigma_pos))
         else:
             tr_sigma = tr_sigma
             tr_sigma_pos = tr_sigma_pos
@@ -1899,8 +1902,8 @@ if __name__ == "__main__":
     import numpy as np
     import collections
     config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
-    #tf.random.set_seed(1234)
-    #np.random.seed(1234)
+    tf.random.set_seed(1234)
+    np.random.seed(1234)
 
     # ClassificationDescription = collections.namedtuple(
     # "ClassificationDescription",

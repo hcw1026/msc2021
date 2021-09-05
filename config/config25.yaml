@@ -5,12 +5,12 @@ Data:
     is_beta_binomial: false
     is_reuse_across_epochs: false
     max_context: 50
-    max_target: null
-    min_context: 3
-    min_target: null
+    max_target: 50
+    min_context: 0
+    min_target: 50
     n_points: 100
     n_same_samples: 1
-    n_samples: 4096
+    n_samples: 16384
     proba_uniform: 0
     random_targets: true
     range_indcs: null
@@ -27,9 +27,9 @@ Data:
       - 10
       - 20
     shuffle: false
-    test_n_samples: 32768
+    test_n_samples: 5000
     train_indp_target: true
-    val_n_samples: 0.1
+    val_n_samples: 4096
   leo_imagenet:
     data_path: D://embeddings/embeddings
     dataset_name: tieredImageNet
@@ -42,24 +42,24 @@ Data:
 Eval:
   batch_size: 16
   drop_remainder: false
-  num_per_epoch: 960
+  num_per_epoch: 4096
   validation: true
 GPU: 0
 Model:
   arch:
-    decoder_output_sizes:
+    decoder_output_sizes: #not used here
     - 128
     - 64
     - 64
     dim_reprs: 128
-    embedding_layers: 2
-    nn_layers: 2
+    embedding_layers: 2 #not used here
+    nn_layers: 5 #5 hidden layers = 6 layers
     nn_size: 128
     num_iters: 7
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    fixed_sigma_epoch: -1
+    fixed_sigma_epoch: 20
     fixed_sigma_value: 0.01
     indp_iter: false
     initial_state_type: constant
@@ -70,8 +70,8 @@ Model:
     neural_updater_concat_x: false
     no_decoder: false
     repr_as_inputs: simple
-    stddev_const_scale: 0
-    stddev_offset: 0.0
+    stddev_const_scale: 0.
+    stddev_offset: 2.0
     use_gradient: false
     use_kernel: true
   ff:
@@ -81,14 +81,15 @@ Model:
     use_ff: false
   latent:
     dim_latent: 128
-    num_z_samples: 10
+    num_z_samples: 5
+    test_num_z_samples: 16 #need change
   other:
     initial_inner_lr: 0.1
-    nonlinearity: relu
+    nonlinearity: leaky
     repr_as_inputs: false
   reg:
     dropout_rate: 0.0
-    l2_penalty_weight: 1.0e-08
+    l2_penalty_weight: 0.
     label_smoothing: 0.0
     orthogonality_penalty_weight: 0.001
   rff:
@@ -114,13 +115,13 @@ Train:
     early_stop: false
     early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: logprob_ML
-    early_stop_patience: 50
+    early_stop_monitor: logprob_VI
+    early_stop_patience: 20
     early_stop_reset: false
-  epoch: 200
-  loss_type: logprob_ML
-  lr: 0.0003
-  num_per_epoch: 4096
+  epoch: 100
+  loss_type: logprob_VI
+  lr: 0.0005
+  num_per_epoch: 16384
   print_freq: 100
   save:
     ckpt_restore_path: /data/ziz/chho/msc2021/Training
