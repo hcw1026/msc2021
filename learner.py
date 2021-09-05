@@ -218,8 +218,10 @@ class BaseLearner():
         """training iterations"""
         # Determine number of steps per epoch
         train_last_step, train_remainder = divmod(int(self._train_num_per_epoch), int(self._train_batch_size))
-        val_last_step, val_remainder = divmod(int(self._val_num_per_epoch), int(self._val_batch_size))
-        extra_last_step, extra_remainder = divmod(int(self._extra_num_per_epoch), int(self._extra_batch_size))
+        if self._validation:
+            val_last_step, val_remainder = divmod(int(self._val_num_per_epoch), int(self._val_batch_size))
+        if self.extra_data:
+            extra_last_step, extra_remainder = divmod(int(self._extra_num_per_epoch), int(self._extra_batch_size))
 
         epoch_start = int(self.epoch_counter.numpy())
         self.epoch_start = epoch_start
