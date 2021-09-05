@@ -5,16 +5,16 @@ Data:
     is_beta_binomial: false
     is_reuse_across_epochs: false
     max_context: 50
-    max_target: null
-    min_context: 0.0
-    min_target: null
-    n_points: 128
-    n_same_samples: 10
-    n_samples: 50000
+    max_target: 50
+    min_context: 0
+    min_target: 50
+    n_points: 100
+    n_same_samples: 1
+    n_samples: 1000
     proba_uniform: 0
-    random_targets: false
+    random_targets: true
     range_indcs: null
-    rescale: true
+    rescale: false
     save_path: /data/ziz/not-backed-up/chho/gp/gp_dataset.hdf5
     sawtooth:
       freq_range:
@@ -27,11 +27,11 @@ Data:
       - 10
       - 20
     shuffle: false
-    test_n_samples: 10000
-    train_indp_target: false
-    val_n_samples: 0.1
+    test_n_samples: 30
+    train_indp_target: true
+    val_n_samples: 30
   leo_imagenet:
-    data_path: /data/ziz/not-backed-up/chho/embeddings
+    data_path: D://embeddings/embeddings
     dataset_name: tieredImageNet
     embedding_crop: center
     model_cls: metafun_classifier
@@ -40,35 +40,39 @@ Data:
     num_val_examples_per_class: 2
     shuffle: false
 Eval:
-  batch_size: 2
+  batch_size: 16
   drop_remainder: false
-  num_per_epoch: 2
+  num_per_epoch: 30
   validation: true
-GPU: 0
+GPU: 
+  - 0
 Model:
   arch:
-    decoder_output_sizes: null
-    dim_reprs: 64
-    embedding_layers: 1
-    nn_layers: 3
-    nn_size: 64
-    num_iters: 2
+    decoder_output_sizes: #not used here
+    - 128
+    - 64
+    - 64
+    dim_reprs: 128
+    embedding_layers: 2 #not used here
+    nn_layers: 5 #5 hidden layers = 6 layers
+    nn_size: 128
+    num_iters: 7
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    fixed_sigma_epoch: -1
+    fixed_sigma_epoch: 3
     fixed_sigma_value: 0.01
     indp_iter: false
-    initial_state_type: parametric
+    initial_state_type: constant
     kernel_lengthscale_init: 1.0
     kernel_lengthscale_trainable: true
     kernel_sigma_init: 1.0
-    kernel_type: deep_se
-    neural_updater_concat_x: true
+    kernel_type: rff
+    neural_updater_concat_x: false
     no_decoder: false
-    repr_as_inputs: false
-    stddev_const_scale: 0.1
-    stddev_offset: 0.0
+    repr_as_inputs: simple
+    stddev_const_scale: 0.
+    stddev_offset: 2.0
     use_gradient: false
     use_kernel: true
   ff:
@@ -77,52 +81,54 @@ Model:
     stddev_init: 10
     use_ff: false
   latent:
-    dim_latent: 64
-    num_z_samples: 10
-    test_num_z_samples: 10
+    dim_latent: 128
+    num_z_samples: 5
+    test_num_z_samples: 5000
   other:
-    initial_inner_lr: 1.0
-    nonlinearity: relu
+    initial_inner_lr: 0.1
+    nonlinearity: leaky
     repr_as_inputs: false
   reg:
     dropout_rate: 0.0
-    l2_penalty_weight: 1.0e-08
+    l2_penalty_weight: 0.
     label_smoothing: 0.0
     orthogonality_penalty_weight: 0.001
   rff:
-    dim_init: 100
+    dim_init: 512
     dim_pre_tr: 128
+    dropout_rate: 0.1
     init_distr: normal
-    init_distr_param: {}
-    init_trainable: true
+    init_distr_param:
+      stddev: 10
+    init_trainable: false
     isab_n_induce_points: 50
     mapping: deepset1
-    n_layers: 3
+    n_layers: 2
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
     sab_num_heads: 4
-    transform_dim: null
-    weight_trainable: false
+    transform_dim: 128
+    weight_trainable: true
 Train:
-  batch_size: 2
+  batch_size: 16
   drop_remainder: false
   early_stop:
     early_stop: false
-    early_stop_if_increase: true
+    early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: metric
-    early_stop_patience: 100
+    early_stop_monitor: logprob_VI
+    early_stop_patience: 20
     early_stop_reset: false
-  epoch: 5
-  loss_type: logprob
-  lr: 0.001
-  num_per_epoch: 3
-  print_freq: 1
+  epoch: 1
+  loss_type: logprob_VI
+  lr: 0.0005
+  num_per_epoch: 1000
+  print_freq: 100
   save:
-    ckpt_restore_path: /data/ziz/chho/msc2021/debug
-    ckpt_save_dir: /data/ziz/chho/msc2021/debug
+    ckpt_restore_path: /data/ziz/chho/msc2021/Training
+    ckpt_save_dir: /data/ziz/chho/msc2021/Training
     ckpt_save_prefix: null
     restore_from_ckpt: false
     save_final_model: false
-  tb_add_log: false
+  tb_add_log: true
   train_on_val: false

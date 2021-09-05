@@ -4,12 +4,15 @@ import os
 import sys
 import torch
 
-npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
-is_retrain = False
+#npf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Neural-Process-Family")
+npf_path = "/data/ziz/not-backed-up/scratch/chho/Neural-ProcessFamily"
+savefile = "/data/ziz/not-backed-up/scratch/chho/gp2/gp_dataset.hdf5"
+is_retrain = True
 reval = True
-is_reuse_across_epochs = True
-starting_run = 1
-is_valid = True
+is_reuse_across_epochs = False
+starting_run = 2
+runs = 5
+is_valid = False
 
 
 sys.path.remove(os.path.dirname(os.path.realpath(__file__)))
@@ -34,7 +37,7 @@ from skorch.callbacks import GradientNormClipping
 
 
 
-#gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=None, is_reuse_across_epochs=is_reuse_across_epochs)
+gp_datasets, gp_test_datasets, gp_valid_datasets = get_all_gp_datasets(save_file=savefile, is_reuse_across_epochs=is_reuse_across_epochs)
 get_cntxt_trgt_1d = cntxt_trgt_collate(
     CntxtTrgtGetter(
         contexts_getter=GetRandomIndcs(a=0.0, b=50), targets_getter=get_all_indcs,
@@ -271,6 +274,7 @@ def CNP_():
         patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
+        runs=runs,
         **KWARGS
     )
     return trainers_1d
@@ -321,6 +325,7 @@ def LNP_():
         patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
+        runs=runs,
         **KWARGS
     )
 
@@ -374,6 +379,7 @@ def AttnCNP_():
         patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
+        runs=runs,
         **KWARGS
     )
 
@@ -423,6 +429,7 @@ def AttnLNP_():
         patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
+        runs=runs,
         **KWARGS
     )
 
@@ -485,6 +492,7 @@ def ConvCNP_():
         patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
+        runs=runs,
         **KWARGS
     )
 
@@ -554,6 +562,7 @@ def ConvLNP_():
         patience=10 if is_valid else None,
         max_epochs=100,
         starting_run=starting_run,
+        runs=runs,
         **KWARGS
     )
 
@@ -603,67 +612,68 @@ AttnLNP_model()
 ConvCNP_model()
 ConvLNP_model()
 
-# getter = CntxtTrgtGetter(
-#         contexts_getter=GetRandomIndcs(a=0.0, b=50), targets_getter=get_all_indcs, indp_target=True
-#     )
+getter = CntxtTrgtGetter(
+        contexts_getter=GetRandomIndcs(a=0.0, b=50), targets_getter=get_all_indcs, indp_target=True
+    )
 
-# batch_size = 32
-# n_points = 128
-# save_dir = os.path.join(os.path.dirname(os.path.dirname(npf_path)), "Training/NP_experiments{}".format(starting_run))
+batch_size = 32
+n_points = 128
+#save_dir = os.path.join(os.path.dirname(os.path.dirname(npf_path)), "Training/NP_experiments{}".format(starting_run))
+save_dir = "/data/ziz/chho/msc2021/Training/NP_experiments{}".format(starting_run)
 
-# all_trainers = {"CNP":CNP_(), "AttnCNP":AttnCNP_(), "ConvCNP":ConvCNP_()}
+all_trainers = {"CNP":CNP_(), "AttnCNP":AttnCNP_(), "ConvCNP":ConvCNP_()}
 
-# for trainers_name, trainers in all_trainers.items():
-#     for name, trainer in trainers.items():
-#         tr_input_ls = []
-#         tr_output_ls = []
-#         val_input_ls = []
-#         val_output_ls = []
-#         tr_mu_ls = []
-#         tr_sigma_ls = []
-#         val_mu_ls = []
-#         val_sigma_ls = []
+for trainers_name, trainers in all_trainers.items():
+    for name, trainer in trainers.items():
+        tr_input_ls = []
+        tr_output_ls = []
+        val_input_ls = []
+        val_output_ls = []
+        tr_mu_ls = []
+        tr_sigma_ls = []
+        val_mu_ls = []
+        val_sigma_ls = []
 
-#         data_name, model_name = name.split("/")[0:2]
-#         dataset = gp_test_datasets[data_name]
+        data_name, model_name = name.split("/")[0:2]
+        dataset = gp_test_datasets[data_name]
 
-#         savepath = os.path.join(save_dir, data_name+"_"+model_name) + ".npz"
-#         if (not os.path.isfile(savepath)) and reval:
-#             if isinstance(dataset, DatasetMerger):
-#                 X_all = torch.cat([d[:][0] for d in dataset.datasets], dim=0)
-#                 y_all = torch.cat([d[:][1] for d in dataset.datasets], dim=0)
-#             else:
-#                 X_all, y_all = dataset[:]
+        savepath = os.path.join(save_dir, data_name+"_"+model_name) + ".npz"
+        if (not os.path.isfile(savepath)) and reval:
+            if isinstance(dataset, DatasetMerger):
+                X_all = torch.cat([d[:][0] for d in dataset.datasets], dim=0)
+                y_all = torch.cat([d[:][1] for d in dataset.datasets], dim=0)
+            else:
+                X_all, y_all = dataset[:]
 
-#             samples = int(X_all.size(0))
-#             num_takes = samples//batch_size +1
-#             for i in range(num_takes):
-#                 num = batch_size if i != (num_takes) - 1 else (samples % batch_size)
-#                 X, y = X_all[(i*batch_size):(i*batch_size+num)], y_all[(i*batch_size):(i*batch_size+num)]
-#                 X_cntxt, y_cntxt, X_trgt, y_trgt = getter(X, y)
-#                 y_trgt_pred_mu, y_trgt_pred_sigma = predict(trainer, X_cntxt, y_cntxt, X_trgt, n_samples=1)
-#                 y_cntxt_pred_mu, y_cntxt_pred_sigma = predict(trainer, X_cntxt, y_cntxt, X_cntxt, n_samples=1)
+            samples = int(X_all.size(0))
+            num_takes = samples//batch_size +1
+            for i in range(num_takes):
+                num = batch_size if i != (num_takes) - 1 else (samples % batch_size)
+                X, y = X_all[(i*batch_size):(i*batch_size+num)], y_all[(i*batch_size):(i*batch_size+num)]
+                X_cntxt, y_cntxt, X_trgt, y_trgt = getter(X, y)
+                y_trgt_pred_mu, y_trgt_pred_sigma = predict(trainer, X_cntxt, y_cntxt, X_trgt, n_samples=1)
+                y_cntxt_pred_mu, y_cntxt_pred_sigma = predict(trainer, X_cntxt, y_cntxt, X_cntxt, n_samples=1)
 
-#                 tr_input_ls.append(X_cntxt.tolist())
-#                 tr_output_ls.append(y_cntxt.tolist())
-#                 val_input_ls.append(X_trgt.tolist())
-#                 val_output_ls.append(y_trgt.tolist())
+                tr_input_ls.append(X_cntxt.tolist())
+                tr_output_ls.append(y_cntxt.tolist())
+                val_input_ls.append(X_trgt.tolist())
+                val_output_ls.append(y_trgt.tolist())
 
-#                 tr_mu_ls.append(y_cntxt_pred_mu.tolist())
-#                 tr_sigma_ls.append(y_cntxt_pred_sigma.tolist())
-#                 val_mu_ls.append(y_trgt_pred_mu.tolist())
-#                 val_sigma_ls.append(y_trgt_pred_sigma.tolist())
+                tr_mu_ls.append(y_cntxt_pred_mu.tolist())
+                tr_sigma_ls.append(y_cntxt_pred_sigma.tolist())
+                val_mu_ls.append(y_trgt_pred_mu.tolist())
+                val_sigma_ls.append(y_trgt_pred_sigma.tolist())
 
-#             output = dict(
-#                 tr_input = np.array(tr_input_ls, dtype=object),
-#                 tr_output = np.array(tr_output_ls, dtype=object),
-#                 val_input = np.array(val_input_ls, dtype=object),
-#                 val_output = np.array(val_output_ls, dtype=object),
-#                 tr_mu = np.array(tr_mu_ls, dtype=object),
-#                 tr_sigma = np.array(tr_sigma_ls, dtype=object),
-#                 val_mu = np.array(val_mu_ls, dtype=object),
-#                 val_sigma = np.array(val_sigma_ls, dtype=object)
-#             )
+            output = dict(
+                tr_input = np.array(tr_input_ls, dtype=object),
+                tr_output = np.array(tr_output_ls, dtype=object),
+                val_input = np.array(val_input_ls, dtype=object),
+                val_output = np.array(val_output_ls, dtype=object),
+                tr_mu = np.array(tr_mu_ls, dtype=object),
+                tr_sigma = np.array(tr_sigma_ls, dtype=object),
+                val_mu = np.array(val_mu_ls, dtype=object),
+                val_sigma = np.array(val_sigma_ls, dtype=object)
+            )
 
-#             print("saved at", savepath)
-#             np.savez(savepath, **output)
+            print("saved at", savepath)
+            np.savez(savepath, **output)

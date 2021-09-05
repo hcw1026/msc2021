@@ -192,6 +192,7 @@ class BaseLearner():
                 distributed_extra_step = None
         else:
             distributed_val_step = None
+            distributed_extra_step = None
             if self.extra_data is not None:
                 raise AssertionError("validation must be activated if extra_data is provided")
 
@@ -917,7 +918,7 @@ if __name__ == "__main__":
     import os
     import numpy as np
     import collections
-    config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug.yaml"))
+    config = parse_config(os.path.join(os.path.dirname(__file__),"config/debug_copy.yaml"))
     from data.leo_imagenet import DataProvider as imagenet_provider
 
     # mylearner = ImageNetLearner(config, MetaFunClassifier, data_source="leo_imagenet")
@@ -949,8 +950,9 @@ if __name__ == "__main__":
     gp_data = gp_dataloader.generate()
     gp_train_data = gp_data[0]["RBF_Kernel"]
     gp_test_data = gp_data[1]["RBF_Kernel"]
-    mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=gp_train_data)
+    #mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=gp_train_data)
     mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=None)
+    #mylearn2.profile(with_graph=True, profile_dir="./../../Training/")
     mylearn2.train()
     mylearn2.test(20)
 
