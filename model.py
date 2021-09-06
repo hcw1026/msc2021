@@ -1896,6 +1896,59 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         
 
 
+class MetaFunRegressorV5(MetaFunRegressorV4):
+    def __init__(self, config, data_source="regression", no_batch=False, name="MetaFunRegressorV5", **kwargs):
+        super(MetaFunRegressorV5, self).__init__(config=config, data_source=data_source, no_batch=no_batch, name=name)
+
+    def __call__(self, data, is_training=tf.constant(True, dtype=tf.bool), epoch=tf.constant(0, dtype=tf.int32), **kwargs):
+        """
+        data: dictionary-like form, with attributes "tr_input", "val_input", "tr_output", "val_output"
+            Classification training/validation data of a task.
+        is_training: bool
+            If True, training mode
+        """
+        # Initialise Variables #TODO: is_training set as tf.constant in learner
+        self.is_training.assign(is_training)
+        self.epoch.assign(epoch)
+        assert self.has_initialised, "the learner is not initialised, please initialise via the method - .initialise"
+    
+        tr_input, val_input, tr_output, val_output = data.tr_input, data.val_input, data.tr_output, data.val_output
+        tr_reprs, val_reprs, tr_input_ff, val_input_ff = self.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
+        tr_reprs = self.deterministic_decoder(tr_reprs)
+        val_reprs = self.deterministic_decoder(val_reprs)
+        return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
+
+    @snt.once
+    def additional_initialise_after(self):
+        """for data-specific initialisation and any extra initialisation"""
+
+        # Deduce precompute shape of forward_kernel_or_attention_precompute
+        self.precomputed_init = tf.zeros_like(self.forward_kernel_or_attention_precompute(
+            querys=tf.concat([self.sample_tr_data, self.sample_val_data], axis=-2),
+            keys=self.sample_tr_data,
+            values=None,
+            recompute=True,
+            precomputed=None,
+            iteration=0,
+            is_training=self.is_training
+        ))
+
+        self.deterministic_decoder_init()
+
+    @snt.once
+    def deterministic_decoder_init(self):
+        self._deterministic_decoder = submodules.simple_MLP(
+            nn_size=self._nn_size,
+            nn_layers=self._nn_layers, 
+            output_dim=self._dim_reprs,
+            initialiser=self.initialiser,
+            nonlinearity=self._nonlinearity,
+            name="deterministic_decoder"
+            )
+
+    def deterministic_decoder(self, reprs):
+        return self._deterministic_decoder(inputs=reprs)
+
 if __name__ == "__main__":
     from utils import parse_config
     import os
@@ -2128,7 +2181,7 @@ if __name__ == "__main__":
     import time
 
     print("Regression")
-    module2 = MetaFunRegressorGLV5(config=config)
+    module2 = MetaFunRegressorV5(config=config)
     ClassificationDescription = collections.namedtuple(
     "ClassificationDescription",
     ["tr_input", "tr_output", "val_input", "val_output"])
