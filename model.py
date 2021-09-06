@@ -563,7 +563,7 @@ class MetaFunRegressor(MetaFunBase):
         self.regularise_variables = utils.get_linear_layer_variables(self)
 
     @snt.once
-    def additional_initialise_after(self):
+    def additional_initialise_after(self, data_instance=None):
         """for data-specific initialisation and any extra initialisation"""
 
         # Deduce precompute shape of forward_kernel_or_attention_precompute
@@ -1794,7 +1794,7 @@ class MetaFunBaseGLV3(MetaFunBaseV2):
 
         self.deterministic_encoder_cls.initialise(data_instance=data_instance)
         self.sample_latent_init()
-        self.deterministic_decoder_init()
+        #self.deterministic_decoder_init()
 
 
 class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
@@ -1856,8 +1856,8 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         tr_output = tf.repeat(tf.expand_dims(data.tr_output, axis=0), axis=0, repeats=num_z_samples)
         val_output = tf.repeat(tf.expand_dims(data.val_output, axis=0), axis=0, repeats=num_z_samples)
 
-        tr_reprs_deter = self.deterministic_decoder(reprs=tr_reprs_deter)
-        val_reprs_deter = self.deterministic_decoder(reprs=val_reprs_deter)
+        #tr_reprs_deter = self.deterministic_decoder(reprs=tr_reprs_deter)
+        #val_reprs_deter = self.deterministic_decoder(reprs=val_reprs_deter)
 
         tr_reprs_c = submodules.latent_deter_merger(R=tr_reprs_deter, z_samples=z_samples_c) #(num_z_samples, batch_size, num_target, dim_reprs) #for train prediction
         weights = self.forward_decoder(tr_reprs_c) #(num_z_samples, batch_size, num_target, dim_weights)
@@ -1919,7 +1919,7 @@ class MetaFunRegressorV5(MetaFunRegressorV4):
         return self.Decoder(data=data, tr_reprs=tr_reprs, val_reprs=val_reprs, tr_input=tr_input_ff, val_input=val_input_ff, epoch=epoch)
 
     @snt.once
-    def additional_initialise_after(self):
+    def additional_initialise_after(self, data_instance=None):
         """for data-specific initialisation and any extra initialisation"""
 
         # Deduce precompute shape of forward_kernel_or_attention_precompute
@@ -2181,7 +2181,7 @@ if __name__ == "__main__":
     import time
 
     print("Regression")
-    module2 = MetaFunRegressorV5(config=config)
+    module2 = MetaFunRegressorGLV5(config=config)
     ClassificationDescription = collections.namedtuple(
     "ClassificationDescription",
     ["tr_input", "tr_output", "val_input", "val_output"])
