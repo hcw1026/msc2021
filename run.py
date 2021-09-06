@@ -38,7 +38,7 @@ def GPDataLoadTE(dataprovider, config, load_type, custom_kernels, custom_kernels
 
 def GPDataLoadGL1(dataprovider, config, load_type, custom_kernels, custom_kernels_merge, **kwargs):
     dataloader = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge)
-    train_data, val_data = dataloader.generate(return_valid=True, return_test=False, val_is_reuse_across_epochs=True)
+    train_data, val_data = dataloader.generate(return_valid=True, return_test=False, val_is_reuse_across_epochs=False)
     dataloader2 = dataprovider(config=config, load_type=load_type, custom_kernels=custom_kernels, custom_kernels_merge=custom_kernels_merge, eval_batch_size=1, min_context=0, max_context=10, min_target=50, max_target=50)
     extra_data = dataloader2.generate_test(n_samples=4096, batch_size=16)
     test_data = dataloader2.generate_test(n_samples=5000, batch_size=1)
