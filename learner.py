@@ -855,10 +855,11 @@ class GPLearner(BaseLearner):
                 test_val_metric_ls[idx].append(tf.reduce_mean(test_val_metric[idx]).numpy())
 
             if save_pred:
-                tr_mu_ls.append(all_tr_mu.numpy().tolist())
-                tr_sigma_ls.append(all_tr_sigma.numpy().tolist())
-                val_mu_ls.append(all_val_mu.numpy().tolist())
-                val_sigma_ls.append(all_val_sigma.numpy().tolist())
+                save_num = min(tf.shape(all_tr_mu).numpy()[0], 10)
+                tr_mu_ls.append(all_tr_mu.numpy()[:save_num].tolist())
+                tr_sigma_ls.append(all_tr_sigma.numpy()[:save_num].tolist())
+                val_mu_ls.append(all_val_mu.numpy()[:save_num].tolist())
+                val_sigma_ls.append(all_val_sigma.numpy()[:save_num].tolist())
             
             if save_data:
                 tr_input_ls.append(test_batch.tr_input.numpy().tolist())
@@ -952,7 +953,7 @@ if __name__ == "__main__":
     mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=gp_train_data)
     mylearn2.load_data_from_datasets(training=gp_train_data, val=gp_train_data, test=gp_test_data, extra=None)
     mylearn2.train()
-    mylearn2.test(20)
+    mylearn2.test(20, save_pred=True)
 
 
     
