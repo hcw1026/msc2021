@@ -290,24 +290,23 @@ if __name__ == "__main__":
 
                 df_test.to_csv(test_csv_path, index=False)
 
-            if rep == 1:
-                # Copy python files
+            # Copy python files
 
-                if not args.no_train:
-                    code_save_dir = learner._ckpt_save_dir
-                else:
-                    code_save_dir = os.path.dirname(result_save_path)
+            if not args.no_train:
+                code_save_dir = learner._ckpt_save_dir
+            else:
+                code_save_dir = os.path.dirname(result_save_path)
 
-                if args.no_train and not args.no_test:
-                    code_save_dir = os.path.join(code_save_dir, "code"+learner_test.test_time)
-                else:
-                    code_save_dir = os.path.join(code_save_dir, "code")
+            if args.no_train and not args.no_test:
+                code_save_dir = os.path.join(code_save_dir, "code"+learner_test.test_time)
+            else:
+                code_save_dir = os.path.join(code_save_dir, "code")
 
-                if not os.path.isdir(code_save_dir):
-                    os.mkdir(code_save_dir)
+            if not os.path.isdir(code_save_dir):
+                os.mkdir(code_save_dir)
 
-                file_dirname = os.path.dirname(os.path.realpath(__file__))
-                copytree(file_dirname, code_save_dir)
+            file_dirname = os.path.dirname(os.path.realpath(__file__))
+            copytree(file_dirname, code_save_dir)
 
 
 
