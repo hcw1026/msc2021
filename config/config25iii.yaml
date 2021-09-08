@@ -59,7 +59,7 @@ Model:
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    fixed_sigma_epoch: 20
+    fixed_sigma_epoch: 3
     fixed_sigma_value: 0.01
     indp_iter: false
     initial_state_type: constant
@@ -115,11 +115,11 @@ Train:
     early_stop: false
     early_stop_if_increase: false
     early_stop_min_delta: 0
-    early_stop_monitor: logprob_VI
+    early_stop_monitor: logprob
     early_stop_patience: 20
     early_stop_reset: false
   epoch: 100
-  loss_type: logprob_VI
+  loss_type: logprob
   lr: 0.0005
   num_per_epoch: 16384
   print_freq: 100

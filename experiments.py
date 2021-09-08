@@ -2127,6 +2127,12 @@ def Experiment_25c():
     output_dict["config_name"] = "config25"
     return output_dict
 
+def Experiment_25d():
+    output_dict = Experiment_25a()
+    output_dict["data"]["custom_kernels"] = {"RBF_Kernel2":kernels.RBF(length_scale=(0.25))}
+    output_dict["config_name"] = "config25"
+    return output_dict
+
 def Experiment_25aii():
     output_dict = Experiment_25a()
     output_dict["config_name"] = "config25ii"
@@ -2145,6 +2151,20 @@ def Experiment_25cii():
     output_dict["other"]["info"] = "GL ML experiment with more layers"
     return output_dict
 
+def Experiment_25ciii():
+    output_dict = Experiment_25c()
+    output_dict["config_name"] = "config25iii"
+    output_dict["learner"]["model"] = MetaFunRegressorV4
+    output_dict["learner"]["model_name"] = "MetaFunRegressorV4"
+    output_dict["other"]["info"] = "normal rff"
+    return output_dict
+
+def Experiment_25div():
+    output_dict = Experiment_25d()
+    output_dict["config_name"] = "config25iv"
+    output_dict["other"]["info"] = "GL ML experiment with less layers"
+    return output_dict
+
 def Experiment_26a():
     output_dict = Experiment_25a()
     output_dict["config_name"] = "config26"
@@ -2159,6 +2179,12 @@ def Experiment_26b():
 
 def Experiment_26c():
     output_dict = Experiment_25c()
+    output_dict["config_name"] = "config26"
+    output_dict["other"]["info"] = "GL ML experiment"
+    return output_dict
+
+def Experiment_26d():
+    output_dict = Experiment_25d()
     output_dict["config_name"] = "config26"
     output_dict["other"]["info"] = "GL ML experiment"
     return output_dict

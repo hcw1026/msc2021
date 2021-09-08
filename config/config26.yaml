@@ -59,7 +59,7 @@ Model:
   comp:
     attention_type: dot_product
     deterministic_decoder: true
-    fixed_sigma_epoch: 3
+    fixed_sigma_epoch: 20
     fixed_sigma_value: 0.01
     indp_iter: false
     initial_state_type: constant
@@ -102,7 +102,7 @@ Model:
     init_trainable: false
     isab_n_induce_points: 50
     mapping: deepset1
-    n_layers: 2
+    n_layers: 3
     perm_equi_pool_fn: mean
     sab_nn_layers: 3
     sab_num_heads: 4
