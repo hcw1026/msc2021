@@ -1794,6 +1794,7 @@ class MetaFunBaseGLV3(MetaFunBaseV2):
 
         self.deterministic_encoder_cls.initialise(data_instance=data_instance)
         self.sample_latent_init()
+        #self.initialise_points()
         #self.deterministic_decoder_init()
 
 
@@ -1822,14 +1823,23 @@ class MetaFunRegressorGLV5(MetaFunBaseGLV3, MetaFunRegressorGLV4):
         all_input = tf.concat([tr_input, val_input], axis=-2)
         all_output = tf.concat([tr_output, val_output], axis=-2)
 
+        #initial_point = tf.repeat(self.initial_point, repeats=tf.shape(tr_input)[0] , axis=0)
+
         tr_reprs_deter, val_reprs_deter, tr_input_ff, val_input_ff = self.deterministic_encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output) #deterministic
         tr_reprs_latent, _ = super().Encoder_train_only(tr_input=tr_input, tr_output=tr_output) # latent encoder
+        #_, tr_reprs_latent, _, _ = super().Encoder(tr_input=tr_input, tr_output=tr_output, val_input=initial_point) # latent encoder
+        #_, all_reprs_latent, _, _ = super().Encoder(tr_input=all_input, tr_output=all_output, val_input=initial_point) # latent encoder
         all_reprs_latent, _ = super().Encoder_train_only(tr_input=all_input, tr_output=all_output) # use all datapoints as conte
 
         return self.Decoder(data=data, tr_reprs_deter=tr_reprs_deter, val_reprs_deter=val_reprs_deter, tr_reprs_latent=tr_reprs_latent, all_reprs_latent=all_reprs_latent, tr_input=tr_input_ff, val_input=val_input_ff, num_z_samples=num_z_samples, epoch=epoch)
 
     def deterministic_encoder(self, tr_input, val_input, tr_output):
         return self.deterministic_encoder_cls.Encoder(tr_input=tr_input, val_input=val_input, tr_output=tr_output)
+
+    @snt.once
+    def initialise_points(self):
+        initialiser = tf.random_uniform_initializer(minval=-2., maxval=2.)
+        self.initial_point = tf.Variable(initial_value=initialiser(shape=[1,256,1]), dtype=self._float_dtype, trainable=False, name="initial_point")
 
     @snt.once
     def deterministic_decoder_init(self):

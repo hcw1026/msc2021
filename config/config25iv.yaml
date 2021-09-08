@@ -53,7 +53,7 @@ Model:
     - 64
     dim_reprs: 128
     embedding_layers: 2 #not used here
-    nn_layers: 5 #5 hidden layers = 6 layers
+    nn_layers: 2 #5 hidden layers = 6 layers
     nn_size: 128
     num_iters: 7
   comp:
