@@ -105,7 +105,7 @@ class BaseLearner():
         # Setup (multi-)GPU training
         if self._gpu is not None:
             if not isinstance(self._gpu, list):
-                self._gpu = list(self._gpu) 
+                self._gpu = [self._gpu]
             self.strategy = snt.distribute.Replicator(
                 ["/device:GPU:{}".format(i) for i in self._gpu])
 
