@@ -2169,7 +2169,7 @@ def Experiment_25e():
     output_dict = Experiment_25d()
     output_dict["config_name"] = "config25iv"
     output_dict["other"]["info"] = "GL ML experiment with less layers"
-    output_dict["data"]["custom_kernels"] = {"RBF_Kernel":kernels.RBF(length_scale=(0.2)), "Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5), "Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}
+    output_dict["data"]["custom_kernels"] = {"RBF_Kernel2":kernels.RBF(length_scale=(0.25)), "Matern_Kernel": kernels.Matern(length_scale=0.25, nu=2.5), "Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}
     output_dict["data"]["load_type"] = "var_kernel"
     output_dict["data"]["custom_kernels_merge"] = True
     return output_dict
@@ -2202,7 +2202,7 @@ def Experiment_26e():
     output_dict = Experiment_25d()
     output_dict["config_name"] = "config26"
     output_dict["other"]["info"] = "GL ML experiment"
-    output_dict["data"]["custom_kernels"] = {"RBF_Kernel":kernels.RBF(length_scale=(0.2)), "Periodic_Kernel":kernels.ExpSineSquared(length_scale=0.5, periodicity=0.5), "Noisy_Matern_Kernel":kernels.WhiteKernel(noise_level=0.1) + kernels.Matern(length_scale=0.2, nu=1.5)}
+    output_dict["data"]["custom_kernels"] = {"RBF_Kernel2":kernels.RBF(length_scale=(0.25)), "Matern_Kernel": kernels.Matern(length_scale=0.25, nu=2.5), "Weakly_Periodic_Kernel": kernels.ExpSineSquared(length_scale=1., periodicity=0.25) * kernels.RBF(length_scale=0.5)}
     output_dict["data"]["load_type"] = "var_kernel"
     output_dict["data"]["custom_kernels_merge"] = True
     return output_dict
