@@ -229,7 +229,6 @@ class DataProvider():
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype))
         data = [self.splitter(X=X_, y=y_, indp_target=indp_target) for X_, y_ in zip(*[X,y])]
-        print(len(data[0][0]))
         dataset_out = tf.data.Dataset.from_generator(lambda: data, output_signature=output_signature)
 
         dataset_out = self._dataset_pipeline(dataset_out, batch_size)
