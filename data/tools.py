@@ -212,8 +212,16 @@ def save_chunk(to_save, save_file, idx_chunk):
 def generate_save_signature(kernel_name, min_max, n_points, is_vary_kernel_hyp, n_same_samples, rounding=5, rescale=True):
     output = ""
     output += kernel_name
-    output += str(np.round(min_max[0], rounding)) + str(np.round(min_max[1], rounding)) + "-"
-    output += str(int(n_points)) + "-"
+    if not (isinstance(min_max[0], list) or isinstance(min_max[0], tuple)):
+        output += str(np.round(min_max[0], rounding)) + str(np.round(min_max[1], rounding)) + "-"
+    else:
+        for min_max_ in min_max:
+            output += str(np.round(min_max_[0], rounding)) + str(np.round(min_max_[1], rounding)) + "-"
+    if not (isinstance(min_max[0], list) or isinstance(min_max[0], tuple)):
+        output += str(int(n_points)) + "-"
+    else:
+        for npoints in n_points:
+            output += str(npoints) + "-"
     output += str(int(is_vary_kernel_hyp)) + "-"
     output += str(int(n_same_samples))
     if rescale is False: #TODO: rewrite this
@@ -298,12 +306,33 @@ def setdiff(target_indcs, context_indcs):
 
     return tf.constant(output, dtype=tf.int32)
 
+def setintersect(target_indcs, context_indcs):
+    target_indcs = target_indcs.numpy()
+    context_indcs = context_indcs.numpy()
+
+    batch_size = target_indcs.shape[0]
+    target_unstack = np.vsplit(target_indcs, batch_size)
+    context_unstack = np.vsplit(context_indcs, batch_size)
+
+    output = [np.intersect1d(target_unstack[i], context_unstack[i]) for i in range(batch_size)]
+    output = np.stack(output)
+
+    return tf.constant(output, dtype=tf.int32)
+
 def convert_indices(indices):
     """convert context getter indices into tf.gather_nd compatible indices"""
     batch_size, num_points = indices.shape
     dim_indices =  tf.tile(tf.expand_dims(tf.range(batch_size),-1), (1,num_points))
     return tf.stack([dim_indices, indices],axis=-1)
 
+def process_minmax(min_max):
+    new_min_max = []
+    for min_max_ in min_max:
+        if isinstance(min_max_[0], list) or isinstance(min_max_[0], tuple):
+            new_min_max.extend(min_max_)
+        else:
+            new_min_max.append(min_max_)
+    return new_min_max
 
 #### merge test datasets
 def dataset_translation(dataset, offsets):

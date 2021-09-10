@@ -229,6 +229,7 @@ class DataProvider():
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype),
         tf.TensorSpec(shape=(None, None, 1), dtype=self._float_dtype))
         data = [self.splitter(X=X_, y=y_, indp_target=indp_target) for X_, y_ in zip(*[X,y])]
+        print(len(data[0][0]))
         dataset_out = tf.data.Dataset.from_generator(lambda: data, output_signature=output_signature)
 
         dataset_out = self._dataset_pipeline(dataset_out, batch_size)
@@ -422,6 +423,9 @@ class GPDataset():
         self._idx_precompute = 0  # current index of precomputed data
         self._idx_chunk = 0  # current chunk (i.e. epoch)
 
+        if (isinstance(min_max[0], list) or isinstance(min_max[0], tuple)):
+            self.rescale = False
+
         if kernel is not None: #for subclassing #TODO: make it nicer
             if not is_vary_kernel_hyp:
                 # only fit hyperparam when predicting if using various hyperparam
@@ -460,7 +464,8 @@ class GPDataset():
         n_points=None,
         save_file=None,
         idx_chunk=None,
-        rounding=5
+        rounding=5,
+        X = None
     ):
         """Return a batch of samples
 
@@ -497,19 +502,22 @@ class GPDataset():
 
         save_file = get_save_file(name=save_signature, save_file=save_file)
 
-        try:
-            loaded = load_chunk({"data", "targets"}, save_file, idx_chunk, n_samples)
-            data, targets = loaded["data"], loaded["targets"]
-        except NotLoadedError:
-            X = self._sample_features(test_min_max, n_points, n_samples)
+        if X is None:
+            try:
+                loaded = load_chunk({"data", "targets"}, save_file, idx_chunk, n_samples)
+                data, targets = loaded["data"], loaded["targets"]
+            except NotLoadedError:
+                X = self._sample_features(test_min_max, n_points, n_samples)
+                X, targets = self._sample_targets(X, n_samples)
+                data = self._postprocessing_features(X, n_samples, rescale=self.rescale)
+                save_chunk(
+                    {"data": data, "targets": targets},
+                    save_file,
+                    idx_chunk,
+                )
+        else:
             X, targets = self._sample_targets(X, n_samples)
             data = self._postprocessing_features(X, n_samples, rescale=self.rescale)
-            save_chunk(
-                {"data": data, "targets": targets},
-                save_file,
-                idx_chunk,
-            )
-
         return data, targets
 
     def set_samples_(self, data, targets):
@@ -529,8 +537,16 @@ class GPDataset():
 
     def _sample_features(self, min_max, n_points, n_samples):
         """Sample X with non uniform intervals. """
-        X = np.random.uniform(min_max[1], min_max[0], size=(n_samples, n_points))
-        # sort which is convenient for plotting
+        if not (isinstance(n_points,list) or isinstance(n_points, tuple)):
+            if not (isinstance(min_max[0], list) or isinstance(min_max[0], tuple)):
+                X = np.random.uniform(min_max[0], min_max[1], size=(n_samples, n_points))
+            else:
+                n_left = [0] + list(np.random.choice(np.arange(n_points), len(min_max)-1, replace=False)) + [n_points]
+                sorted(n_left)
+                X = np.concatenate([np.random.uniform(min_max_[0], min_max_[1], size=(n_samples, n_left[idx+1]-n_left[idx])) for idx, min_max_ in enumerate(min_max)],axis=-1)
+            # sort which is convenient for plotting
+        else:
+            X = np.concatenate([np.random.uniform(min_max[idx][0], min_max[idx][1], size=(n_samples, npoint)) for idx, npoint in enumerate(n_points)],axis=-1)
         X.sort(axis=-1)
         return X
 
