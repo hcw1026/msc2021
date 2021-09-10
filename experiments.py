@@ -2211,7 +2211,7 @@ def Experiment_27a():
     output_dict = Experiment_26a()
     output_dict["learner"]["model"] = MetaFunRegressorV4
     output_dict["learner"]["model_name"] = "MetaFunRegressorV4"
-    output_dict["config_name"] = "config25"
+    output_dict["config_name"] = "config27"
     output_dict["other"]["info"] = "GL ML experiment"
     return output_dict
 
@@ -2219,7 +2219,7 @@ def Experiment_27b():
     output_dict = Experiment_26b()
     output_dict["learner"]["model"] = MetaFunRegressorV4
     output_dict["learner"]["model_name"] = "MetaFunRegressorV4"
-    output_dict["config_name"] = "config25"
+    output_dict["config_name"] = "config27"
     output_dict["other"]["info"] = "GL ML experiment"
     return output_dict
 
@@ -2227,7 +2227,7 @@ def Experiment_27d():
     output_dict = Experiment_26d()
     output_dict["learner"]["model"] = MetaFunRegressorV4
     output_dict["learner"]["model_name"] = "MetaFunRegressorV4"
-    output_dict["config_name"] = "config25"
+    output_dict["config_name"] = "config27"
     output_dict["other"]["info"] = "GL ML experiment"
     return output_dict
 
